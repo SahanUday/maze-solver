@@ -1,10 +1,8 @@
 name: CI
 
-# Runs on PR open/update against main only (not on every push to a feature
-# branch) — this is the point where review actually happens, keeping Actions
-# minutes down on a private repo. Docs/image-only PRs never trigger it at all
-# (paths-ignore below); a "skip-tests" label bypasses it for anything else
-# that genuinely doesn't need it.
+# Runs on PR open/update against main only Docs/image-only PRs never trigger it at all
+# "skip-tests" label bypasses it for anything else that genuinely doesn't need it.
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
