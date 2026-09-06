@@ -1,4 +1,4 @@
-name: Firmware Build & Quality Checks
+name: Firmware CI
 
 # Runs on PR open/update against main. Docs/image-only PRs are excluded via
 # paths-ignore; the "skip-tests" label bypasses everything else.
@@ -20,7 +20,7 @@ on:
 
 jobs:
   build-and-check:
-    name: Build & Quality Checks
+    name: Build & Checks
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-tests') }}
     runs-on: ubuntu-latest
     steps:
