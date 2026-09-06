@@ -58,9 +58,6 @@ jobs:
       - name: Banned pattern check
         run: ./scripts/check-banned-patterns.sh
 
-      # Conditional on platformio.ini existing: no firmware project is
-      # committed yet, and these should activate automatically once one is,
-      # without editing this workflow.
       - name: Build (warnings-as-errors)
         if: hashFiles('platformio.ini') != ''
         run: pio run
