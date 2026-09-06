@@ -58,10 +58,13 @@ jobs:
       - name: pre-commit (formatting + hygiene)
         run: pre-commit run --all-files --show-diff-on-failure
 
-      # Deterministic hard bans (no malloc/free/new, no float-formatting
-      # printf) - see scripts/check-banned-patterns.sh and
-      # .claude/skills/avr-c-memory-efficiency / avr-c-speed-optimization for
-      # the reasoning. No-ops cleanly if src/include don't exist yet.
+      # Deterministic hard bans (no malloc/free/new/delete, no STL containers,
+      # no virtual dispatch, no float-formatting printf) - see
+      # scripts/check-banned-patterns.sh and .claude/skills/avr-c-memory-efficiency
+      # / avr-c-speed-optimization / embedded-code-architecture for the
+      # reasoning. No-ops cleanly if src/include don't exist yet. (Exceptions
+      # and RTTI are banned by the compiler itself via -fno-exceptions
+      # -fno-rtti in platformio.ini, not grepped for here.)
       - name: Banned pattern check
         run: ./scripts/check-banned-patterns.sh
 
@@ -90,15 +93,16 @@ jobs:
       # advisory-only (printed, doesn't fail the job) to avoid noisy
       # false-failures on a small student codebase.
       - name: cppcheck (correctness - hard fail)
-        if: hashFiles('src/**/*.c') != ''
+        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
           cppcheck --enable=warning,performance,portability \
+                    --std=c++17 \
                     --error-exitcode=1 \
                     --suppress=missingIncludeSystem \
                     -Iinclude src/
 
       - name: cppcheck (style - advisory only)
-        if: hashFiles('src/**/*.c') != ''
+        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
         run: |
-          cppcheck --enable=style --suppress=missingIncludeSystem -Iinclude src/ || true
+          cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ || true

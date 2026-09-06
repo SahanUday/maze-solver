@@ -26,13 +26,13 @@ repos:
     rev: v18.1.8
     hooks:
       - id: clang-format
-        files: \.(c|h)$
+        files: \.(c|h|cpp|hpp|cc)$
 
   - repo: local
     hooks:
       - id: banned-patterns
-        name: banned patterns (malloc/free/new, float printf)
+        name: banned patterns (malloc/new/delete/virtual/STL, float printf)
         entry: scripts/check-banned-patterns.sh
         language: script
-        files: \.(c|h)$
+        files: \.(c|h|cpp|hpp|cc)$
         pass_filenames: false
