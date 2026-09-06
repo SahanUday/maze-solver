@@ -1,0 +1,38 @@
+# Fast, local checks only — deliberately not the full PlatformIO build/cppcheck
+# here (those run in CI on PR open/update). This project's grading rewards
+# frequent, regular commits (viva checks commit-history consistency), so the
+# pre-commit hook stays sub-second to avoid discouraging small commits or
+# training people to reach for `--no-verify`.
+#
+# One-time setup per clone:
+#   uv tool install pre-commit   # or: pip install pre-commit
+#   pre-commit install
+#
+# Run on demand: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
+    hooks:
+      - id: clang-format
+        files: \.(c|h)$
+
+  - repo: local
+    hooks:
+      - id: banned-patterns
+        name: banned patterns (malloc/free/new, float printf)
+        entry: scripts/check-banned-patterns.sh
+        language: script
+        files: \.(c|h)$
+        pass_filenames: false

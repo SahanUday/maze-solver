@@ -1,0 +1,22 @@
+---
+# Formatting only (brace/indentation/spacing consistency) — this does NOT and
+# cannot enforce naming conventions (snake_case etc.); see
+# .claude/skills/embedded-code-architecture for those.
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Linux       # K&R-ish: braces on their own line for functions,
+                                # same line for control statements — common in
+                                # embedded/kernel-style C
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+IndentCaseLabels: true
+PointerAlignment: Right         # `uint8_t *ptr`, not `uint8_t* ptr`
+AlignConsecutiveAssignments: false
+SortIncludes: false             # avr/io.h before util/delay.h etc. often matters
+                                 # for macro definitions - don't let the formatter
+                                 # silently reorder includes

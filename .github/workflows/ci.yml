@@ -1,0 +1,104 @@
+name: CI
+
+# Runs on PR open/update against main only (not on every push to a feature
+# branch) — this is the point where review actually happens, keeping Actions
+# minutes down on a private repo. Docs/image-only PRs never trigger it at all
+# (paths-ignore below); a "skip-tests" label bypasses it for anything else
+# that genuinely doesn't need it.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'images/**'
+      - 'assets/**'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - 'LICENSE'
+
+jobs:
+  test:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-tests') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # PlatformIO's core dir holds downloaded platforms/toolchains (the slow
+      # part - tens of seconds to minutes on a cold run). Cache it keyed on
+      # platformio.ini so a change to board/platform config busts the cache.
+      - name: Cache PlatformIO core
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install tooling
+        run: pip install -U platformio pre-commit
+
+      # Formatting + generic hygiene (same config as the local pre-commit
+      # hook — single source of truth, and this is the safety net for anyone
+      # who didn't install the local hook or used --no-verify).
+      - name: pre-commit (formatting + hygiene)
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      # Deterministic hard bans (no malloc/free/new, no float-formatting
+      # printf) - see scripts/check-banned-patterns.sh and
+      # .claude/skills/avr-c-memory-efficiency / avr-c-speed-optimization for
+      # the reasoning. No-ops cleanly if src/include don't exist yet.
+      - name: Banned pattern check
+        run: ./scripts/check-banned-patterns.sh
+
+      # Build + SRAM budget gate. Deliberately conditional on platformio.ini
+      # existing: this repo doesn't have a committed PlatformIO project yet,
+      # and CI should stay green (not "there's nothing to test" red) until it
+      # does - the moment a real platformio.ini lands, this activates with no
+      # workflow changes needed.
+      - name: Build (warnings-as-errors)
+        if: hashFiles('platformio.ini') != ''
+        run: pio run
+
+      - name: SRAM budget check
+        if: hashFiles('platformio.ini') != ''
+        run: |
+          ELF=$(find .pio/build -name 'firmware.elf' | head -1)
+          ./scripts/check-ram-budget.sh "$ELF"
+
+      - name: Skip note (no platformio.ini yet)
+        if: hashFiles('platformio.ini') == ''
+        run: echo "No platformio.ini in this PR - skipping build/SRAM checks until the firmware project exists."
+
+      # cppcheck: real static analysis, not judgment calls (uninitialized
+      # vars, out-of-bounds access, suspicious bitwise/precedence bugs, dead
+      # code). warning/performance/portability hard-fail; style is
+      # advisory-only (printed, doesn't fail the job) to avoid noisy
+      # false-failures on a small student codebase.
+      - name: cppcheck (correctness - hard fail)
+        if: hashFiles('src/**/*.c') != ''
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+          cppcheck --enable=warning,performance,portability \
+                    --error-exitcode=1 \
+                    --suppress=missingIncludeSystem \
+                    -Iinclude src/
+
+      - name: cppcheck (style - advisory only)
+        if: hashFiles('src/**/*.c') != ''
+        run: |
+          cppcheck --enable=style --suppress=missingIncludeSystem -Iinclude src/ || true
