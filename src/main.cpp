@@ -7,6 +7,8 @@
 
 #include <Arduino.h>
 
+#include "RobotConfig.h"
+
 static const uint8_t PIN_HEARTBEAT = LED_BUILTIN;   // pin 13 on the Mega
 
 void setup() {
