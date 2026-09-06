@@ -1,0 +1,16 @@
+---
+# Formatting only - doesn't enforce naming conventions (snake_case etc.).
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Linux        # K&R-ish brace style
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+IndentCaseLabels: true
+PointerAlignment: Right         # uint8_t *ptr, not uint8_t* ptr
+AlignConsecutiveAssignments: false
+SortIncludes: false             # include order can matter for AVR headers

@@ -1,2 +1,7 @@
 
 .claude/
+
+# PlatformIO build output
+.pio/
+.pioenvs/
+.piolibdeps/
