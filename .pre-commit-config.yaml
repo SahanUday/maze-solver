@@ -1,13 +1,7 @@
-# Fast, local checks only — deliberately not the full PlatformIO build/cppcheck
-# here (those run in CI on PR open/update). This project's grading rewards
-# frequent, regular commits (viva checks commit-history consistency), so the
-# pre-commit hook stays sub-second to avoid discouraging small commits or
-# training people to reach for `--no-verify`.
+# Fast local checks only - the full build/cppcheck run in CI instead, to keep
+# every commit sub-second (frequent small commits matter for this project).
 #
-# One-time setup per clone:
-#   uv tool install pre-commit   # or: pip install pre-commit
-#   pre-commit install
-#
+# Setup: pip install -r requirements-dev.txt && pre-commit install
 # Run on demand: pre-commit run --all-files
 
 repos:

@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
-# Hard bans pulled from .claude/skills/avr-c-memory-efficiency,
-# avr-c-speed-optimization, and embedded-code-architecture: no dynamic
-# allocation on an 8-bit MCU with no heap worth the flash cost, no
-# float-formatting printf (pulls in a large soft-float routine), no virtual
-# dispatch (no runtime polymorphism this project needs), no STL containers
-# (imply heap allocation). Exceptions and RTTI are enforced by the compiler
-# itself (-fno-exceptions -fno-rtti in platformio.ini) rather than grepped for
-# here — a compile error is more reliable than a regex, and grepping for
-# `try`/`throw` would false-positive on ordinary English comments.
-#
-# These are deterministic, zero-judgment checks, safe to hard-fail on. Run
-# from the repo root; used by both the pre-commit hook and CI.
+# Hard bans: no dynamic allocation, no STL containers, no virtual dispatch, no
+# float-formatting printf. Exceptions/RTTI are rejected by the compiler itself
+# (-fno-exceptions -fno-rtti), not grepped for here. Used by pre-commit and CI.
 set -euo pipefail
 
 SEARCH_DIRS=()
@@ -40,41 +31,31 @@ check() {
 }
 
 check '\b(malloc|calloc|realloc|free)\s*\(' \
-    "dynamic allocation is not allowed in this codebase (no heap on an 8-bit MCU with 8KB SRAM) — use a fixed-size static/global array instead"
+    "dynamic allocation banned (no heap on an 8-bit MCU) - use a fixed-size array"
 
-# Contextual, not a bare `\bnew\b`/`\bdelete\b` — those would false-positive on
-# ordinary English comments ("a new sensor", "delete the old approach"). Real
-# `new`/`delete` expressions are shaped like `= new Type(` / `new Type[` /
-# `delete ptr` / `delete[] arr`.
+# Contextual, not a bare \bnew\b/\bdelete\b, to avoid matching English prose
+# ("a new sensor", "delete the old approach").
 check '[=(,]\s*new\s+[A-Za-z_][A-Za-z0-9_:]*\s*[[(]' \
-    "'new' is not allowed — dynamic allocation is banned project-wide (no heap on an 8-bit MCU)"
+    "'new' banned - dynamic allocation is not allowed"
 
-# Real `delete`/`delete[]` expressions are a pointer expression terminated by
-# `;` (`delete ptr;`, `delete[] arr;`, `delete obj.member;`) — requiring the
-# semicolon avoids matching English prose like "delete the old approach".
-# NOTE on the character class below: a `]` is only literal in a POSIX bracket
-# expression as its very first member (right after `[` or `[^`) — anywhere
-# else it closes the class early. Putting `]` first (`[].[...`) is what makes
-# `]`, `[`, `.`, `>`, `-` all be treated as literal members here instead of
-# silently truncating the class (this bit the very first version of this
-# check: it matched nothing, ever, under real GNU grep).
+# NOTE: `]` is only a literal inside a POSIX bracket expression as its first
+# member - anywhere else it closes the class early. `[]A-Za-z0-9_.[>-]` is
+# deliberate: `]` first, so it (and `[`) are treated as literal members
+# instead of silently truncating the class.
 check '\bdelete(\[\])?\s+[A-Za-z_][]A-Za-z0-9_.[>-]*\s*;' \
-    "'delete'/'delete[]' found, implying 'new' was used somewhere — dynamic allocation is banned project-wide"
+    "'delete' banned - dynamic allocation is not allowed"
 
-# STL containers imply heap allocation we can't afford; fixed-size arrays only.
 check '#include\s*<(vector|map|unordered_map|unordered_set|set|list|deque|string|memory|forward_list)>' \
-    "STL container/heap-backed header included — not allowed on an 8-bit MCU with no heap; use a fixed-size array sized for the known maze/sensor dimensions instead"
+    "STL container header banned (implies heap allocation) - use a fixed-size array"
 
-# Virtual dispatch: a function *declaration* shaped like `virtual <type> name(`,
-# not a bare `\bvirtual\b` (lower false-positive rate against comments).
+# A declaration shaped like `virtual <type> name(`, not a bare \bvirtual\b.
 check '\bvirtual\s+[A-Za-z_][A-Za-z0-9_:<>* ]*\s+[A-Za-z_][A-Za-z0-9_]*\s*\(' \
-    "virtual function found — this project has one fixed hardware configuration known at compile time, so runtime polymorphism/vtables buy nothing and only cost flash + an indirection; use a plain function or, if genuinely needed, a template instead"
+    "virtual function banned - no runtime polymorphism needed (fixed hardware config)"
 
 check '%[-+ 0#]*[0-9]*\.?[0-9]*[fFeEgG]' \
-    "float-formatting printf/sprintf specifier found — pulls in avr-libc's soft-float formatting routine; format as fixed-point integers instead (see avr-c-speed-optimization)"
+    "float-formatting printf/sprintf specifier banned - format as fixed-point integers"
 
 if [ "$fail" -ne 0 ]; then
-    echo "One or more banned patterns found. See .claude/skills/avr-c-memory-efficiency, avr-c-speed-optimization, and embedded-code-architecture for the reasoning." >&2
     exit 1
 fi
 

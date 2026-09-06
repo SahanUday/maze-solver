@@ -1,8 +1,7 @@
 name: CI
 
-# Runs on PR open/update against main only Docs/image-only PRs never trigger it at all
-# "skip-tests" label bypasses it for anything else that genuinely doesn't need it.
-
+# Runs on PR open/update against main. Docs/image-only PRs are excluded via
+# paths-ignore; the "skip-tests" label bypasses everything else.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -30,9 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      # PlatformIO's core dir holds downloaded platforms/toolchains (the slow
-      # part - tens of seconds to minutes on a cold run). Cache it keyed on
-      # platformio.ini so a change to board/platform config busts the cache.
+      # Toolchain download is the slow part of a cold run; cache across runs.
       - name: Cache PlatformIO core
         uses: actions/cache@v4
         with:
@@ -47,30 +44,23 @@ jobs:
           path: ~/.cache/pre-commit
           key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
+      # requirements-dev.txt covers local tooling (pre-commit); platformio is
+      # pinned separately here since it's CI-only (not a local dev dependency).
       - name: Install tooling
-        run: pip install -U platformio pre-commit
+        run: |
+          pip install -r requirements-dev.txt
+          pip install platformio==6.2.0
 
-      # Formatting + generic hygiene (same config as the local pre-commit
-      # hook — single source of truth, and this is the safety net for anyone
-      # who didn't install the local hook or used --no-verify).
+      # Same checks as the local pre-commit hook - catches anyone who skipped it.
       - name: pre-commit (formatting + hygiene)
         run: pre-commit run --all-files --show-diff-on-failure
 
-      # Deterministic hard bans (no malloc/free/new/delete, no STL containers,
-      # no virtual dispatch, no float-formatting printf) - see
-      # scripts/check-banned-patterns.sh and .claude/skills/avr-c-memory-efficiency
-      # / avr-c-speed-optimization / embedded-code-architecture for the
-      # reasoning. No-ops cleanly if src/include don't exist yet. (Exceptions
-      # and RTTI are banned by the compiler itself via -fno-exceptions
-      # -fno-rtti in platformio.ini, not grepped for here.)
       - name: Banned pattern check
         run: ./scripts/check-banned-patterns.sh
 
-      # Build + SRAM budget gate. Deliberately conditional on platformio.ini
-      # existing: this repo doesn't have a committed PlatformIO project yet,
-      # and CI should stay green (not "there's nothing to test" red) until it
-      # does - the moment a real platformio.ini lands, this activates with no
-      # workflow changes needed.
+      # Conditional on platformio.ini existing: no firmware project is
+      # committed yet, and these should activate automatically once one is,
+      # without editing this workflow.
       - name: Build (warnings-as-errors)
         if: hashFiles('platformio.ini') != ''
         run: pio run
@@ -83,13 +73,9 @@ jobs:
 
       - name: Skip note (no platformio.ini yet)
         if: hashFiles('platformio.ini') == ''
-        run: echo "No platformio.ini in this PR - skipping build/SRAM checks until the firmware project exists."
+        run: echo "No platformio.ini in this PR - skipping build/SRAM checks."
 
-      # cppcheck: real static analysis, not judgment calls (uninitialized
-      # vars, out-of-bounds access, suspicious bitwise/precedence bugs, dead
-      # code). warning/performance/portability hard-fail; style is
-      # advisory-only (printed, doesn't fail the job) to avoid noisy
-      # false-failures on a small student codebase.
+      # warning/performance/portability hard-fail; style is advisory-only.
       - name: cppcheck (correctness - hard fail)
         if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
         run: |

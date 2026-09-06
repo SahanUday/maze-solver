@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Enforces an SRAM headroom budget on the built .elf. ATmega2560 has 8192 bytes
-# of SRAM total and no heap (malloc is banned project-wide, see
-# check-banned-patterns.sh) — the only two consumers are static .data+.bss and
-# the call stack. There's no stack-overflow protection on AVR and several ISRs
-# (encoder/timer/ADC) can nest on top of whatever the main loop's call depth is
-# at that instant, so we reserve a fixed 25% of total SRAM for stack headroom
-# no matter how large the static usage grows, rather than letting the budget
-# creep toward 100% as features get added. See
-# .claude/skills/avr-c-memory-efficiency for the full reasoning.
+# Enforces an SRAM headroom budget on the built .elf. No heap (malloc is
+# banned project-wide), so the only consumers are static .data+.bss and the
+# stack - and AVR has no stack-overflow protection, with several ISRs able to
+# nest on top of the main loop's call depth. A fixed 25% of SRAM is reserved
+# for stack no matter how large static usage grows.
 #
 # Usage: scripts/check-ram-budget.sh <path-to-firmware.elf>
 set -euo pipefail
@@ -23,8 +19,8 @@ if [ -z "$AVR_SIZE" ]; then
     exit 2
 fi
 
-# `Data: N bytes (X.X% Full)` is .data + .bss + .noinit — the actual runtime
-# SRAM footprint before the stack is even considered.
+# `Data: N bytes` is .data + .bss + .noinit - the actual runtime SRAM
+# footprint before the stack is even considered.
 DATA_BYTES=$("$AVR_SIZE" --format=avr --mcu=atmega2560 "$ELF" | awk '/^Data:/ {print $2}')
 
 if [ -z "$DATA_BYTES" ]; then
@@ -35,15 +31,13 @@ fi
 PCT=$(( DATA_BYTES * 100 / TOTAL_SRAM ))
 
 echo "SRAM (.data+.bss+.noinit): ${DATA_BYTES} / ${TOTAL_SRAM} bytes (${PCT}%)"
-echo "Reserved for stack: $(( TOTAL_SRAM * (100 - FAIL_PCT) / 100 )) bytes minimum (hard-fail threshold)"
 
 if [ "$PCT" -ge "$FAIL_PCT" ]; then
     echo "FAIL: static RAM usage is ${PCT}% of total SRAM (threshold ${FAIL_PCT}%)." >&2
-    echo "Fewer than $(( TOTAL_SRAM * (100 - FAIL_PCT) / 100 )) bytes would be left for the stack, which is too tight given ISR nesting (encoder/timer/ADC) on top of the main loop's own call depth." >&2
-    echo "See .claude/skills/avr-c-memory-efficiency for how to reduce static usage (PROGMEM tables, smaller types, avoid unnecessary globals)." >&2
+    echo "Reduce static usage: PROGMEM tables, smaller types, fewer globals." >&2
     exit 1
 elif [ "$PCT" -ge "$WARN_PCT" ]; then
-    echo "WARNING: static RAM usage is ${PCT}% of total SRAM (soft threshold ${WARN_PCT}%). Not failing the build, but keep an eye on it."
+    echo "WARNING: static RAM usage is ${PCT}% of total SRAM (soft threshold ${WARN_PCT}%)."
 fi
 
 exit 0

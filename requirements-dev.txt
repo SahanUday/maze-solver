@@ -1,0 +1,4 @@
+# Local dev tooling only (not the firmware itself - see platformio.ini for
+# that once it exists). Install: pip install -r requirements-dev.txt
+# Then: pre-commit install
+pre-commit==4.6.2
