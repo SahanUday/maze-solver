@@ -1,0 +1,189 @@
+// ============================================================================
+//  RobotConfig.h  --  the single source of truth for pins and constants.
+//
+//  RULES FOR THIS FILE (SW-01):
+//    1. Every pin number and every tunable number in the firmware lives HERE.
+//       If you find a numeric literal anywhere else in the codebase, it is a
+//       bug: move it here and give it a name.
+//    2. Use `constexpr`, never `#define`. constexpr values are typed, obey
+//       scope, and are visible to the debugger. Macros are none of those.
+//    3. Put the unit in the name: _MM, _MS, _US, _DEG, _MV, _PWM.
+//       "TRACK_WIDTH = 92" is a bug waiting to happen. "TRACK_WIDTH_MM" is not.
+//    4. Values marked  <<TBD HW-01>>  are placeholders, filled in from
+//       docs/HARDWARE_TRUTH_SHEET.md once the robot is measured.
+//       Grep for "TBD" to see what is still unknown.
+// ============================================================================
+
+#pragma once
+
+#include <Arduino.h>   // for the A0..A9 pin names
+#include <stdint.h>
+
+// ============================================================================
+//  SECTION 1 -- PIN ASSIGNMENTS
+//
+//  Board: Arduino Mega 2560.
+//
+//  Pins that are NOT ours to allocate:
+//    0, 1     USB serial (Serial0). Never reuse - uploading fails.
+//    20, 21   I2C SDA/SCL, hardwired for the MPU-6050.
+//    50-53    Hardware SPI for the SD card.
+//
+//  The Mega has exactly SIX external-interrupt pins:
+//    2 (INT4), 3 (INT5), 18 (INT3), 19 (INT2), 20 (INT1), 21 (INT0)
+//  Four go to the encoders and two are consumed by I2C. There are none left,
+//  which is why nothing else in this project may call attachInterrupt().
+//
+//  Status of each block:
+//    [FIXED]    committed in the HW-01 pin plan; do not change
+//    [PROPOSED] chosen here; must be confirmed against the real wiring and
+//               recorded in docs/HARDWARE_TRUTH_SHEET.md
+// ============================================================================
+
+// ---- Encoders -------------------------------------------------- [FIXED] --
+// Channel A must sit on an interrupt pin: it is what fires the ISR.
+// Channel B is only read inside that ISR to decide direction, so it does not
+// strictly need an interrupt pin - but we spend one on it anyway, because that
+// leaves the door open to full 4x quadrature decoding later without rewiring.
+constexpr uint8_t PIN_ENC_L_A = 2;    // INT4
+constexpr uint8_t PIN_ENC_L_B = 3;    // INT5
+constexpr uint8_t PIN_ENC_R_A = 18;   // INT3
+constexpr uint8_t PIN_ENC_R_B = 19;   // INT2
+
+// ---- I2C bus (MPU-6050 gyro) ----------------------------------- [FIXED] --
+// Listed for documentation only. The Wire library owns these pins; you never
+// reference them directly.
+constexpr uint8_t PIN_I2C_SDA = 20;   // INT1 - consumed by I2C
+constexpr uint8_t PIN_I2C_SCL = 21;   // INT0 - consumed by I2C
+
+// ---- Motor driver ------------------------------------------- [PROPOSED] --
+// Assumes a two-pin-direction driver (L298N / TB6612 style): one PWM speed pin
+// plus two direction pins per motor. If the issued driver uses a single DIR
+// pin instead, drop the _IN2 constants and update the driver code.
+//
+// PWM pins 44/45/46 are all on Timer5, so both motors share one timer and one
+// PWM frequency - which is what you want, or the two wheels respond
+// differently to the same duty cycle. Do NOT move motor PWM to pins 4 or 13:
+// those are Timer0, and Timer0 is what millis() counts on.
+constexpr uint8_t PIN_MOTOR_L_PWM = 44;   // OC5C
+constexpr uint8_t PIN_MOTOR_L_IN1 = 22;
+constexpr uint8_t PIN_MOTOR_L_IN2 = 23;
+constexpr uint8_t PIN_MOTOR_R_PWM = 45;   // OC5B
+constexpr uint8_t PIN_MOTOR_R_IN1 = 24;
+constexpr uint8_t PIN_MOTOR_R_IN2 = 25;
+
+// ---- Ultrasonic wall sensors -------------------------------- [PROPOSED] --
+// Three HC-SR04-style sensors: front, left, right.
+// Fired one at a time, never together - a neighbour's burst arriving at this
+// sensor's receiver reads as a wall that is not there (cross-talk).
+constexpr uint8_t PIN_US_FRONT_TRIG = 30;
+constexpr uint8_t PIN_US_FRONT_ECHO = 31;
+constexpr uint8_t PIN_US_LEFT_TRIG  = 32;
+constexpr uint8_t PIN_US_LEFT_ECHO  = 33;
+constexpr uint8_t PIN_US_RIGHT_TRIG = 34;
+constexpr uint8_t PIN_US_RIGHT_ECHO = 35;
+
+// ---- 8-element IR array ------------------------------------- [PROPOSED] --
+// Wired as an ANALOG array (QTR-8A style): eight analog outputs plus one
+// emitter-enable line. If the issued array is the RC/digital type instead,
+// these become digital pins and the driver changes - but the pin count and the
+// left-to-right ordering stay the same.
+// A0..A7 are digital numbers 54..61 on the Mega; the Ax names are clearer.
+constexpr uint8_t PIN_IR[8]      = { A0, A1, A2, A3, A4, A5, A6, A7 };
+constexpr uint8_t PIN_IR_EMITTER = 36;    // drive HIGH to turn the LEDs on
+
+// ---- Operator controls -------------------------------------- [PROPOSED] --
+// The rules forbid reprogramming the robot between trials, so every run-time
+// choice (which section, which start heading, which speed profile) has to be
+// selectable by hand. That is what these are for.
+constexpr uint8_t PIN_BTN_START = 38;                  // PULLUP: pressed = LOW
+constexpr uint8_t PIN_DIP[4]    = { 40, 41, 42, 43 };  // PULLUP: on = LOW
+constexpr uint8_t PIN_POT       = A8;                  // read once at boot
+
+// ---- Indicators --------------------------------------------- [PROPOSED] --
+// You cannot attach a laptop during a run, so the LEDs and buzzer are the only
+// way the robot tells you what it thinks is happening.
+constexpr uint8_t PIN_LED_STATUS = 26;    // heartbeat / current phase
+constexpr uint8_t PIN_LED_ERROR  = 27;    // something is wrong
+constexpr uint8_t PIN_BUZZER     = 8;     // tone() uses Timer2 - no conflict
+
+// ---- Battery monitor ---------------------------------------- [PROPOSED] --
+// A resistor divider from the pack down to a safe analog input. Motors that
+// slow as the pack sags turn less than they did at full charge; you want to
+// see that coming rather than discover it mid-run.
+constexpr uint8_t PIN_VBAT_SENSE = A9;
+
+// ---- SD card (SPI) --------------------------------------------- [FIXED] --
+// Bench logging only. The module is physically unplugged for official runs.
+// PIN_SD_CS must be configured as OUTPUT even when unused: on AVR, leaving the
+// hardware SS pin as an input lets the SPI peripheral drop into slave mode and
+// the bus stops working, with no error message.
+constexpr uint8_t PIN_SD_MISO = 50;
+constexpr uint8_t PIN_SD_MOSI = 51;
+constexpr uint8_t PIN_SD_SCK  = 52;
+constexpr uint8_t PIN_SD_CS   = 53;
+
+// ============================================================================
+//  SECTION 2 -- GEOMETRY, MOTION, CONTROL, MAZE
+//
+//  Two kinds of constant below:
+//    - Rules-of-the-competition values: fixed by the spec, not by the robot.
+//      Safe to hardcode now.
+//    - Robot-physical values: depend on parts we have not measured or tuned
+//      yet. Left as <<TBD HW-01>> / <<TBD CAL-01>> placeholders - grep for
+//      "TBD" to see what is still unknown. Filling these in without a real
+//      measurement just moves the bug from "obviously missing" to "silently
+//      wrong".
+// ============================================================================
+
+// ---- Competition geometry --------------------------------- [FROM SPEC] --
+constexpr uint16_t TILE_PITCH_MM        = 250;   // centre-to-centre tile spacing
+constexpr uint16_t WALL_HEIGHT_MM       = 100;
+constexpr uint16_t USABLE_CORRIDOR_MM   = 235;   // tile pitch minus wall thickness
+constexpr uint8_t  SECTION_A_SIZE_TILES = 4;      // 4x4
+constexpr uint8_t  SECTION_B_SIZE_TILES = 9;      // 9x9
+constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30;     // 3 cm black line
+
+// ---- Competition timing ------------------------------------ [FROM SPEC] --
+constexpr uint32_t RUN_LIMIT_MS         = 8UL * 60UL * 1000UL;   // 8 minutes per trial
+constexpr uint32_t ARENA_TIME_LIMIT_MS  = 30UL * 60UL * 1000UL;  // total arena access
+constexpr uint8_t  TRIAL_COUNT         = 3;       // best-of-3
+
+// ---- Power / memory budget ---------------------------------- [FROM SPEC] --
+constexpr uint16_t BATTERY_MAX_MV       = 15000;  // charged pack must stay under this
+constexpr uint16_t SRAM_BUDGET_BYTES    = 8192;   // enforced by scripts/check-ram-budget.sh
+
+// ---- Control loop timing ------------------------------------ [SW-01] --
+// A fixed period is what makes the PID's dt a known constant instead of
+// something that drifts with whatever else the loop happens to be doing that
+// tick. 10 ms (100 Hz) clears the "20 Hz or better" Phase-1 gate with margin;
+// CAL-01 may retune once real sensor/motor timing is known.
+constexpr uint16_t CONTROL_LOOP_PERIOD_MS = 10;
+
+// ---- Wheel / drivetrain geometry ---------------------- <<TBD HW-01>> --
+constexpr uint16_t WHEEL_DIAMETER_MM        = 0;   // TBD HW-01: rolled circumference / pi
+constexpr uint16_t TRACK_WIDTH_MM           = 0;   // TBD HW-01: measured, not nominal
+constexpr uint16_t ENCODER_COUNTS_PER_REV   = 0;   // TBD HW-01: one full wheel turn
+// mm travelled per encoder count. Derived from the two rows above once they
+// exist; kept as its own named constant so nothing recomputes it slightly
+// differently in two places.
+constexpr float    MM_PER_ENCODER_COUNT     = 0.0f; // TBD HW-01
+
+// ---- Motor limits -------------------------------------- <<TBD HW-01>> --
+constexpr uint8_t  MOTOR_MIN_PWM_L = 0;   // TBD HW-01: minimum PWM that starts the wheel
+constexpr uint8_t  MOTOR_MIN_PWM_R = 0;   // TBD HW-01
+
+// ---- Ultrasonic sensing --------------------------------- <<TBD HW-01>> --
+constexpr uint16_t US_MIN_RANGE_MM = 0;   // TBD HW-01: closest reliable reading
+constexpr uint16_t US_MAX_RANGE_MM = 0;   // TBD HW-01
+
+// ---- Motion PID gains ----------------------------------- <<TBD CAL-01>> --
+// Left at zero on purpose: an untuned PID that is "on" can drive the robot
+// into a wall just as easily as one that is "off". CAL-01 fills these in
+// from the calibration campaign, not from guessing.
+constexpr float KP_DISTANCE = 0.0f;
+constexpr float KI_DISTANCE = 0.0f;
+constexpr float KD_DISTANCE = 0.0f;
+constexpr float KP_TURN     = 0.0f;
+constexpr float KI_TURN     = 0.0f;
+constexpr float KD_TURN     = 0.0f;
