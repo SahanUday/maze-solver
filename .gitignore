@@ -1,11 +1,14 @@
 # ---- PlatformIO build output --------------------------------------
 # Rebuilt from source every time; never belongs in git.
 .pio/
+.pioenvs/
+.piolibdeps/
 
 # ---- Editor / tooling ---------------------------------------------
 .vscode/
 compile_commands.json
 .clangd/
+.claude/
 
 # ---- Generated at build time --------------------------------------
 # tools/git_version.py rewrites this on every compile.

@@ -1,0 +1,90 @@
+name: Firmware CI
+
+# Runs on PR open/update against main. Docs/image-only PRs are excluded via
+# paths-ignore; the "skip-tests" label bypasses everything else.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'images/**'
+      - 'assets/**'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - 'LICENSE'
+
+jobs:
+  build-and-check:
+    name: Build & Checks
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-tests') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Toolchain download is the slow part of a cold run; cache across runs.
+      - name: Cache PlatformIO core
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # requirements-dev.txt covers local tooling (pre-commit); platformio is
+      # pinned separately here since it's CI-only (not a local dev dependency).
+      - name: Install tooling
+        run: |
+          pip install -r requirements-dev.txt
+          pip install platformio==6.2.0
+
+      # Same checks as the local pre-commit hook - catches anyone who skipped it.
+      - name: pre-commit (formatting + hygiene)
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      - name: Banned pattern check
+        run: ./scripts/check-banned-patterns.sh
+
+      - name: Build (warnings-as-errors)
+        if: hashFiles('platformio.ini') != ''
+        run: pio run
+
+      - name: SRAM budget check
+        if: hashFiles('platformio.ini') != ''
+        run: |
+          ELF=$(find .pio/build -name 'firmware.elf' | head -1)
+          ./scripts/check-ram-budget.sh "$ELF"
+
+      - name: Skip note (no platformio.ini yet)
+        if: hashFiles('platformio.ini') == ''
+        run: echo "No platformio.ini in this PR - skipping build/SRAM checks."
+
+      # warning/performance/portability hard-fail; style is advisory-only.
+      - name: cppcheck (correctness - hard fail)
+        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+          cppcheck --enable=warning,performance,portability \
+                    --std=c++17 \
+                    --error-exitcode=1 \
+                    --suppress=missingIncludeSystem \
+                    -Iinclude src/
+
+      - name: cppcheck (style - advisory only)
+        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
+        run: |
+          cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ || true
