@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <Arduino.h>   // for the A0..A9 pin names
+#include <Arduino.h> // for the A0..A9 pin names
 #include <stdint.h>
 
 // ============================================================================
@@ -45,16 +45,16 @@
 // Channel B is only read inside that ISR to decide direction, so it does not
 // strictly need an interrupt pin - but we spend one on it anyway, because that
 // leaves the door open to full 4x quadrature decoding later without rewiring.
-constexpr uint8_t PIN_ENC_L_A = 2;    // INT4
-constexpr uint8_t PIN_ENC_L_B = 3;    // INT5
-constexpr uint8_t PIN_ENC_R_A = 18;   // INT3
-constexpr uint8_t PIN_ENC_R_B = 19;   // INT2
+constexpr uint8_t PIN_ENC_L_A = 2;  // INT4
+constexpr uint8_t PIN_ENC_L_B = 3;  // INT5
+constexpr uint8_t PIN_ENC_R_A = 18; // INT3
+constexpr uint8_t PIN_ENC_R_B = 19; // INT2
 
 // ---- I2C bus (MPU-6050 gyro) ----------------------------------- [FIXED] --
 // Listed for documentation only. The Wire library owns these pins; you never
 // reference them directly.
-constexpr uint8_t PIN_I2C_SDA = 20;   // INT1 - consumed by I2C
-constexpr uint8_t PIN_I2C_SCL = 21;   // INT0 - consumed by I2C
+constexpr uint8_t PIN_I2C_SDA = 20; // INT1 - consumed by I2C
+constexpr uint8_t PIN_I2C_SCL = 21; // INT0 - consumed by I2C
 
 // ---- Motor driver ------------------------------------------- [PROPOSED] --
 // Assumes a two-pin-direction driver (L298N / TB6612 style): one PWM speed pin
@@ -65,10 +65,10 @@ constexpr uint8_t PIN_I2C_SCL = 21;   // INT0 - consumed by I2C
 // PWM frequency - which is what you want, or the two wheels respond
 // differently to the same duty cycle. Do NOT move motor PWM to pins 4 or 13:
 // those are Timer0, and Timer0 is what millis() counts on.
-constexpr uint8_t PIN_MOTOR_L_PWM = 44;   // OC5C
+constexpr uint8_t PIN_MOTOR_L_PWM = 44; // OC5C
 constexpr uint8_t PIN_MOTOR_L_IN1 = 22;
 constexpr uint8_t PIN_MOTOR_L_IN2 = 23;
-constexpr uint8_t PIN_MOTOR_R_PWM = 45;   // OC5B
+constexpr uint8_t PIN_MOTOR_R_PWM = 45; // OC5B
 constexpr uint8_t PIN_MOTOR_R_IN1 = 24;
 constexpr uint8_t PIN_MOTOR_R_IN2 = 25;
 
@@ -78,8 +78,8 @@ constexpr uint8_t PIN_MOTOR_R_IN2 = 25;
 // sensor's receiver reads as a wall that is not there (cross-talk).
 constexpr uint8_t PIN_US_FRONT_TRIG = 30;
 constexpr uint8_t PIN_US_FRONT_ECHO = 31;
-constexpr uint8_t PIN_US_LEFT_TRIG  = 32;
-constexpr uint8_t PIN_US_LEFT_ECHO  = 33;
+constexpr uint8_t PIN_US_LEFT_TRIG = 32;
+constexpr uint8_t PIN_US_LEFT_ECHO = 33;
 constexpr uint8_t PIN_US_RIGHT_TRIG = 34;
 constexpr uint8_t PIN_US_RIGHT_ECHO = 35;
 
@@ -89,23 +89,23 @@ constexpr uint8_t PIN_US_RIGHT_ECHO = 35;
 // these become digital pins and the driver changes - but the pin count and the
 // left-to-right ordering stay the same.
 // A0..A7 are digital numbers 54..61 on the Mega; the Ax names are clearer.
-constexpr uint8_t PIN_IR[8]      = { A0, A1, A2, A3, A4, A5, A6, A7 };
-constexpr uint8_t PIN_IR_EMITTER = 36;    // drive HIGH to turn the LEDs on
+constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
+constexpr uint8_t PIN_IR_EMITTER = 36; // drive HIGH to turn the LEDs on
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // The rules forbid reprogramming the robot between trials, so every run-time
 // choice (which section, which start heading, which speed profile) has to be
 // selectable by hand. That is what these are for.
-constexpr uint8_t PIN_BTN_START = 38;                  // PULLUP: pressed = LOW
-constexpr uint8_t PIN_DIP[4]    = { 40, 41, 42, 43 };  // PULLUP: on = LOW
-constexpr uint8_t PIN_POT       = A8;                  // read once at boot
+constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
+constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW
+constexpr uint8_t PIN_POT = A8;                  // read once at boot
 
 // ---- Indicators --------------------------------------------- [PROPOSED] --
 // You cannot attach a laptop during a run, so the LEDs and buzzer are the only
 // way the robot tells you what it thinks is happening.
-constexpr uint8_t PIN_LED_STATUS = 26;    // heartbeat / current phase
-constexpr uint8_t PIN_LED_ERROR  = 27;    // something is wrong
-constexpr uint8_t PIN_BUZZER     = 8;     // tone() uses Timer2 - no conflict
+constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
+constexpr uint8_t PIN_LED_ERROR = 27;  // something is wrong
+constexpr uint8_t PIN_BUZZER = 8;      // tone() uses Timer2 - no conflict
 
 // ---- Battery monitor ---------------------------------------- [PROPOSED] --
 // A resistor divider from the pack down to a safe analog input. Motors that
@@ -120,8 +120,8 @@ constexpr uint8_t PIN_VBAT_SENSE = A9;
 // the bus stops working, with no error message.
 constexpr uint8_t PIN_SD_MISO = 50;
 constexpr uint8_t PIN_SD_MOSI = 51;
-constexpr uint8_t PIN_SD_SCK  = 52;
-constexpr uint8_t PIN_SD_CS   = 53;
+constexpr uint8_t PIN_SD_SCK = 52;
+constexpr uint8_t PIN_SD_CS = 53;
 
 // ============================================================================
 //  SECTION 2 -- GEOMETRY, MOTION, CONTROL, MAZE
@@ -137,21 +137,21 @@ constexpr uint8_t PIN_SD_CS   = 53;
 // ============================================================================
 
 // ---- Competition geometry --------------------------------- [FROM SPEC] --
-constexpr uint16_t TILE_PITCH_MM        = 250;   // centre-to-centre tile spacing
-constexpr uint16_t WALL_HEIGHT_MM       = 100;
-constexpr uint16_t USABLE_CORRIDOR_MM   = 235;   // tile pitch minus wall thickness
-constexpr uint8_t  SECTION_A_SIZE_TILES = 4;      // 4x4
-constexpr uint8_t  SECTION_B_SIZE_TILES = 9;      // 9x9
-constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30;     // 3 cm black line
+constexpr uint16_t TILE_PITCH_MM = 250; // centre-to-centre tile spacing
+constexpr uint16_t WALL_HEIGHT_MM = 100;
+constexpr uint16_t USABLE_CORRIDOR_MM = 235;  // tile pitch minus wall thickness
+constexpr uint8_t SECTION_A_SIZE_TILES = 4;   // 4x4
+constexpr uint8_t SECTION_B_SIZE_TILES = 9;   // 9x9
+constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30; // 3 cm black line
 
 // ---- Competition timing ------------------------------------ [FROM SPEC] --
-constexpr uint32_t RUN_LIMIT_MS         = 8UL * 60UL * 1000UL;   // 8 minutes per trial
-constexpr uint32_t ARENA_TIME_LIMIT_MS  = 30UL * 60UL * 1000UL;  // total arena access
-constexpr uint8_t  TRIAL_COUNT         = 3;       // best-of-3
+constexpr uint32_t RUN_LIMIT_MS = 8UL * 60UL * 1000UL;         // 8 minutes per trial
+constexpr uint32_t ARENA_TIME_LIMIT_MS = 30UL * 60UL * 1000UL; // total arena access
+constexpr uint8_t TRIAL_COUNT = 3;                             // best-of-3
 
 // ---- Power / memory budget ---------------------------------- [FROM SPEC] --
-constexpr uint16_t BATTERY_MAX_MV       = 15000;  // charged pack must stay under this
-constexpr uint16_t SRAM_BUDGET_BYTES    = 8192;   // enforced by scripts/check-ram-budget.sh
+constexpr uint16_t BATTERY_MAX_MV = 15000;   // charged pack must stay under this
+constexpr uint16_t SRAM_BUDGET_BYTES = 8192; // enforced by scripts/check-ram-budget.sh
 
 // ---- Control loop timing ------------------------------------ [SW-01] --
 // A fixed period is what makes the PID's dt a known constant instead of
@@ -161,21 +161,21 @@ constexpr uint16_t SRAM_BUDGET_BYTES    = 8192;   // enforced by scripts/check-r
 constexpr uint16_t CONTROL_LOOP_PERIOD_MS = 10;
 
 // ---- Wheel / drivetrain geometry ---------------------- <<TBD HW-01>> --
-constexpr uint16_t WHEEL_DIAMETER_MM        = 0;   // TBD HW-01: rolled circumference / pi
-constexpr uint16_t TRACK_WIDTH_MM           = 0;   // TBD HW-01: measured, not nominal
-constexpr uint16_t ENCODER_COUNTS_PER_REV   = 0;   // TBD HW-01: one full wheel turn
+constexpr uint16_t WHEEL_DIAMETER_MM = 0;      // TBD HW-01: rolled circumference / pi
+constexpr uint16_t TRACK_WIDTH_MM = 0;         // TBD HW-01: measured, not nominal
+constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // TBD HW-01: one full wheel turn
 // mm travelled per encoder count. Derived from the two rows above once they
 // exist; kept as its own named constant so nothing recomputes it slightly
 // differently in two places.
-constexpr float    MM_PER_ENCODER_COUNT     = 0.0f; // TBD HW-01
+constexpr float MM_PER_ENCODER_COUNT = 0.0f; // TBD HW-01
 
 // ---- Motor limits -------------------------------------- <<TBD HW-01>> --
-constexpr uint8_t  MOTOR_MIN_PWM_L = 0;   // TBD HW-01: minimum PWM that starts the wheel
-constexpr uint8_t  MOTOR_MIN_PWM_R = 0;   // TBD HW-01
+constexpr uint8_t MOTOR_MIN_PWM_L = 0; // TBD HW-01: minimum PWM that starts the wheel
+constexpr uint8_t MOTOR_MIN_PWM_R = 0; // TBD HW-01
 
 // ---- Ultrasonic sensing --------------------------------- <<TBD HW-01>> --
-constexpr uint16_t US_MIN_RANGE_MM = 0;   // TBD HW-01: closest reliable reading
-constexpr uint16_t US_MAX_RANGE_MM = 0;   // TBD HW-01
+constexpr uint16_t US_MIN_RANGE_MM = 0; // TBD HW-01: closest reliable reading
+constexpr uint16_t US_MAX_RANGE_MM = 0; // TBD HW-01
 
 // ---- Motion PID gains ----------------------------------- <<TBD CAL-01>> --
 // Left at zero on purpose: an untuned PID that is "on" can drive the robot
@@ -184,6 +184,6 @@ constexpr uint16_t US_MAX_RANGE_MM = 0;   // TBD HW-01
 constexpr float KP_DISTANCE = 0.0f;
 constexpr float KI_DISTANCE = 0.0f;
 constexpr float KD_DISTANCE = 0.0f;
-constexpr float KP_TURN     = 0.0f;
-constexpr float KI_TURN     = 0.0f;
-constexpr float KD_TURN     = 0.0f;
+constexpr float KP_TURN = 0.0f;
+constexpr float KI_TURN = 0.0f;
+constexpr float KD_TURN = 0.0f;

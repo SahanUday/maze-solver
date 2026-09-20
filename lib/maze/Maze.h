@@ -15,8 +15,9 @@
 
 #pragma once
 
-namespace maze {
+namespace maze
+{
 
 constexpr int kPlaceholderOk = 1;
 
-}  // namespace maze
+} // namespace maze

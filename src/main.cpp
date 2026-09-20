@@ -21,7 +21,8 @@
 
 static RobotState g_state;
 
-void setup() {
+void setup()
+{
     Serial.begin(250000);
     pinMode(PIN_LED_STATUS, OUTPUT);
     Serial.println(F("maze-solver: fixed-period loop starting"));
@@ -29,18 +30,21 @@ void setup() {
 
 // Runs once per tick: drivers populate g_state from hardware.
 // Empty until HW-03 wiring + SW-02/SW-03 drivers exist.
-static void readSensors(RobotState &state) {
+static void readSensors(RobotState &state)
+{
     (void)state;
 }
 
 // Runs once per tick, after readSensors(): algorithms read g_state only,
 // and decide what the robot should do next.
 // Empty until SW-02 (motion primitives) exists.
-static void runAlgorithm(const RobotState &state) {
+static void runAlgorithm(const RobotState &state)
+{
     (void)state;
 }
 
-void loop() {
+void loop()
+{
     static uint32_t nextTickMs = 0;
     const uint32_t nowMs = millis();
 

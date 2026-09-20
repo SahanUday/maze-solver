@@ -11,11 +11,13 @@
 
 #include "Maze.h"
 
-static void test_placeholder_builds_and_links() {
+static void test_placeholder_builds_and_links()
+{
     TEST_ASSERT_EQUAL(1, maze::kPlaceholderOk);
 }
 
-int main() {
+int main()
+{
     UNITY_BEGIN();
     RUN_TEST(test_placeholder_builds_and_links);
     return UNITY_END();

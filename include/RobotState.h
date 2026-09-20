@@ -18,18 +18,18 @@
 
 struct RobotState {
     // ---- Timing ------------------------------------------------------
-    uint32_t timestampMs = 0;   // millis() at the start of this tick
+    uint32_t timestampMs = 0; // millis() at the start of this tick
 
     // ---- Odometry (from encoder driver, SW-02) ------------------------
     int32_t encoderCountL = 0;
     int32_t encoderCountR = 0;
 
     // ---- Orientation (from gyro driver, SW-02) ------------------------
-    float headingDeg = 0.0f;   // fused/integrated yaw, 0 = start heading
+    float headingDeg = 0.0f; // fused/integrated yaw, 0 = start heading
 
     // ---- Wall sensing (from ultrasonic driver, SW-03) ------------------
     uint16_t distFrontMm = 0;
-    uint16_t distLeftMm  = 0;
+    uint16_t distLeftMm = 0;
     uint16_t distRightMm = 0;
 
     // ---- Floor sensing (from IR array driver, SW-03c) ------------------
@@ -39,7 +39,7 @@ struct RobotState {
     uint16_t batteryMv = 0;
 
     // ---- Operator controls (read once at boot, HW-03) ------------------
-    bool    startButtonPressed = false;
-    uint8_t dipSwitches        = 0;   // one bit per switch in PIN_DIP
-    uint8_t speedPotRaw        = 0;   // 0-255, scaled from the raw ADC read
+    bool startButtonPressed = false;
+    uint8_t dipSwitches = 0; // one bit per switch in PIN_DIP
+    uint8_t speedPotRaw = 0; // 0-255, scaled from the raw ADC read
 };
