@@ -1,17 +1,25 @@
 // ============================================================================
-//  RobotConfig.h  --  the single source of truth for pins and constants.
+//  RobotConfig.h  --  the single source of truth for pin assignments.
+//
+//  Non-pin constants (geometry, timing, motion, control, PID gains) live in
+//  RobotSpec.h instead, not here - that file must stay free of Arduino.h so
+//  lib/maze (env:native) can include it directly. This file needs Arduino.h
+//  for the A0..A9 pin-name macros, which is fine: it's only ever consumed by
+//  env:mega-only code, never by lib/maze. See
+//  docs/architecture/decisions/0001-hybrid-hardware-abstraction.md for which
+//  pins get direct-register HAL treatment vs. framework calls.
 //
 //  RULES FOR THIS FILE (SW-01):
-//    1. Every pin number and every tunable number in the firmware lives HERE.
-//       If you find a numeric literal anywhere else in the codebase, it is a
-//       bug: move it here and give it a name.
+//    1. Every pin number in the firmware lives HERE. If you find a pin
+//       number anywhere else in the codebase, it is a bug: move it here and
+//       give it a name.
 //    2. Use `constexpr`, never `#define`. constexpr values are typed, obey
 //       scope, and are visible to the debugger. Macros are none of those.
 //    3. Put the unit in the name: _MM, _MS, _US, _DEG, _MV, _PWM.
 //       "TRACK_WIDTH = 92" is a bug waiting to happen. "TRACK_WIDTH_MM" is not.
 //    4. Values marked  <<TBD HW-01>>  are placeholders, filled in from
 //       docs/HARDWARE_TRUTH_SHEET.md once the robot is measured.
-//       Grep for "TBD" to see what is still unknown.
+//       Run `scripts/list-tbds.sh` to see what is still unknown.
 // ============================================================================
 
 #pragma once
@@ -122,68 +130,3 @@ constexpr uint8_t PIN_SD_MISO = 50;
 constexpr uint8_t PIN_SD_MOSI = 51;
 constexpr uint8_t PIN_SD_SCK = 52;
 constexpr uint8_t PIN_SD_CS = 53;
-
-// ============================================================================
-//  SECTION 2 -- GEOMETRY, MOTION, CONTROL, MAZE
-//
-//  Two kinds of constant below:
-//    - Rules-of-the-competition values: fixed by the spec, not by the robot.
-//      Safe to hardcode now.
-//    - Robot-physical values: depend on parts we have not measured or tuned
-//      yet. Left as <<TBD HW-01>> / <<TBD CAL-01>> placeholders - grep for
-//      "TBD" to see what is still unknown. Filling these in without a real
-//      measurement just moves the bug from "obviously missing" to "silently
-//      wrong".
-// ============================================================================
-
-// ---- Competition geometry --------------------------------- [FROM SPEC] --
-constexpr uint16_t TILE_PITCH_MM = 250; // centre-to-centre tile spacing
-constexpr uint16_t WALL_HEIGHT_MM = 100;
-constexpr uint16_t USABLE_CORRIDOR_MM = 235;  // tile pitch minus wall thickness
-constexpr uint8_t SECTION_A_SIZE_TILES = 4;   // 4x4
-constexpr uint8_t SECTION_B_SIZE_TILES = 9;   // 9x9
-constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30; // 3 cm black line
-
-// ---- Competition timing ------------------------------------ [FROM SPEC] --
-constexpr uint32_t RUN_LIMIT_MS = 8UL * 60UL * 1000UL;         // 8 minutes per trial
-constexpr uint32_t ARENA_TIME_LIMIT_MS = 30UL * 60UL * 1000UL; // total arena access
-constexpr uint8_t TRIAL_COUNT = 3;                             // best-of-3
-
-// ---- Power / memory budget ---------------------------------- [FROM SPEC] --
-constexpr uint16_t BATTERY_MAX_MV = 15000;   // charged pack must stay under this
-constexpr uint16_t SRAM_BUDGET_BYTES = 8192; // enforced by scripts/check-ram-budget.sh
-
-// ---- Control loop timing ------------------------------------ [SW-01] --
-// A fixed period is what makes the PID's dt a known constant instead of
-// something that drifts with whatever else the loop happens to be doing that
-// tick. 10 ms (100 Hz) clears the "20 Hz or better" Phase-1 gate with margin;
-// CAL-01 may retune once real sensor/motor timing is known.
-constexpr uint16_t CONTROL_LOOP_PERIOD_MS = 10;
-
-// ---- Wheel / drivetrain geometry ---------------------- <<TBD HW-01>> --
-constexpr uint16_t WHEEL_DIAMETER_MM = 0;      // TBD HW-01: rolled circumference / pi
-constexpr uint16_t TRACK_WIDTH_MM = 0;         // TBD HW-01: measured, not nominal
-constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // TBD HW-01: one full wheel turn
-// mm travelled per encoder count. Derived from the two rows above once they
-// exist; kept as its own named constant so nothing recomputes it slightly
-// differently in two places.
-constexpr float MM_PER_ENCODER_COUNT = 0.0f; // TBD HW-01
-
-// ---- Motor limits -------------------------------------- <<TBD HW-01>> --
-constexpr uint8_t MOTOR_MIN_PWM_L = 0; // TBD HW-01: minimum PWM that starts the wheel
-constexpr uint8_t MOTOR_MIN_PWM_R = 0; // TBD HW-01
-
-// ---- Ultrasonic sensing --------------------------------- <<TBD HW-01>> --
-constexpr uint16_t US_MIN_RANGE_MM = 0; // TBD HW-01: closest reliable reading
-constexpr uint16_t US_MAX_RANGE_MM = 0; // TBD HW-01
-
-// ---- Motion PID gains ----------------------------------- <<TBD CAL-01>> --
-// Left at zero on purpose: an untuned PID that is "on" can drive the robot
-// into a wall just as easily as one that is "off". CAL-01 fills these in
-// from the calibration campaign, not from guessing.
-constexpr float KP_DISTANCE = 0.0f;
-constexpr float KI_DISTANCE = 0.0f;
-constexpr float KD_DISTANCE = 0.0f;
-constexpr float KP_TURN = 0.0f;
-constexpr float KI_TURN = 0.0f;
-constexpr float KD_TURN = 0.0f;
