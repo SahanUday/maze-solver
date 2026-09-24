@@ -10,17 +10,6 @@ compile_commands.json
 .clangd/
 .claude/
 
-# ---- Generated at build time --------------------------------------
-# tools/git_version.py rewrites this on every compile.
-include/Version.h
-
-# ---- Test logs -----------------------------------------------------
-# Ignore day-to-day runs, but keep the reference ("golden") runs and
-# the manifest that indexes them.
-runs/*
-!runs/golden/
-!runs/MANIFEST.csv
-
 # ---- Python analysis toolkit ---------------------------------------
 __pycache__/
 *.pyc
