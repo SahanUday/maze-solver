@@ -3,7 +3,16 @@
 # banned project-wide), so the only consumers are static .data+.bss and the
 # stack - and AVR has no stack-overflow protection, with several ISRs able to
 # nest on top of the main loop's call depth. A fixed 25% of SRAM is reserved
-# for stack no matter how large static usage grows.
+# for stack no matter how large static usage grows - a documented assumption,
+# not a measurement: there's no interrupt-driven code yet to measure real
+# stack usage against.
+#
+# <<TBD FIRST-ISR>>: once the first interrupt-driven driver exists (most
+# likely the encoder ISR), replace this flat 25% assumption with a real
+# measurement - fill unused SRAM with a known byte pattern at boot ("stack
+# painting"), run a real worst-case scenario (interrupts firing while the
+# main loop is at its deepest call), then scan for how much of the pattern
+# got overwritten. That's an empirical high-water mark, not a guess.
 #
 # Usage: scripts/check-ram-budget.sh <path-to-firmware.elf>
 set -euo pipefail

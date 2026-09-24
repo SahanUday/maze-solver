@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SEARCH_DIRS=()
-for d in src include lib; do
+for d in src include lib scripts; do
     [ -d "$d" ] && SEARCH_DIRS+=("$d")
 done
 
@@ -22,7 +22,9 @@ if [ ${#SEARCH_DIRS[@]} -eq 0 ]; then
     exit 0
 fi
 
-EXTS=(--include='*.c' --include='*.h' --include='*.cpp' --include='*.hpp' --include='*.cc')
+# TBDs aren't only in C/C++ - scripts/ carries some too (see
+# check-ram-budget.sh). Match both, or a marker there silently goes unseen.
+EXTS=(--include='*.c' --include='*.h' --include='*.cpp' --include='*.hpp' --include='*.cc' --include='*.sh')
 
 matches=$(grep -rnE '<<TBD [A-Z0-9-]+>>' "${SEARCH_DIRS[@]}" "${EXTS[@]}" || true)
 
