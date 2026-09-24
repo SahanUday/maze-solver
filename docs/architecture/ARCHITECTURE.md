@@ -36,9 +36,7 @@ This directory is deliberately split by how often each piece changes:
   module's first working code, never ahead of it.
 
 This project does not maintain a separate long-range roadmap document as a
-source of truth — see the closed
-[build-roadmap issue](https://github.com/SahanUday/maze-solver/issues/5) for
-why: a detailed upfront plan (Big Design Up Front) drifts out of sync with
+source of truth. A detailed upfront plan (Big Design Up Front) drifts out of sync with
 reality faster than it gets updated. We document what's real, when it becomes
 real (Just Enough Design Up Front).
 
@@ -60,13 +58,13 @@ register or an Arduino I/O call directly:
 ## Fixed-period control loop
 
 `src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
-every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`), using
-a `millis()`-rollover-safe check rather than `delay()`. The tick target
-advances from the *previous* target (`nextTickMs += period`), not from the
-actual fire time, so a slow tick doesn't permanently shift the schedule — a
-fixed period is what keeps the PID's `dt` a known constant. If a tick falls
-more than one period behind, the schedule resyncs to now rather than firing
-a burst of catch-up ticks.
+every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`). The
+tick-due/drift-resync logic itself lives in `include/Scheduler.h`
+(`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
+hardware dependency, so keeping it Arduino-free is what lets it run under
+`env:native`'s test suite instead of only being checked by reading it.
+`test/test_scheduler/` covers the jitter, catch-up-resync, and
+`millis()`-wraparound cases directly.
 
 ## Driver/algorithm boundary — RobotState
 

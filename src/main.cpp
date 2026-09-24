@@ -9,6 +9,7 @@
 #include "RobotConfig.h"
 #include "RobotSpec.h"
 #include "RobotState.h"
+#include "Scheduler.h"
 
 static RobotState g_state;
 
@@ -37,16 +38,8 @@ void loop()
     static uint32_t nextTickMs = 0;
     const uint32_t nowMs = millis();
 
-    // Not due yet.
-    if (static_cast<int32_t>(nowMs - nextTickMs) < 0) {
+    if (!tickDue(nowMs, nextTickMs, CONTROL_LOOP_PERIOD_MS)) {
         return;
-    }
-
-    // Advance from the previous target (avoids drift). Resync if more than
-    // one period behind, instead of firing a catch-up burst.
-    nextTickMs += CONTROL_LOOP_PERIOD_MS;
-    if (static_cast<int32_t>(nowMs - nextTickMs) > 0) {
-        nextTickMs = nowMs;
     }
 
     g_state.timestampMs = nowMs;
