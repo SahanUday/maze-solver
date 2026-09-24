@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# Enforces an SRAM headroom budget on the built .elf. No heap (malloc is
-# banned project-wide), so the only consumers are static .data+.bss and the
-# stack - and AVR has no stack-overflow protection, with several ISRs able to
-# nest on top of the main loop's call depth. A fixed 25% of SRAM is reserved
-# for stack no matter how large static usage grows - a documented assumption,
-# not a measurement: there's no interrupt-driven code yet to measure real
-# stack usage against.
-#
-# <<TBD FIRST-ISR>>: once the first interrupt-driven driver exists (most
-# likely the encoder ISR), replace this flat 25% assumption with a real
-# measurement - fill unused SRAM with a known byte pattern at boot ("stack
-# painting"), run a real worst-case scenario (interrupts firing while the
-# main loop is at its deepest call), then scan for how much of the pattern
-# got overwritten. That's an empirical high-water mark, not a guess.
+# Checks static RAM (.data+.bss) against the 8KB SRAM budget.
+# Reserves 25% for stack - an assumption, not a measurement (no ISRs yet).
+# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement
+# once an interrupt-driven driver exists.
 #
 # Usage: scripts/check-ram-budget.sh <path-to-firmware.elf>
 set -euo pipefail
@@ -28,8 +18,6 @@ if [ -z "$AVR_SIZE" ]; then
     exit 2
 fi
 
-# `Data: N bytes` is .data + .bss + .noinit - the actual runtime SRAM
-# footprint before the stack is even considered.
 DATA_BYTES=$("$AVR_SIZE" --format=avr --mcu=atmega2560 "$ELF" | awk '/^Data:/ {print $2}')
 
 if [ -z "$DATA_BYTES" ]; then

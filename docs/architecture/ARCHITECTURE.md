@@ -89,8 +89,8 @@ timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
 include it directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
 without pulling in a framework the host build doesn't have.
 
-Placeholder values not yet measured (`<<TBD HW-01>>`) or tuned
-(`<<TBD CAL-01>>`) are named now with their real unit, left at `0`, and
+Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
+(`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
 tracked via `scripts/list-tbds.sh` rather than a comment someone has to
 happen to read.
 
