@@ -20,7 +20,6 @@
 //  Reserved pins:
 //    0, 1     USB serial (Serial0)
 //    20, 21   I2C SDA/SCL (MPU-6050)
-//    50-53    Hardware SPI (SD card)
 //
 //  Interrupts: INT2-INT5 (D19, D18, D2, D3) are the encoders; INT0/INT1 are
 //  the I2C pins. Ultrasonic echoes use the PCINT2 bank (PORTK = A8-A15).
@@ -83,14 +82,3 @@ constexpr uint8_t PIN_POT = A8;                  // read once at boot
 // ---- Indicators --------------------------------------------- [PROPOSED] --
 constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
 constexpr uint8_t PIN_LED_ERROR = 27;  // something is wrong
-
-// ---- Battery monitor ---------------------------------------- [PROPOSED] --
-constexpr uint8_t PIN_VBAT_SENSE = A9; // resistor divider
-
-// ---- SD card (SPI) --------------------------------------------- [FIXED] --
-// Bench logging only; unplugged for official runs.
-// PIN_SD_CS must stay OUTPUT even when unused, or SPI drops into slave mode.
-constexpr uint8_t PIN_SD_MISO = 50;
-constexpr uint8_t PIN_SD_MOSI = 51;
-constexpr uint8_t PIN_SD_SCK = 52;
-constexpr uint8_t PIN_SD_CS = 53;

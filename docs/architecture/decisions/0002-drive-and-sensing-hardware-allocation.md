@@ -20,7 +20,7 @@ Neither matches this hardware.
 
 The map also has to leave room for modules not written yet: non-blocking
 ultrasonic echo timing (interrupt edges + a timestamp), the 8-channel ADC IR
-array, I2C IMU, and SD logging.
+array and I2C IMU.
 
 ## Decision
 
@@ -36,6 +36,10 @@ array, I2C IMU, and SD logging.
 | Timer3 | Reserved: free-running timestamp for ultrasonic echo |
 | Timer5 | Spare |
 
+Dropped from the project: the buzzer, the battery monitor and the SD card. Their
+pin constants are removed from `RobotConfig.h`, and the rows 0001 lists for
+them no longer apply.
+
 Rules behind it:
 
 - **Each encoder's A and B sit on one port, A on the lower bit.** One `PINx`
@@ -44,9 +48,9 @@ Rules behind it:
 - **Encoders get the four dedicated external-interrupt vectors** (INT2-INT5).
   INT0/INT1 are the I2C pins, so no external-interrupt vector is left over.
   Consequence: Serial1 (D18/D19) is unavailable.
-- **Ultrasonic echoes go on PORTK**, the only free 8-bit pin-change bank. PORTB's
-  bank overlaps the SD card's SPI pins, and the previous echo pins (D31/33/35)
-  had no interrupt capability at all, which would force blocking `pulseIn()`.
+- **Ultrasonic echoes go on PORTK**, a whole pin-change bank with no other
+  users. The previous echo pins (D31/33/35) had no interrupt capability at
+  all, which would force blocking `pulseIn()`.
 - **Both legs of one motor share a timer**, so direction changes never straddle
   two counters. The two motors use different timers (a timer has only three
   compare channels). Timer4 and Timer1 put all six motor wires on the top

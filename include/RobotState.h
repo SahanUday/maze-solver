@@ -28,9 +28,6 @@ struct RobotState {
     // ---- Floor sensing (from the IR array driver) ---------------------
     uint16_t irRaw[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-    // ---- Power (from the battery-monitor driver) ----------------------
-    uint16_t batteryMv = 0;
-
     // ---- Operator controls (read once at boot) ------------------------
     bool startButtonPressed = false;
     uint8_t dipSwitches = 0; // one bit per switch in PIN_DIP
