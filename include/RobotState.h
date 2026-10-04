@@ -14,7 +14,7 @@ struct RobotState {
     uint32_t timestampMs = 0; // millis() at the start of this tick
 
     // ---- Odometry (from the encoder driver) ---------------------------
-    int32_t encoderCountL = 0;
+    int32_t encoderCountL = 0; // signed 4x counts since boot, + = wheel-forward
     int32_t encoderCountR = 0;
 
     // ---- Orientation (from the gyro driver) ---------------------------

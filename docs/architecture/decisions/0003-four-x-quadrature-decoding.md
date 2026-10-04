@@ -33,7 +33,10 @@ direction.
 
 ## Consequences
 
-- Encoder counts per wheel revolution = `11 x gear ratio x 4`. The
+- Needs a usable channel B on both motors. If a unit cannot provide one,
+  supersede this decision with A-only counting.
+- Encoder counts per wheel revolution = `11 x gear ratio x 4` (11 is the
+  supplier's per-motor-shaft figure; confirm by measurement). The
   `ENCODER_COUNTS_PER_REV` and `MM_PER_ENCODER_COUNT` constants must assume 4x
   when they are filled in. Switching decode mode later would silently rescale
   them, so this is fixed here.

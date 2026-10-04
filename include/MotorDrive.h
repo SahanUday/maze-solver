@@ -13,7 +13,7 @@ struct MotorDuty {
 };
 
 // command > 0 drives RPWM, < 0 drives LPWM, the other leg is 0. Magnitude is
-// clamped to `top`. Both legs 0 = brake (both low-side FETs on).
+// clamped to `top`. Both legs 0 = both driver inputs low.
 constexpr MotorDuty motorDutyFromCommand(int16_t command, uint16_t top)
 {
     const int32_t c = command;

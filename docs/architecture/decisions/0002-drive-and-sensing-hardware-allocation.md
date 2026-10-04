@@ -65,8 +65,9 @@ Rules behind it:
   (`MOTOR_MIN_PWM_*`) must be measured at 20 kHz; numbers measured with
   `analogWrite()`'s default ~490 Hz do not transfer.
 - Idle-leg handling: a leg at duty 0 is disconnected from its timer and held
-  low, so duty 0 is a true constant low. With EN high, both legs low brakes;
-  EN low coasts.
+  low, so duty 0 is a true constant low. From the BTS7960's input truth table,
+  both legs low with EN high should brake and EN low should coast; not yet
+  confirmed on hardware.
 - The ultrasonic and timestamp-timer rows are reservations. The ultrasonic
   module will confirm or amend them when it is built.
 - Wiring the robot to this map is a manual step; the physical connections are

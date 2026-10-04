@@ -15,5 +15,5 @@ void motorsInit();
 void motorsEnable(bool enabled);
 
 // Signed duty in timer counts, clamped to +-MOTOR_PWM_TOP. > 0 is forward
-// (after MOTOR_*_INVERT). 0 with EN high brakes (both low-side FETs on).
+// (after MOTOR_*_INVERT). 0 with EN high holds both inputs low.
 void motorSet(Motor motor, int16_t command);

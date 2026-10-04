@@ -26,8 +26,11 @@ state. `+` means A leads B; `ENC_L_INVERT` / `ENC_R_INVERT` flip it per side.
 
 ## Status
 
-Compiles; the decode logic is covered by `test/test_quadrature` on the host. Not
-yet run against a real encoder. Bring-up: spin each wheel by hand forward and
-check the count rises (else set `ENC_*_INVERT`); turn one output revolution and
-record the count to get `ENCODER_COUNTS_PER_REV`; confirm no phantom counts with
-the motor drivers running.
+Compiles; the decode logic is covered by `test/test_quadrature` on the host.
+Channel A has been seen counting on a real motor; channel B, and so full 4x
+decoding, has not been verified on hardware.
+
+Bring-up: spin each wheel by hand and check both channels toggle and the count
+rises forward (else set `ENC_*_INVERT`); turn one output revolution and record
+the count to get `ENCODER_COUNTS_PER_REV`; confirm no phantom counts with the
+motor drivers running.

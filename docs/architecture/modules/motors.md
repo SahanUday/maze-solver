@@ -20,7 +20,8 @@ RPWM D11, OC1B = LPWM D12, EN D10). Fast PWM mode 14, `ICRn` = 799, clk/1 =
 leg at zero is disconnected from its timer and held low, so duty 0 is a true
 constant low.
 
-With EN high, a command of 0 brakes (both low-side FETs on); EN low coasts.
+From the BTS7960 truth table, with EN high a command of 0 should brake (both
+low-side FETs on) and EN low should coast. Not yet confirmed on hardware.
 
 ## Invariants
 

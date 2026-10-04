@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <Arduino.h> // for the A0..A9 pin names
+#include <Arduino.h> // for the A0..A15 pin names
 #include <stdint.h>
 
 // ============================================================================
