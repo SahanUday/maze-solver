@@ -7,11 +7,11 @@
 
 The JGA25-370 encoder outputs 2-channel quadrature, 11 pulses per *motor* shaft
 revolution before the gearbox. The team's earlier convention, and the motor/encoder
-design PDF's default, counts rising edges of channel A only (1x) and takes
+design notes' default, counts rising edges of channel A only (1x) and takes
 direction from the sign of the commanded PWM.
 
 The control loop runs at 100 Hz, so a speed PID sees `counts per 10 ms tick`.
-With the PDF's *assumed* 1:50 gearbox and 65 mm wheel (neither measured yet) at
+With an *assumed* 1:50 gearbox and 65 mm wheel (neither measured yet) at
 0.3 m/s:
 
 | Decode | Counts per wheel rev | Counts per 10 ms tick |
@@ -51,7 +51,7 @@ direction.
 
 ## Alternatives considered
 
-- **1x, channel A only** (PDF default): cheapest, but too coarse for the 100 Hz
+- **1x, channel A only** (the earlier default): cheapest, but too coarse for the 100 Hz
   PID and blind to reverse motion.
 - **2x: A on CHANGE, B polled in the ISR:** frees two interrupt pins, halves the
   resolution gain, and still reads B at a different instant from A's edge.

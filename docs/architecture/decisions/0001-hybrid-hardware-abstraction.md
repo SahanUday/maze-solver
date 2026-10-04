@@ -64,8 +64,6 @@ Concretely:
 | `imu` (MPU-6050) | Arduino + vetted library (`Wire.h`) | Fusion-correctness risk outweighs the cycle cost; not in the 100Hz hot path |
 | Serial debug, heartbeat LED | Arduino calls | Low-frequency, non-critical |
 | Button / DIP switches / speed pot | Arduino calls | Read once at boot, never in the hot path |
-| Battery monitor | Arduino calls, low sample rate | Fine as blocking `analogRead` if sampled every N ticks, not every tick |
-| SD logging | Arduino + library | Bench-only tooling, unplugged for the actual competition run |
 
 ## Consequences
 

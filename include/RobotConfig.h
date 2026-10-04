@@ -22,12 +22,10 @@
 //    20, 21   I2C SDA/SCL (MPU-6050)
 //
 //  Interrupts: INT2-INT5 (D19, D18, D2, D3) are the encoders; INT0/INT1 are
-//  the I2C pins. Ultrasonic echoes use the PCINT2 bank (PORTK = A8-A15).
-//  Serial1 (D18/D19) is therefore unavailable.
+//  the I2C pins. Serial1 (D18/D19) is therefore unavailable.
 //
-//  Timers: Timer0 Arduino millis(); Timer1 right motor PWM; Timer2 unused;
-//  Timer3 reserved (ultrasonic timestamp); Timer4 left motor PWM; Timer5
-//  spare. See decisions/0002.
+//  Timers: Timer0 Arduino millis(); Timer1 right motor PWM; Timer4 left motor
+//  PWM. See decisions/0002.
 //
 //  [FIXED]    locked in; do not change
 //  [PROPOSED] must be confirmed against real wiring

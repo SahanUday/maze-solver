@@ -14,13 +14,8 @@ outputs: four in total.
 
 Nothing is wired yet, so the pin map is free. Two earlier inputs were set aside:
 `RobotConfig.h`'s motor block assumed an L298N-style driver (one PWM + IN1/IN2),
-and the team's motor/encoder design PDF assumed the same driver, put encoder
-channel B on polled pins, and was written to fix a conflict in another document.
-Neither matches this hardware.
-
-The map also has to leave room for modules not written yet: non-blocking
-ultrasonic echo timing (interrupt edges + a timestamp), the 8-channel ADC IR
-array and I2C IMU.
+and the team's earlier motor/encoder design notes assumed the same driver and put
+encoder channel B on polled pins. Neither matches this hardware.
 
 ## Decision
 
@@ -30,15 +25,7 @@ array and I2C IMU.
 | Right encoder | A = D19 (PD2, INT2), B = D18 (PD3, INT3) |
 | Left motor | RPWM D6 (OC4A), LPWM D7 (OC4B), EN D8, all Timer4 |
 | Right motor | RPWM D11 (OC1A), LPWM D12 (OC1B), EN D10, all Timer1 |
-| Ultrasonic echo (reserved) | A13/A14/A15 (PK5-7, PCINT21-23) |
 | Timer0 | Arduino `millis()`, untouched |
-| Timer2 | Unused |
-| Timer3 | Reserved: free-running timestamp for ultrasonic echo |
-| Timer5 | Spare |
-
-Dropped from the project: the buzzer, the battery monitor and the SD card. Their
-pin constants are removed from `RobotConfig.h`, and the rows 0001 lists for
-them no longer apply.
 
 Rules behind it:
 
@@ -48,9 +35,6 @@ Rules behind it:
 - **Encoders get the four dedicated external-interrupt vectors** (INT2-INT5).
   INT0/INT1 are the I2C pins, so no external-interrupt vector is left over.
   Consequence: Serial1 (D18/D19) is unavailable.
-- **Ultrasonic echoes go on PORTK**, a whole pin-change bank with no other
-  users. The previous echo pins (D31/33/35) had no interrupt capability at
-  all, which would force blocking `pulseIn()`.
 - **Both legs of one motor share a timer**, so direction changes never straddle
   two counters. The two motors use different timers (a timer has only three
   compare channels). Timer4 and Timer1 put all six motor wires on the top
@@ -72,14 +56,12 @@ Rules behind it:
   low, so duty 0 is a true constant low. From the BTS7960's input truth table,
   both legs low with EN high should brake and EN low should coast; not yet
   confirmed on hardware.
-- The ultrasonic and timestamp-timer rows are reservations. The ultrasonic
-  module will confirm or amend them when it is built.
 - Wiring the robot to this map is a manual step; the physical connections are
   not verified by any test in this repo.
 
 ## Alternatives considered
 
-- **The PDF's map** (D5/D6 PWM, D7-D10 direction, encoder B on D11/D12): written
+- **The earlier notes' map** (D5/D6 PWM, D7-D10 direction, encoder B on D11/D12): written
   for an L298N-style driver; the D11/D12 B-channel idea also leaves A and B in
   different ports, and its interrupt-number labels for the Mega (D2/D3 as
   INT0/INT1) are wrong.
@@ -88,6 +70,5 @@ Rules behind it:
 - **Motors on Timer3 (OC3B/OC3C = D2/D3):** the timer guide's example choice;
   collides with the encoder pins.
 - **Encoders on the PCINT2 bank (one shared ISR):** frees external-interrupt
-  pins, but every edge pays for diffing four channels and it takes the one bank
-  the ultrasonic echoes need.
+  pins, but every edge pays for diffing four channels.
 - **EN tied to VCC (no GPIO):** saves two pins, loses the firmware kill switch.
