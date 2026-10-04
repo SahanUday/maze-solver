@@ -8,7 +8,8 @@ Two HW-039 / IBT_2 (BTS7960) drivers, register-level PWM. Code:
 
 - `motorsInit()` - all pins low, EN low (coast), timers running at duty 0. Does
   not enable the drivers.
-- `motorsEnable(bool)` - EN pins. Low = both half-bridges off, motors coast.
+- `motorsEnable(bool)` - EN pins. Low = both half-bridges off (coast) and both
+  commands zeroed, so a later enable starts from rest.
 - `motorSet(Motor, int16_t)` - signed duty in timer counts, clamped to
   +-`MOTOR_PWM_TOP` (799). `> 0` is forward after `MOTOR_*_INVERT`.
 

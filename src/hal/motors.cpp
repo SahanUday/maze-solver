@@ -94,6 +94,8 @@ void motorsEnable(bool enabled)
     } else {
         PORTH &= ~(1 << PH5);
         PORTB &= ~(1 << PB4);
+        setLeft({0, 0});
+        setRight({0, 0});
     }
 }
 

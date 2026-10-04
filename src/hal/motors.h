@@ -11,7 +11,8 @@ enum class Motor : uint8_t { Left, Right };
 // All pins low, EN low (coast), PWM timers running at duty 0. Does NOT enable.
 void motorsInit();
 
-// EN pins. false = both half-bridges off, motors coast regardless of duty.
+// EN pins. false = both half-bridges off (coast) and both commands zeroed, so a
+// later enable starts from rest.
 void motorsEnable(bool enabled);
 
 // Signed duty in timer counts, clamped to +-MOTOR_PWM_TOP. > 0 is forward
