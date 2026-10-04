@@ -66,6 +66,22 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 `test/test_scheduler/` covers the jitter, catch-up-resync, and
 `millis()`-wraparound cases directly.
 
+## HAL modules
+
+Register-level drivers live in `src/hal/` (not `lib/`), so they get the
+project's warning flags, the banned-pattern scan and CI's cppcheck, none of
+which cover `lib/`. Logic that needs no hardware (`Quadrature.h`,
+`MotorDrive.h`) stays in `include/` so `env:native` can test it, the same way
+`Scheduler.h` does. Built so far: [`encoders`](modules/encoders.md) and
+[`motors`](modules/motors.md). `env:bench_drive` (`bench/bench_drive.cpp`) is a
+serial-driven harness for bringing the two up on a real robot; it reuses
+`src/hal/` and is not part of the competition firmware.
+
+Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
+`RobotConfig.h` pin constants it depends on, so moving a pin without updating
+the driver fails the build. The pin, timer and interrupt allocation is in
+[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md).
+
 ## Driver/algorithm boundary — RobotState
 
 `include/RobotState.h` is the only channel between hardware and logic.

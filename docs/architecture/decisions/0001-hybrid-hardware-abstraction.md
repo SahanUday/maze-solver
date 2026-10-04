@@ -62,7 +62,7 @@ Concretely:
 | `ultrasonic` | Registers only (input capture or PCINT + timestamp) | Must be non-blocking; `pulseIn()` blocks for the full echo window |
 | `line_sensors` (8-ch IR) | Registers only (free-running/auto-trigger ADC) | Sequential `analogRead()` costs ~8% of the tick budget every tick |
 | `imu` (MPU-6050) | Arduino + vetted library (`Wire.h`) | Fusion-correctness risk outweighs the cycle cost; not in the 100Hz hot path |
-| Serial debug, heartbeat LED, buzzer | Arduino calls | Low-frequency, non-critical |
+| Serial debug, heartbeat LED | Arduino calls | Low-frequency, non-critical |
 | Button / DIP switches / speed pot | Arduino calls | Read once at boot, never in the hot path |
 | Battery monitor | Arduino calls, low sample rate | Fine as blocking `analogRead` if sampled every N ticks, not every tick |
 | SD logging | Arduino + library | Bench-only tooling, unplugged for the actual competition run |
