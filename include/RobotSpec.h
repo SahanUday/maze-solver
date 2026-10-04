@@ -60,6 +60,23 @@ constexpr float MM_PER_ENCODER_COUNT = 0.0f;   // derived from the two rows abov
 constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
 constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
 
+// ---- IR array ---------------------------------------------------------- --
+// Digital (comparator) array. See decisions/0002-*.md.
+constexpr uint8_t IR_CHANNEL_COUNT = 8;
+
+// Majority-vote debounce, within one tick. Count must be odd.
+constexpr uint8_t IR_DEBOUNCE_SAMPLES = 3;
+constexpr uint16_t IR_DEBOUNCE_SPACING_US = 100;
+
+// ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
+// No trimpots on this board; height is the only adjustment.
+constexpr uint8_t IR_RIDE_HEIGHT_MM = 0;
+
+// ---- IR array polarity ------------------------------------------------- --
+// Measured with emitters on: white reads LOW, so black reads HIGH.
+// Not applied by the driver; irRaw holds levels as read.
+constexpr bool IR_BLACK_IS_HIGH = true;
+
 // ---- Ultrasonic sensing ------------------------------- <<TBD HARDWARE>> --
 constexpr uint16_t US_MIN_RANGE_MM = 0; // closest reliable reading
 constexpr uint16_t US_MAX_RANGE_MM = 0;
