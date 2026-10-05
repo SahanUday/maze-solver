@@ -66,6 +66,22 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 `test/test_scheduler/` covers the jitter, catch-up-resync, and
 `millis()`-wraparound cases directly.
 
+## HAL modules
+
+Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is
+built with `-Wextra`, `-Werror=return-type` and `-Wstack-usage=128` on top of
+the default `-Wall` (`lib/` gets only `-Wall`), and only `src/` and `include/`
+are covered by the banned-pattern scan and CI's cppcheck.
+
+Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
+`include/` so `env:native` can test it, the same way `Scheduler.h` does. Built
+so far: [`encoders`](modules/encoders.md) and [`motors`](modules/motors.md).
+
+Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
+`RobotConfig.h` pin constants it depends on, so moving a pin without updating
+the driver fails the build. The pin, timer and interrupt allocation is in
+[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md).
+
 ## Driver/algorithm boundary — RobotState
 
 `include/RobotState.h` is the only channel between hardware and logic.
@@ -81,7 +97,7 @@ pin.
 ## Config split: pins vs. spec
 
 `include/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
-the `A0`-`A9` pin-name macros — fine, since it's only ever consumed by
+the `A0`-`A15` pin-name macros — fine, since it's only ever consumed by
 `env:mega`-only code. `include/RobotSpec.h` holds everything else (geometry,
 timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
 include it directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
@@ -99,8 +115,8 @@ happen to read.
 out of parity with the other:
 
 - `env:mega` — the real robot.
-- `env:native` — host-PC build for `lib/maze`, which must never include
-  `Arduino.h`.
+- `env:native` — host-PC build for `lib/maze` and the pure-logic headers in
+  `include/`, which must never include `Arduino.h`.
 
 ---
 

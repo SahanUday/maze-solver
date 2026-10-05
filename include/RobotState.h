@@ -14,7 +14,7 @@ struct RobotState {
     uint32_t timestampMs = 0; // millis() at the start of this tick
 
     // ---- Odometry (from the encoder driver) ---------------------------
-    int32_t encoderCountL = 0;
+    int32_t encoderCountL = 0; // signed 4x counts since boot, + = wheel-forward
     int32_t encoderCountR = 0;
 
     // ---- Orientation (from the gyro driver) ---------------------------
@@ -27,9 +27,6 @@ struct RobotState {
 
     // ---- Floor sensing (from the IR array driver) ---------------------
     uint16_t irRaw[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-    // ---- Power (from the battery-monitor driver) ----------------------
-    uint16_t batteryMv = 0;
 
     // ---- Operator controls (read once at boot) ------------------------
     bool startButtonPressed = false;

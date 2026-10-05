@@ -30,6 +30,23 @@ constexpr uint16_t SRAM_BUDGET_BYTES = 8192; // enforced by scripts/check-ram-bu
 // ---- Control loop timing ---------------------------------------------- --
 constexpr uint16_t CONTROL_LOOP_PERIOD_MS = 10; // 100 Hz, keeps PID dt fixed
 
+// ---- Motor PWM -------------------------------------------- [FROM DESIGN] --
+// Fast PWM, ICRn as TOP, clk/1. BTS7960 tolerates up to ~25 kHz; 20 kHz is
+// above audible range. Duty is expressed in timer counts, 0..MOTOR_PWM_TOP.
+constexpr uint32_t CPU_HZ = 16000000UL;
+constexpr uint32_t MOTOR_PWM_FREQ_HZ = 20000;
+static_assert(CPU_HZ % MOTOR_PWM_FREQ_HZ == 0, "PWM frequency must divide CPU_HZ exactly");
+constexpr uint16_t MOTOR_PWM_TOP = CPU_HZ / MOTOR_PWM_FREQ_HZ - 1; // 799
+
+// ---- Drivetrain polarity ------------------------------ <<TBD HARDWARE>> --
+// The motors are mounted mirrored, so one side needs its direction flipped.
+// Set on the bench: command a positive speed, the robot must roll forward and
+// the encoder count must rise.
+constexpr bool MOTOR_L_INVERT = false;
+constexpr bool MOTOR_R_INVERT = false;
+constexpr bool ENC_L_INVERT = false;
+constexpr bool ENC_R_INVERT = false;
+
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
 
@@ -40,8 +57,8 @@ constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // one full wheel turn
 constexpr float MM_PER_ENCODER_COUNT = 0.0f;   // derived from the two rows above
 
 // ---- Motor limits ------------------------------------ <<TBD HARDWARE>> --
-constexpr uint8_t MOTOR_MIN_PWM_L = 0; // minimum PWM that starts the wheel
-constexpr uint8_t MOTOR_MIN_PWM_R = 0;
+constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
+constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
 
 // ---- Ultrasonic sensing ------------------------------- <<TBD HARDWARE>> --
 constexpr uint16_t US_MIN_RANGE_MM = 0; // closest reliable reading

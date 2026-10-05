@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks static RAM (.data+.bss) against the 8KB SRAM budget.
-# Reserves 25% for stack - an assumption, not a measurement (no ISRs yet).
-# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement
-# once an interrupt-driven driver exists.
+# Reserves 25% for stack - an assumption, not a measurement. The first ISR
+# driver (encoders) now exists, but no stack high-water mark has been taken.
+# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement.
 #
 # Usage: scripts/check-ram-budget.sh <path-to-firmware.elf>
 set -euo pipefail

@@ -21,5 +21,5 @@ Two rules that follow from this:
 ## Hardware abstraction policy
 
 - HAL/driver modules (motors, encoders, ultrasonic, line sensors, and similar timing- or performance-critical peripherals) access hardware via direct AVR registers — never `digitalWrite`/`digitalRead`/`analogRead`/`attachInterrupt`.
-- Non-critical glue code (Serial debug/telemetry, status LEDs/buzzer, one-shot boot-time reads of switches/pots, vetted libraries such as an MPU-6050 driver over `Wire.h`) may use the Arduino framework.
+- Non-critical glue code (Serial debug/telemetry, status LEDs, one-shot boot-time reads of switches/pots, vetted libraries such as an MPU-6050 driver over `Wire.h`) may use the Arduino framework.
 - Full reasoning: `docs/architecture/decisions/0001-hybrid-hardware-abstraction.md`.
