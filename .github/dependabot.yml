@@ -1,0 +1,13 @@
+# Actions are pinned to commit SHAs (a moving tag is a supply-chain hole);
+# this keeps the pins current without anyone remembering to.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-platformio
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
