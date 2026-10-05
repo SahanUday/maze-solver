@@ -1,6 +1,9 @@
+import contextlib
+import io
 import os
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from support import Tree, load_script
 
@@ -117,7 +120,9 @@ class PinMapTest(unittest.TestCase):
     def test_main_returns_nonzero_on_findings(self):
         tree = Tree(config("constexpr uint8_t PIN_A = 30;", "constexpr uint8_t PIN_B = 30;"))
         self.addCleanup(tree.close)
-        self.assertEqual(pin_map.main(["--root", str(tree.root)]), 1)
+        # Not on Actions: main() would emit a real ::error annotation for the fixture.
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(pin_map.main(["--root", str(tree.root)]), 1)
 
     def test_built_in_table_matches_the_arduino_core_when_installed(self):
         header = Path.home() / ".platformio/packages/framework-arduino-avr/variants/mega/pins_arduino.h"
