@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Hard bans: no dynamic allocation, no STL containers, no virtual dispatch, no
 # float-formatting printf. Exceptions/RTTI are rejected by the compiler itself
-# (-fno-exceptions -fno-rtti), not grepped for here. Used by pre-commit and CI.
+# (-fno-exceptions -fno-rtti), not grepped for here. Also enforces the HAL
+# access policy (src/hal/ goes through AVR registers, not the Arduino GPIO API;
+# see docs/architecture/decisions/0001). Used by pre-commit and CI.
 set -euo pipefail
 
 SEARCH_DIRS=()
-for d in src include; do
+for d in src include lib; do
     [ -d "$d" ] && SEARCH_DIRS+=("$d")
 done
 
@@ -54,6 +56,23 @@ check '\bvirtual\s+[A-Za-z_][A-Za-z0-9_:<>* ]*\s+[A-Za-z_][A-Za-z0-9_]*\s*\(' \
 
 check '%[-+ 0#]*[0-9]*\.?[0-9]*[fFeEgG]' \
     "float-formatting printf/sprintf specifier banned - format as fixed-point integers"
+
+# HAL policy (ADR 0001): drivers touch registers directly. Scoped to src/hal/ -
+# main.cpp and other glue may use the Arduino framework. Comment-only mentions
+# are ignored so a driver can explain why it avoids digitalWrite().
+if [ -d src/hal ]; then
+    hal_matches=$(grep -rnE '\b(pinMode|digitalWrite|digitalRead|analogRead|analogWrite|analogReference|attachInterrupt|detachInterrupt|pulseIn|shiftIn|shiftOut|tone|noTone)\s*\(' \
+        src/hal "${EXTS[@]}" \
+        | grep -vE '^[^:]+:[0-9]+:\s*(//|\*|/\*)' \
+        | grep -vE '//.*\b(pinMode|digitalWrite|digitalRead|analogRead|analogWrite|analogReference|attachInterrupt|detachInterrupt|pulseIn|shiftIn|shiftOut|tone|noTone)\s*\(' \
+        || true)
+    if [ -n "$hal_matches" ]; then
+        echo "BANNED PATTERN: Arduino GPIO/ADC/interrupt API inside src/hal/ - HAL drivers must use AVR registers directly (ADR 0001)"
+        echo "$hal_matches"
+        echo
+        fail=1
+    fi
+fi
 
 if [ "$fail" -ne 0 ]; then
     exit 1
