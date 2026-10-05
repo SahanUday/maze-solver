@@ -81,8 +81,13 @@ compiler can't. They run on the **whole project**, not just changed files.
   parallel. Fails on two names for the same pin, a pin that is reserved (USB
   serial, I2C) or doesn't exist, a comment like `// PE4, INT4` that disagrees
   with the pin number, a driver that uses a `PIN_*` without a `static_assert`
-  for it, and two drivers using the same timer, interrupt, USART, ADC, I2C or
-  SPI block (Timer0 belongs to the Arduino core).
+  for it, a driver in `src/hal/` that touches a port register (`DDRx`/`PORTx`/
+  `PINx`) or names a pin bit (`PC1`) that no `static_assert` on a `PIN_*` covers,
+  and two drivers using the same timer, interrupt, USART, ADC, I2C or SPI block
+  (Timer0 belongs to the Arduino core). The pin rules make sure a driver's
+  hardcoded pin is tied to `RobotConfig.h` by an assert on that port and bit; what
+  the assert compares (`PIN_X == 36`) is still for the author and reviewer to get
+  right.
   *Deliberate sharing:* add `// pin-check: shared timer4 - <reason>` in every
   module involved.
 - **`check-isr-atomicity.py`**: on this 8-bit chip, reading a 16- or 32-bit

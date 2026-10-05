@@ -106,6 +106,92 @@ class PinMapTest(unittest.TestCase):
         files["src/hal/foo.cpp"] = "// uses PIN_X somehow\nvoid f() {}\n"
         self.assertEqual(self.run_check(files), [])
 
+    def test_hal_port_register_needs_an_assert_on_a_pin_of_that_port(self):
+        # PIN_X = 30 is PC7. A driver that pokes PORTC without asserting any
+        # pin is invisible to the `asserts` rule: moving the pin in
+        # RobotConfig.h would still pass.
+        files = config("constexpr uint8_t PIN_X = 30; // PC7")
+        files["src/hal/foo.cpp"] = "void f() { PORTC |= 1 << 7; }\n"
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])
+        self.assertIn("port C", findings[0].message)
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { PORTC |= 1 << 7; }\n'
+        self.assertEqual(self.run_check(files), [])
+
+    def test_an_assert_on_a_pin_of_another_port_does_not_cover_the_register(self):
+        files = config("constexpr uint8_t PIN_X = 30; // PC7")
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { DDRF = 0; }\n'
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])
+        self.assertIn("port F", findings[0].message)
+        self.assertIn("PIN_X", findings[0].message)
+
+    def test_every_port_a_module_touches_needs_its_own_pin(self):
+        files = config("constexpr uint8_t PIN_X = 30; // PC7", "constexpr uint8_t PIN_IR[2] = {A0, A1};")
+        both = 'static_assert(PIN_X == 30, "PC7");\nstatic_assert(PIN_IR[0] == A0, "PF0");\n'
+        files["src/hal/foo.cpp"] = both + "void f() { PORTC |= 1; DDRF = 0; }\n"
+        self.assertEqual(self.run_check(files), [])  # an array's elements count for their port
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { PORTC |= 1; DDRF = 0; }\n'
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])
+        self.assertIn("port F", findings[0].message)
+
+    def test_a_header_and_source_share_the_module_assert(self):
+        files = config("constexpr uint8_t PIN_X = 30; // PC7")
+        files["src/hal/foo.h"] = 'static_assert(PIN_X == 30, "PC7");\n'
+        files["src/hal/foo.cpp"] = "void f() { PINC; }\n"
+        self.assertEqual(self.run_check(files), [])
+
+    def test_register_look_alikes_comments_and_non_gpio_registers_are_not_port_access(self):
+        files = config("constexpr uint8_t PIN_X = 30; // PC7")
+        files["src/hal/foo.cpp"] = (
+            "// PORTF is mentioned here only\n"
+            'const char *s = "DDRF";\n'
+            "void f() { int a = PIND2 + PINB0; ADMUX = 0; ADCSRA = 0; TCCR1A = 0; }\n"
+        )
+        self.assertEqual(self.run_check(files), [])
+
+    def test_a_pin_bit_must_be_one_the_module_asserts(self):
+        # The case a port-only rule missed: the code uses PC1, the only assert
+        # is on PC7. Both are on PORTC, so the port matches and the bit is wrong.
+        files = config("constexpr uint8_t PIN_A = 30; // PC7", "constexpr uint8_t PIN_B = 36; // PC1")
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_A == 30, "PC7");\nvoid f() { PORTC |= (1 << PC1); }\n'
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])
+        self.assertIn("uses PC1", findings[0].message)
+        self.assertIn("PIN_A", findings[0].message)
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_B == 36, "PC1");\nvoid f() { PORTC |= (1 << PC1); }\n'
+        self.assertEqual(self.run_check(files), [])
+
+    def test_a_pin_bit_with_no_assert_at_all_is_reported_once(self):
+        files = config("constexpr uint8_t PIN_A = 30; // PC7")
+        files["src/hal/foo.cpp"] = "void f() { DDRC |= (1 << PC7); PORTC |= (1 << PC7); }\n"
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])  # the bit, not the bit and the port
+        self.assertIn("no static_assert in it names a PIN_*", findings[0].message)
+
+    def test_every_element_of_an_asserted_pin_array_covers_its_bit(self):
+        files = config("constexpr uint8_t PIN_IR[2] = {A0, A1};")
+        assert_ = 'static_assert(PIN_IR[0] == A0, "PF0");\n'
+        files["src/hal/foo.cpp"] = assert_ + "void f() { DDRF |= (1 << PF1); }\n"
+        self.assertEqual(self.run_check(files), [])
+        files["src/hal/foo.cpp"] = assert_ + "void f() { DDRF |= (1 << PF2); }\n"
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["registers"])
+        self.assertIn("uses PF2", findings[0].message)
+
+    def test_a_pin_bit_in_a_comment_or_an_assert_message_is_not_a_use(self):
+        files = config("constexpr uint8_t PIN_A = 30; // PC7")
+        files["src/hal/foo.cpp"] = '// PC1 is the emitter\nstatic_assert(PIN_A == 30, "PC1 is wrong");\nvoid f() { PORTC |= 1 << 7; }\n'
+        self.assertEqual(self.run_check(files), [])
+
+    def test_a_name_that_cannot_be_placed_on_a_port_skips_the_comparison(self):
+        # An unresolved asserted name (an alias, a typo) makes the port check
+        # a guess; the unknown-name case is reported by other rules, not here.
+        files = config("constexpr uint8_t PIN_X = 30; // PC7")
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_GHOST == 1, "?");\nvoid f() { PORTF = 0; }\n'
+        self.assertEqual(self.run_check(files), [])
+
     def test_two_modules_driving_one_timer_conflict(self):
         files = {
             "src/hal/a.cpp": "void a() { TCCR4A = 0; }\n",
