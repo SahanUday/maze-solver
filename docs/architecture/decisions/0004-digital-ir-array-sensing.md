@@ -34,22 +34,17 @@ A throwaway diagnostic (not in this repo) was uploaded with the array wired to
 | Enabling internal pull-ups changed nothing | internal pull-ups unnecessary |
 | Sustained covers gave 8–18 identical samples | settled state is clean; chatter is a boundary effect |
 
-**The emitters were unpowered for all of the above.** The module's `IR` pin had
-been left unconnected, so the phototransistors saw only ambient light — which in
-a bright room saturates them. That is why every surface read `0xFF`, why white
-and black cards were indistinguishable, and why no surface looked different from
-any other.
-
-`IR` turned out to be a **high-impedance logic enable, active HIGH**, feeding an
-on-board transistor. The decisive observation: a ~30kΩ internal pull-up — at
+The module's `IR` pin is a **high-impedance logic enable, active HIGH**, feeding
+an on-board transistor. The decisive observation: a ~30kΩ internal pull-up — at
 most 0.17mA — lights the emitters at full brightness, which eight LEDs sharing
 that current could never do. LED current comes from `VCC` through the board's
 own 220Ω network, so an ordinary GPIO drives the enable directly.
 
-With the emitters on, **polarity measured cleanly**: a white card at working
+With the emitters driven, **polarity measures cleanly**: a white card at working
 height reads **LOW**, open air reads **HIGH**. Reflection drives a channel low,
-so black reads high. The earlier "finger over sensor reads LOW" result was a red
-herring — with dark emitters the finger was shading ambient IR, not reflecting.
+so black reads high. With the emitters off a channel sees ambient light only and
+carries no reflectance information, so polarity can only be established with
+them on.
 
 ### Ambient light
 
@@ -74,9 +69,8 @@ target. Not built in this PR.
 - Internal pull-ups stay **off** (`DDRF = 0x00`, `PORTF = 0x00`).
 - `PIN_IR_EMITTER` = pin 36 = `PC1`, output, set HIGH in `begin()`. **Without
   this the emitters stay dark and every channel reads the same regardless of
-  what is under the array** — the failure behind every inconclusive measurement
-  above. `setEmitters()` is exposed for the ~140mA saving during walled-maze
-  phases, and for the ambient subtraction above.
+  what is under the array.** `setEmitters()` is exposed for the ~140mA saving
+  during walled-maze phases, and for the ambient subtraction above.
 
 ### Polarity
 
