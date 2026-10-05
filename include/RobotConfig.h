@@ -24,15 +24,12 @@
 //  Interrupts: INT2-INT5 (D19, D18, D2, D3) are the encoders; INT0/INT1 are
 //  the I2C pins. Serial1 (D18/D19) is therefore unavailable.
 //
-//  Timers: Timer0 Arduino millis(); Timer1 right motor PWM; Timer4 left motor
-//  PWM. See decisions/0002.
-//
 //  [FIXED]    locked in; do not change
 //  [PROPOSED] must be confirmed against real wiring
 // ============================================================================
 
-// ---- Encoders ----------------------------------------------- [PROPOSED] --
-// JGA25-370 Hall quadrature, 4x decoded on all four edges. Each motor's A/B sit
+// ---- Encoders ------------------------------------------------------------
+// JGA25-370 Hall quadrature, 4x decoded on all four transitions. Each motor's A/B sit
 // on one AVR port with A on the LOWER bit, so one PINx read yields (B<<1)|A.
 // "+" = A leads B; flip per side with ENC_*_INVERT in RobotSpec.h.
 constexpr uint8_t PIN_ENC_L_A = 2;  // PE4, INT4
@@ -45,7 +42,7 @@ constexpr uint8_t PIN_ENC_R_B = 18; // PD3, INT3
 constexpr uint8_t PIN_I2C_SDA = 20; // INT1
 constexpr uint8_t PIN_I2C_SCL = 21; // INT0
 
-// ---- Motor drivers ------------------------------------------ [PROPOSED] --
+// ---- Motor drivers --------------------------------------------------------
 // Two HW-039 / IBT_2 (BTS7960) boards. Per motor: RPWM = forward PWM, LPWM =
 // reverse PWM, and R_EN + L_EN tied together on one GPIO (EN low = coast).
 // Left on Timer4 (OC4A/OC4B), right on Timer1 (OC1A/OC1B).

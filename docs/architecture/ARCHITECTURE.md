@@ -70,12 +70,11 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 
 Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is
 built with `-Wextra`, `-Werror=return-type` and `-Wstack-usage=128` on top of
-the default `-Wall` (`lib/` gets only `-Wall`), and only `src/` and `include/`
-are covered by the banned-pattern scan and CI's cppcheck.
+the default `-Wall` (`lib/` gets only `-Wall`). The banned-pattern scan covers
+only `src/` and `include/`, and CI's cppcheck only `src/`.
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
-`include/` so `env:native` can test it, the same way `Scheduler.h` does. Built
-so far: [`encoders`](modules/encoders.md) and [`motors`](modules/motors.md).
+`include/` so `env:native` can test it.
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
