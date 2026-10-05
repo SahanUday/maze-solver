@@ -9,7 +9,9 @@ name: Nightly
 # them after 60 days without repository activity.
 on:
   schedule:
-    - cron: '17 2 * * *'
+    # GitHub cron is UTC. 21:30 UTC = 03:00 the next day in Sri Lanka (UTC+5:30,
+    # no daylight saving). A run can start a few minutes late when GitHub is busy.
+    - cron: '30 21 * * *'
   workflow_dispatch:
 
 permissions:
