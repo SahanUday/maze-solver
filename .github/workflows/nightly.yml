@@ -8,9 +8,6 @@ name: Nightly
 # Scheduled workflows run from the default branch only and GitHub disables
 # them after 60 days without repository activity.
 on:
-  # TEMPORARY: lets this PR exercise the workflow once. Removed before merge.
-  pull_request:
-    paths: ['.github/workflows/nightly.yml']
   schedule:
     - cron: '17 2 * * *'
   workflow_dispatch:
@@ -95,6 +92,6 @@ jobs:
         run: |
           cppcheck --enable=all --inconclusive --std=c++17 \
                    --suppress=missingIncludeSystem --suppress=unusedFunction \
-                   -Iinclude src/ lib/ 2> cppcheck.txt || true
+                   -Iinclude -Isrc src/ lib/ 2> cppcheck.txt || true
           { echo '### cppcheck --enable=all'; echo '```'; cat cppcheck.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           cat cppcheck.txt
