@@ -1,0 +1,7 @@
+{
+  "name": "maze",
+  "version": "0.0.0",
+  "build": {
+    "flags": ["-Wall", "-Wextra", "-Werror"]
+  }
+}
