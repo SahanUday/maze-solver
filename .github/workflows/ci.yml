@@ -216,21 +216,3 @@ jobs:
             [ "$NATIVE" = "success" ] || { echo "native did not succeed"; exit 1; }
             [ "$AVR" = "success" ] || { echo "avr-build did not succeed"; exit 1; }
           fi
-
-  # TRANSITIONAL. The branch ruleset still requires a check called
-  # "Build & Checks" (the old single job). This reports it from the gate's
-  # verdict so the ruleset keeps working. Once the ruleset requires "CI gate",
-  # delete this job.
-  legacy-required-check:
-    name: Build & Checks
-    if: always()
-    needs: [ci-gate]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: Mirror the CI gate
-        env:
-          GATE: ${{ needs.ci-gate.result }}
-        run: |
-          echo "ci-gate=$GATE"
-          [ "$GATE" = "success" ]
