@@ -45,6 +45,40 @@ class StaticChecksTest(unittest.TestCase):
         self.assertEqual(self.rules({ADR.format("0003-x"): "# 0003: x\n\nno status\n"}), ["adr-names"])
 
 
+class TestingDocTest(unittest.TestCase):
+    def run_check(self, files):
+        tree = Tree(files)
+        self.addCleanup(tree.close)
+        return docs.check(tree.root)
+
+    def test_missing_guide_is_reported_once(self):
+        findings = self.run_check({"scripts/check-x.py": ""})
+        self.assertEqual([f.rule for f in findings], ["testing-doc"])
+        self.assertIn("missing", findings[0].message)
+
+    def test_every_script_and_env_must_be_mentioned(self):
+        files = {
+            "scripts/check-x.py": "",
+            "scripts/report-y.sh": "",
+            "platformio.ini": "[env:mega]\n[env:native_san]\n",
+            "docs/testing.md": "check-x.py and env:mega are described\n",
+        }
+        messages = sorted(f.message for f in self.run_check(files))
+        self.assertEqual(len(messages), 2)
+        self.assertTrue(any("report-y.sh" in m for m in messages))
+        self.assertTrue(any("env:native_san" in m for m in messages))
+
+    def test_fully_documented_passes_and_helpers_are_exempt(self):
+        files = {
+            "scripts/check-x.py": "",
+            "scripts/cpplex.py": "",  # an internal helper, not a check
+            "scripts/tests/test_x.py": "",  # tests are described as a group
+            "platformio.ini": "[common]\n[env:mega]\n",
+            "docs/testing.md": "check-x.py env:mega\n",
+        }
+        self.assertEqual(self.run_check(files), [])
+
+
 class FrozenAdrTest(unittest.TestCase):
     def setUp(self):
         self.tree = Tree({ADR.format("0001-first"): adr("0001"), ADR.format("0002-draft"): adr("0002", status="Proposed")})

@@ -9,6 +9,9 @@
               exists. Two contributors writing "the next ADR" in parallel both
               pick the same number; git sees two different files, so only a
               check notices.
+  testing-doc every check/report script in scripts/ and every `[env:...]` in
+              platformio.ini is described in docs/testing.md, so the testing
+              guide cannot silently fall behind what CI actually runs.
   adr-frozen  (with --base REF) an ADR that was `Accepted` on the base is
               immutable: the only allowed edit is its Status line moving to
               Superseded/Deprecated. A changed mind gets a new ADR.
@@ -80,6 +83,31 @@ def check_adr_names(root: Path, findings: list[Finding]):
             findings.append(Finding(files[-1], 1, "adr-names", f"ADR number {number} is used by more than one file: {', '.join(files)}. Renumber the newer one"))
 
 
+# Helpers other scripts import; not something a developer runs or needs explained.
+INTERNAL_SCRIPTS = {"cpplex.py"}
+TESTING_DOC = "docs/testing.md"
+
+
+def check_testing_doc(root: Path, findings: list[Finding]):
+    scripts = root / "scripts"
+    names = sorted(p.name for p in scripts.glob("*") if p.is_file() and p.suffix in (".py", ".sh") and p.name not in INTERNAL_SCRIPTS) if scripts.is_dir() else []
+    ini = root / "platformio.ini"
+    envs = re.findall(r"^\[env:([A-Za-z0-9_]+)\]", ini.read_text(), re.M) if ini.exists() else []
+    if not names and not envs:
+        return
+    doc = root / TESTING_DOC
+    if not doc.exists():
+        findings.append(Finding(TESTING_DOC, 1, "testing-doc", f"{TESTING_DOC} is missing; it must describe every check script and PlatformIO env"))
+        return
+    text = doc.read_text()
+    for name in names:
+        if name not in text:
+            findings.append(Finding(f"scripts/{name}", 1, "testing-doc", f"scripts/{name} is not described in {TESTING_DOC}"))
+    for env in envs:
+        if f"env:{env}" not in text:
+            findings.append(Finding("platformio.ini", 1, "testing-doc", f"env:{env} is not described in {TESTING_DOC}"))
+
+
 def git(root: Path, *args: str) -> str:
     result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
     if result.returncode != 0:
@@ -120,6 +148,7 @@ def check(root: Path, base: str | None = None) -> list[Finding]:
     findings: list[Finding] = []
     check_modules(root, findings)
     check_adr_names(root, findings)
+    check_testing_doc(root, findings)
     if base:
         check_adr_frozen(root, base, findings)
     return findings

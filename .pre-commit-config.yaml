@@ -43,8 +43,8 @@ repos:
         files: ^src/.*\.(c|h|cpp|hpp)$
         pass_filenames: false
       - id: docs-drift
-        name: docs drift (module docs present, ADR numbering)
+        name: docs drift (module docs, ADR numbering, testing guide)
         entry: scripts/check-docs-drift.py
         language: script
-        files: ^(src/hal/.*\.cpp|docs/architecture/.*)$
+        files: ^(src/hal/.*\.cpp|docs/.*|scripts/[^/]+\.(py|sh)|platformio\.ini)$
         pass_filenames: false

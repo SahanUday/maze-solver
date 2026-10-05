@@ -70,14 +70,11 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 
 Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is
 built with `-Wextra`, `-Werror` and `-Wstack-usage=128` on top of the default
-`-Wall`, so a warning fails the build. `lib/maze` opts into
-`-Wall -Wextra -Werror` through its `library.json`; the flags are not global
-because they would also hit the Arduino core. The banned-pattern scan covers
-`src/`, `include/` and `lib/`, and CI's cppcheck covers `src/` and `lib/`.
-
-The HAL access policy of ADR 0001 is enforced by the banned-pattern scan:
-`src/hal/` may not call `pinMode`, `digitalWrite`, `digitalRead`, `analogRead`,
-`attachInterrupt` or the other Arduino GPIO/ADC/interrupt functions.
+`-Wall`, so a warning fails the build. `lib/maze` opts into the same through its
+`library.json`; the flags are not global because they would also hit the
+Arduino core. The HAL access policy of ADR 0001 (registers only, no
+`digitalWrite`/`analogRead`/`attachInterrupt` and the like) is checked
+automatically; see the [testing guide](../testing.md).
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
 `include/` so `env:native` can test it.
@@ -89,8 +86,8 @@ the driver fails the build. The pin, timer and interrupt allocation is in
 
 State shared between an ISR and the main loop is a `volatile` variable private
 to its driver file, read through an accessor under `ATOMIC_BLOCK` (an AVR
-load or store wider than a byte can be torn by an interrupt). This is checked,
-not left to review: see Continuous integration.
+load or store wider than a byte can be torn by an interrupt). This is checked
+automatically, not left to review; see the [testing guide](../testing.md).
 
 ## Driver/algorithm boundary — RobotState
 
@@ -128,58 +125,21 @@ with the others:
   packages are pinned to exact versions.
 - `env:native` — host-PC build for `lib/maze` and the pure-logic headers in
   `include/`, which must never include `Arduino.h`.
-- `env:native_san` — the same tests under AddressSanitizer and UBSan, aborting
-  on the first violation.
-- `env:native_cov` — the same tests with gcov instrumentation, read by
-  `scripts/check-coverage.sh` (90% line floor over `include/` and `lib/`).
+- `env:native_san`, `env:native_cov` — the same host tests built with
+  sanitizers, and with coverage instrumentation. What they are for is in the
+  [testing guide](../testing.md).
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and on every push to
-`main`:
-
-1. `lint` and `static-checks`, in parallel. `lint` is pre-commit's generic
-   hooks (whitespace, line endings, clang-format). `static-checks` is this
-   project's own rules (banned patterns and the HAL access policy, pin map, ISR
-   atomicity, docs drift), the unit tests of those check scripts
-   (`scripts/tests/`), and on a PR the check that an Accepted ADR is not edited.
-   It also decides whether the change touches code at all.
-2. `native` and `avr-build`, in parallel, only if both of the above pass and the
-   change touches code: the three native environments above; the `env:mega`
-   build, the pin table check against the Arduino core, the SRAM and flash
-   budgets (`scripts/check-ram-budget.sh`, `scripts/check-flash-budget.sh`) and
-   cppcheck.
-3. `CI gate` — the one required status check. It always reports, so a
-   docs-only change passes without running the heavy jobs.
-
-Two things sit beside the gate and do not feed it: on a PR, `report` builds
-the base commit as well and keeps one comment with the flash and static-SRAM
-change (`scripts/size-report.py`) and the open `<<TBD ...>>` placeholders still
-to be measured or tuned (`scripts/tbd-report.py`, built on
-`scripts/list-tbds.sh`); and `.github/workflows/pr-title.yml` checks the PR
-title is `type(scope): Subject` (`scripts/check-pr-title.py`) in its own
-workflow, because it must re-run when a title is edited, which the main
-workflow should not.
-
-The repository checks, all in `scripts/`:
-
-- `check-pin-map.py` — duplicate pins in `RobotConfig.h`, reserved pins, port
-  and `INTn`/`OCnX` comments that disagree with the pin, a HAL module that uses
-  a `PIN_*` without a `static_assert`, and a timer, interrupt, USART, ADC, TWI
-  or SPI driven by more than one module (Timer0 belongs to the Arduino core).
-  Deliberate sharing is declared in every module involved with
-  `// pin-check: shared <resource> - <reason>`.
-- `check-isr-atomicity.py` — a `volatile` wider than one byte that an ISR
-  touches may only be accessed inside an ISR, an `ATOMIC_BLOCK`, or a `static`
-  helper called only from those. A reviewed exception is marked
-  `// isr-safe: <reason>`.
-- `check-docs-drift.py` — every `src/hal/<name>.cpp` has
-  `modules/<name>.md`, ADR numbers are unique, and an Accepted ADR changes only
-  by its Status moving to Superseded.
-
-`.github/workflows/nightly.yml` runs what is too slow for every push: the
-build at `-O1`/`-O2`/`-O3`, the host tests repeated 25 times under the
-sanitizers, and cppcheck with every check enabled.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+`lint` and `static-checks` first, then `native` and `avr-build` in parallel,
+then `CI gate`. The gate is the one required status check; it always reports, so
+a docs-only change passes without running the heavy jobs. Beside it, and not part
+of it, an advisory `report` job comments the firmware size change and the open
+`<<TBD>>` placeholders on each PR. `pr-title.yml` (the PR title check) and
+`nightly.yml` (slow extras) are separate workflows because their triggers
+differ. What each check does, how to run it locally and what to do when it
+fails is in the [testing guide](../testing.md).
 
 ---
 
