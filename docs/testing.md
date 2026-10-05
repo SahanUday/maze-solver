@@ -104,10 +104,12 @@ compiler can't. They run on the **whole project**, not just changed files.
 **What:** the robot firmware (`env:mega`) is compiled with `-Wall -Wextra
 -Werror` (every warning is an error), `-fno-exceptions -fno-rtti` (so a `throw`
 or a `dynamic_cast` is a compile error, not just a convention) and
-`-Wstack-usage=128` (a function using
-more than 128 bytes of stack is an error: 8 KB of RAM is shared with the
-stack, and a stack overflow corrupts memory silently). `lib/maze` gets the same
-strictness from `lib/maze/library.json`.
+`-Wstack-usage=128` (a function using more than 128 bytes of stack is an error:
+8 KB of RAM is shared with the stack, and a stack overflow corrupts memory
+silently). `lib/maze` is set up for the same strictness in
+`lib/maze/library.json`, which starts applying once the library has a `.cpp` of
+its own — while it is header-only, `Maze.h` is compiled under the flags of
+whatever includes it.
 **Run:** `pio run -e mega`.
 
 ### 4. Memory budgets

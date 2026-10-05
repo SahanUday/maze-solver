@@ -44,9 +44,28 @@ class PinMapTest(unittest.TestCase):
         files = config("constexpr uint8_t PIN_IR[2] = {A0, A1};", "constexpr uint8_t PIN_X = 55;")
         self.assertEqual(self.rules(files), ["pins"])  # A1 is pin 55
 
-    def test_alias_is_not_a_second_claim(self):
-        files = config("constexpr uint8_t PIN_A = 30;", "constexpr uint8_t PIN_B = PIN_A;")
+    def test_a_marked_alias_is_not_a_second_claim(self):
+        files = config(
+            "constexpr uint8_t PIN_A = 30;",
+            "constexpr uint8_t PIN_B = PIN_A;  // pin-check: alias of PIN_A",
+        )
         self.assertEqual(self.run_check(files), [])
+
+    def test_an_unmarked_second_name_is_reported(self):
+        files = config("constexpr uint8_t PIN_A = 30;", "constexpr uint8_t PIN_B = PIN_A;")
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["pins"])
+        self.assertIn("pin-check: alias of PIN_A", findings[0].message)
+
+    def test_an_alias_marker_naming_a_different_pin_is_reported(self):
+        files = config(
+            "constexpr uint8_t PIN_A = 30;",
+            "constexpr uint8_t PIN_C = 31;",
+            "constexpr uint8_t PIN_B = PIN_A;  // pin-check: alias of PIN_C",
+        )
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["pins"])
+        self.assertIn("but is defined as PIN_A", findings[0].message)
 
     def test_reserved_and_out_of_range_pins(self):
         self.assertEqual(self.rules(config("constexpr uint8_t PIN_X = 0;")), ["pins"])
@@ -71,6 +90,16 @@ class PinMapTest(unittest.TestCase):
         self.assertEqual(self.rules(files), ["asserts"])
         files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { int p = PIN_X; }\n'
         self.assertEqual(self.run_check(files), [])
+
+    def test_pin_named_only_inside_a_static_assert_is_not_a_use(self):
+        # The assert is evidence about the register code, not a use of the pin
+        # by it, so it neither demands nor satisfies an assert of its own.
+        files = config("constexpr uint8_t PIN_X = 30;", "constexpr uint8_t PIN_Y = 31;")
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { PORTC |= 1 << 7; }\n'
+        self.assertEqual(self.run_check(files), [])
+        # ...while a pin the register code really does use still needs one.
+        files["src/hal/foo.cpp"] = 'static_assert(PIN_X == 30, "PC7");\nvoid f() { int p = PIN_Y; }\n'
+        self.assertEqual(self.rules(files), ["asserts"])
 
     def test_pin_named_only_in_a_comment_needs_no_assert(self):
         files = config("constexpr uint8_t PIN_X = 30;")

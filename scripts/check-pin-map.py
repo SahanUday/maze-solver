@@ -10,13 +10,16 @@ no second pin table to keep in sync.
 Checks (stdlib only, ~100 ms):
   pins      every PIN_* in include/RobotConfig.h resolves to a real Mega pin
             (literal or A0-A15), no two names share a pin, reserved pins
-            (0/1 USB serial, 20/21 I2C) are used only by their owner. An alias
-            (`constexpr uint8_t PIN_X = PIN_Y;`) is allowed - it is a rename,
-            not a second claim.
+            (0/1 USB serial, 20/21 I2C) are used only by their owner. A second
+            name for an existing pin (`constexpr uint8_t PIN_X = PIN_Y;`) must
+            say which it is: `// pin-check: alias of PIN_Y` for a rename,
+            otherwise it is a second device on one pin.
   notes     port / INTn / OCnX / PCINTn notes in a trailing `// ...` comment
             ("// PE4, INT4") agree with the pin number.
-  asserts   every src/hal module that uses a PIN_* constant has a
-            static_assert on it (the convention in encoders.cpp/motors.cpp).
+  asserts   every src/hal module that uses a PIN_* constant in its register
+            code has a static_assert on it (the convention in
+            encoders.cpp/motors.cpp). Uses inside the assert itself do not
+            count, or the assert would be its own evidence.
   owners    each peripheral (timerN, intN, pcintN, usartN, adc, twi, spi) is
             driven by one src/ module. Timer0 is reserved for the Arduino core.
             Deliberate sharing: put `// pin-check: shared timer4 - <reason>`
@@ -94,6 +97,7 @@ RESOURCE_PATTERNS = [
 ]
 
 SHARED_MARKER = re.compile(r"pin-check:\s*shared\s+([a-z0-9_,\s]+?)(?:\s+-|\s*$)", re.M)
+ALIAS_MARKER = re.compile(r"pin-check:\s*alias(?:\s+of\s+(PIN_\w+))?")
 
 
 class Finding:
@@ -164,8 +168,16 @@ def parse_pins(text: str):
                 errors.append((start + 1, f"{name} = '{rhs}': use a number, A0-A15 or another PIN_* name so the pin check can read it"))
                 continue
             known[name] = value
-            if rhs in known and rhs.startswith("PIN_"):
-                continue  # alias: a rename of an existing claim, not a new one
+            if rhs.startswith("PIN_") and rhs in known:
+                # A second name for a pin another name already claims. That is
+                # fine as a rename, and a bug as two devices on one pin, and
+                # the declaration looks identical either way - so say which.
+                alias = ALIAS_MARKER.search(note)
+                if not alias:
+                    errors.append((start + 1, f"{name} = {rhs} is a second name for pin {value}. If it is the same signal renamed, add '// pin-check: alias of {rhs}'; if it is a second device, give it its own pin"))
+                elif alias.group(1) and alias.group(1) != rhs:
+                    errors.append((start + 1, f"{name} is marked 'pin-check: alias of {alias.group(1)}' but is defined as {rhs}"))
+                continue
             pins.append((name, value, start + 1, note))
     return pins, errors
 
@@ -227,16 +239,36 @@ def module_of(root: Path, path: Path) -> str:
     return str(path.relative_to(root).with_suffix(""))
 
 
-def static_assert_text(code: str) -> str:
-    """Concatenated text of every static_assert(...) in `code`."""
-    chunks = []
+def static_assert_spans(code: str) -> list[tuple[int, int]]:
+    """(start, end) of every static_assert(...) argument list in `code`."""
+    spans = []
     for m in re.finditer(r"\bstatic_assert\s*\(", code):
         depth, j = 1, m.end()
         while j < len(code) and depth:
             depth += {"(": 1, ")": -1}.get(code[j], 0)
             j += 1
-        chunks.append(code[m.end() : j])
-    return "\n".join(chunks)
+        spans.append((m.end(), j))
+    return spans
+
+
+def static_assert_text(code: str) -> str:
+    """Concatenated text of every static_assert(...) in `code`."""
+    return "\n".join(code[a:b] for a, b in static_assert_spans(code))
+
+
+def without_static_asserts(code: str) -> str:
+    """`code` with the static_assert arguments blanked, newlines kept.
+
+    A pin named ONLY inside an assert is not used by the register code, so it
+    must not count as a use - otherwise `static_assert(PIN_X == 30, "")` alone
+    satisfied the rule it was supposed to be evidence for.
+    """
+    out = list(code)
+    for a, b in static_assert_spans(code):
+        for i in range(a, b):
+            if out[i] != "\n":
+                out[i] = " "
+    return "".join(out)
 
 
 def check_hal(root: Path, findings: list[Finding]):
@@ -248,7 +280,7 @@ def check_hal(root: Path, findings: list[Finding]):
         for path in paths:
             code = strip_comments(path.read_text())
             asserted += static_assert_text(code)
-            for ln, text in enumerate(code.splitlines(), 1):
+            for ln, text in enumerate(without_static_asserts(code).splitlines(), 1):
                 for name in re.findall(r"\bPIN_[A-Z0-9_]+\b", text):
                     used.setdefault(name, (path, ln))
         covered = set(re.findall(r"\bPIN_[A-Z0-9_]+\b", asserted))
