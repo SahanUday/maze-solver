@@ -1,0 +1,39 @@
+name: PR title
+
+# PRs are squash-merged, so the PR title becomes the commit on main; this keeps
+# that history uniform (`type(scope): Subject`, see scripts/check-pr-title.py).
+#
+# Its own workflow because it has to re-run when the title is EDITED, which
+# ci.yml deliberately does not: renaming a PR must not rebuild the firmware.
+# Not part of `CI gate`; add "Conventional title" to the ruleset's required
+# checks if a bad title should block the merge.
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: Conventional title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/check-pr-title.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # The title goes in through the environment, never interpolated into the
+      # script text: a title is attacker-controlled input.
+      - name: Check the title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/check-pr-title.py
