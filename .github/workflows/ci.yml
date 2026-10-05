@@ -3,12 +3,16 @@ name: CI
 # Layout (cheap checks first, so a typo fails in seconds and never starts the
 # toolchain):
 #
-#   lint  ──┬─> native     host tests: plain, ASan+UBSan, coverage floor
-#           └─> avr-build  mega build (-Werror), RAM/flash budgets, cppcheck
-#                  └──────> ci-gate  <- the one required status check
+#   lint ──────────────┬─> native     host tests: plain, ASan+UBSan, coverage floor
+#   static-checks ─────┴─> avr-build  mega build (-Werror), RAM/flash budgets, cppcheck
+#                              └────> ci-gate  <- the one required status check
+#
+#   lint           formatting and hygiene (pre-commit's generic hooks)
+#   static-checks  this project's own rules: banned patterns and the HAL policy,
+#                  pin map, ISR atomicity, docs/ADR drift, and their self-tests
 #
 # The workflow runs on EVERY pull request. Docs-only changes skip the heavy
-# jobs through the `code` output of lint instead of a workflow-level
+# jobs through the `code` output of static-checks instead of a workflow-level
 # paths-ignore, because a workflow skipped that way never reports and leaves a
 # required check "Expected - waiting for status" forever.
 #
@@ -35,7 +39,40 @@ concurrency:
 
 jobs:
   lint:
-    name: "Repo: lint & static checks"
+    name: "Repo: lint"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install pre-commit
+        run: pip install -r requirements-dev.txt
+
+      # The same hooks contributors run locally, so CI catches anyone who
+      # skipped them. The project's own hooks run in static-checks instead;
+      # anything NOT listed in SKIP runs here, so a hook added later can never
+      # be silently left out of CI.
+      - name: pre-commit (formatting & hygiene)
+        env:
+          SKIP: banned-patterns,pin-map,isr-atomicity,docs-drift
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  static-checks:
+    name: "Repo: static checks"
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -54,20 +91,19 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      - name: Cache pre-commit environments
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/pre-commit
-          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
-
       - name: Install pre-commit
         run: pip install -r requirements-dev.txt
 
-      # Formatting and hygiene, plus the repo's own checks (banned patterns and
-      # the HAL access policy, pin map, ISR atomicity, docs drift) - the same
-      # hooks contributors run locally, so CI catches anyone who skipped them.
-      - name: pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure
+      # Run through pre-commit so a hook's definition (what it runs, on which
+      # files) lives only in .pre-commit-config.yaml. These are local hooks, so
+      # no environments are built. All four run even if one fails.
+      - name: Project rules (banned patterns, pin map, ISR atomicity, docs drift)
+        run: |
+          rc=0
+          for hook in banned-patterns pin-map isr-atomicity docs-drift; do
+            pre-commit run "$hook" --all-files --show-diff-on-failure || rc=1
+          done
+          exit "$rc"
 
       # The checkers are code too: a checker that can't fail protects nothing.
       - name: Self-test the check scripts
@@ -99,8 +135,8 @@ jobs:
 
   native:
     name: "Software: native tests (sanitizers, coverage)"
-    needs: lint
-    if: needs.lint.outputs.code == 'true'
+    needs: [lint, static-checks]
+    if: needs.static-checks.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -133,8 +169,8 @@ jobs:
 
   avr-build:
     name: "Firmware: AVR build (mega)"
-    needs: lint
-    if: needs.lint.outputs.code == 'true'
+    needs: [lint, static-checks]
+    if: needs.static-checks.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -193,25 +229,27 @@ jobs:
 
   # THE required status check. It always runs, fails if any job failed or was
   # cancelled, and requires the heavy jobs to have actually succeeded whenever
-  # lint decided the change touches code. Skipped is only acceptable for a
-  # docs-only change; a job skipped because lint failed is covered by lint's own
-  # failure.
+  # static-checks decided the change touches code. Skipped is only acceptable
+  # for a docs-only change; a heavy job skipped because a Repo job failed is
+  # covered by that job's own failure.
   ci-gate:
     name: CI gate
     if: always()
-    needs: [lint, native, avr-build]
+    needs: [lint, static-checks, native, avr-build]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Check results
         env:
           LINT: ${{ needs.lint.result }}
+          STATIC: ${{ needs.static-checks.result }}
           NATIVE: ${{ needs.native.result }}
           AVR: ${{ needs.avr-build.result }}
-          CODE: ${{ needs.lint.outputs.code }}
+          CODE: ${{ needs.static-checks.outputs.code }}
         run: |
-          echo "lint=$LINT native=$NATIVE avr-build=$AVR code-changed=$CODE"
+          echo "lint=$LINT static-checks=$STATIC native=$NATIVE avr-build=$AVR code-changed=$CODE"
           [ "$LINT" = "success" ] || { echo "lint did not succeed"; exit 1; }
+          [ "$STATIC" = "success" ] || { echo "static-checks did not succeed"; exit 1; }
           if [ "$CODE" = "true" ]; then
             [ "$NATIVE" = "success" ] || { echo "native did not succeed"; exit 1; }
             [ "$AVR" = "success" ] || { echo "avr-build did not succeed"; exit 1; }

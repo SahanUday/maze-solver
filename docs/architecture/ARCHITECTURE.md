@@ -138,14 +138,17 @@ with the others:
 `.github/workflows/ci.yml` runs on every pull request and on every push to
 `main`:
 
-1. `lint` — pre-commit (formatting, banned patterns and the HAL access policy,
-   pin map, ISR atomicity, docs drift), the unit tests of the check scripts
-   (`scripts/tests/`), and on a PR the check that an Accepted ADR is not
-   edited. It also decides whether the change touches code at all.
-2. `native` and `avr-build`, in parallel, only if the change touches code: the
-   three native environments above; the `env:mega` build, the pin table check
-   against the Arduino core, the SRAM and flash budgets
-   (`scripts/check-ram-budget.sh`, `scripts/check-flash-budget.sh`) and cppcheck.
+1. `lint` and `static-checks`, in parallel. `lint` is pre-commit's generic
+   hooks (whitespace, line endings, clang-format). `static-checks` is this
+   project's own rules (banned patterns and the HAL access policy, pin map, ISR
+   atomicity, docs drift), the unit tests of those check scripts
+   (`scripts/tests/`), and on a PR the check that an Accepted ADR is not edited.
+   It also decides whether the change touches code at all.
+2. `native` and `avr-build`, in parallel, only if both of the above pass and the
+   change touches code: the three native environments above; the `env:mega`
+   build, the pin table check against the Arduino core, the SRAM and flash
+   budgets (`scripts/check-ram-budget.sh`, `scripts/check-flash-budget.sh`) and
+   cppcheck.
 3. `CI gate` — the one required status check. It always reports, so a
    docs-only change passes without running the heavy jobs.
 
