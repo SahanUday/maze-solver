@@ -29,6 +29,10 @@ PCT=$(( DATA_BYTES * 100 / TOTAL_SRAM ))
 
 echo "SRAM (.data+.bss+.noinit): ${DATA_BYTES} / ${TOTAL_SRAM} bytes (${PCT}%)"
 
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "| Static SRAM | ${DATA_BYTES} | ${TOTAL_SRAM} | ${PCT}% |" >> "$GITHUB_STEP_SUMMARY"
+fi
+
 if [ "$PCT" -ge "$FAIL_PCT" ]; then
     echo "FAIL: static RAM usage is ${PCT}% of total SRAM (threshold ${FAIL_PCT}%)." >&2
     echo "Reduce static usage: PROGMEM tables, smaller types, fewer globals." >&2

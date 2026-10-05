@@ -1,0 +1,5 @@
+# CI-only tooling, pinned so a PyPI release can't change what a run does.
+# Local dev tooling (pre-commit) is in requirements-dev.txt.
+# Local use: uv tool install platformio==6.2.0 gcovr==8.6
+platformio==6.2.0
+gcovr==8.6

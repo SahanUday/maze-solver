@@ -1,0 +1,16 @@
+# Actions are pinned to commit SHAs (a moving tag is a supply-chain hole);
+# this keeps the pins current without anyone remembering to.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-platformio
+    schedule:
+      interval: monthly
+    # So the bot's PR titles pass the PR title check (ci: Bump ...).
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']

@@ -30,3 +30,21 @@ repos:
         language: script
         files: \.(c|h|cpp|hpp|cc)$
         pass_filenames: false
+      - id: pin-map
+        name: pin map (duplicate pins, notes, static_asserts, peripheral owners)
+        entry: scripts/check-pin-map.py
+        language: script
+        files: ^(include/RobotConfig\.h|src/.*)$
+        pass_filenames: false
+      - id: isr-atomicity
+        name: ISR atomicity (multi-byte volatiles only inside ISR / ATOMIC_BLOCK)
+        entry: scripts/check-isr-atomicity.py
+        language: script
+        files: ^src/.*\.(c|h|cpp|hpp)$
+        pass_filenames: false
+      - id: docs-drift
+        name: docs drift (module docs, ADR numbering, testing guide)
+        entry: scripts/check-docs-drift.py
+        language: script
+        files: ^(src/hal/.*\.cpp|docs/.*|scripts/[^/]+\.(py|sh)|platformio\.ini)$
+        pass_filenames: false

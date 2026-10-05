@@ -1,90 +1,328 @@
-name: Firmware CI
+name: CI
 
-# Runs on PR open/update against main. Docs/image-only PRs are excluded via
-# paths-ignore; the "skip-tests" label bypasses everything else.
+# Layout (cheap checks first, so a typo fails in seconds and never starts the
+# toolchain):
+#
+#   lint ──────────────┬─> native     host tests: plain, ASan+UBSan, coverage floor
+#   static-checks ─────┴─> avr-build  mega build (-Werror), RAM/flash budgets, cppcheck
+#                              └────> ci-gate  <- the one required status check
+#
+#   lint           formatting and hygiene (pre-commit's generic hooks)
+#   static-checks  this project's own rules: banned patterns and the HAL policy,
+#                  pin map, ISR atomicity, docs/ADR drift, and their self-tests
+#
+# The workflow runs on EVERY pull request. Docs-only changes skip the heavy
+# jobs through the `code` output of static-checks instead of a workflow-level
+# paths-ignore, because a workflow skipped that way never reports and leaves a
+# required check "Expected - waiting for status" forever.
+#
+# Cost: public repo, so standard runners are free; the shape is still
+# cost-aware. A superseded run is cancelled, nothing runs twice, and the
+# toolchain cache is seeded from main (see the push trigger).
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'images/**'
-      - 'assets/**'
-      - '**.png'
-      - '**.jpg'
-      - '**.jpeg'
-      - '**.gif'
-      - '**.svg'
-      - 'LICENSE'
+  # Verifies main after a merge, and seeds the PlatformIO cache that PRs read.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per PR (or per ref); a newer push cancels the older run. Runs on
+# main are never cancelled, so every merge gets a verdict.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-and-check:
-    name: Build & Checks
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-tests') }}
-    runs-on: ubuntu-latest
+  lint:
+    name: "Repo: lint"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-
-      # Toolchain download is the slow part of a cold run; cache across runs.
-      - name: Cache PlatformIO core
-        uses: actions/cache@v4
-        with:
-          path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            pio-${{ runner.os }}-
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
       - name: Cache pre-commit environments
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      # requirements-dev.txt covers local tooling (pre-commit); platformio is
-      # pinned separately here since it's CI-only (not a local dev dependency).
-      - name: Install tooling
-        run: |
-          pip install -r requirements-dev.txt
-          pip install platformio==6.2.0
+      - name: Install pre-commit
+        run: pip install -r requirements-dev.txt
 
-      # Same checks as the local pre-commit hook - catches anyone who skipped it.
-      - name: pre-commit (formatting + hygiene)
+      # The same hooks contributors run locally, so CI catches anyone who
+      # skipped them. The project's own hooks run in static-checks instead;
+      # anything NOT listed in SKIP runs here, so a hook added later can never
+      # be silently left out of CI.
+      - name: pre-commit (formatting & hygiene)
+        env:
+          SKIP: banned-patterns,pin-map,isr-atomicity,docs-drift
         run: pre-commit run --all-files --show-diff-on-failure
 
-      - name: Banned pattern check
-        run: ./scripts/check-banned-patterns.sh
+  static-checks:
+    name: "Repo: static checks"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      # Depth 2: on a PR the checkout is the merge commit, whose first parent is
+      # the current tip of main - what the docs and path checks compare against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
 
-      - name: Build (warnings-as-errors)
-        if: hashFiles('platformio.ini') != ''
-        run: pio run
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
-      - name: SRAM budget check
-        if: hashFiles('platformio.ini') != ''
+      - name: Install pre-commit
+        run: pip install -r requirements-dev.txt
+
+      # Run through pre-commit so a hook's definition (what it runs, on which
+      # files) lives only in .pre-commit-config.yaml. These are local hooks, so
+      # no environments are built. All four run even if one fails.
+      - name: Project rules (banned patterns, pin map, ISR atomicity, docs drift)
         run: |
-          ELF=$(find .pio/build -name 'firmware.elf' | head -1)
-          ./scripts/check-ram-budget.sh "$ELF"
+          rc=0
+          for hook in banned-patterns pin-map isr-atomicity docs-drift; do
+            pre-commit run "$hook" --all-files --show-diff-on-failure || rc=1
+          done
+          exit "$rc"
 
-      - name: Skip note (no platformio.ini yet)
-        if: hashFiles('platformio.ini') == ''
-        run: echo "No platformio.ini in this PR - skipping build/SRAM checks."
+      # The checkers are code too: a checker that can't fail protects nothing.
+      - name: Self-test the check scripts
+        run: python -m unittest discover -s scripts/tests
 
-      # warning/performance/portability hard-fail; style is advisory-only.
+      # Accepted ADRs are immutable; this needs the base commit, so it can't
+      # be a local hook.
+      - name: ADRs - accepted decisions are not edited
+        if: github.event_name == 'pull_request'
+        run: scripts/check-docs-drift.py --base HEAD^1
+
+      - name: Does this change touch code?
+        id: changes
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          printf 'changed files:\n%s\n' "$changed"
+          # Anything outside docs/images/licence counts as code. CI, scripts and
+          # platformio.ini changes therefore always run the full build.
+          if printf '%s\n' "$changed" | grep -qvE '^(docs/|images/|assets/|LICENSE$)|\.(md|png|jpe?g|gif|svg)$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "Docs/images only - native and avr-build are skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  native:
+    name: "Software: native tests (sanitizers, coverage)"
+    needs: [lint, static-checks]
+    if: needs.static-checks.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: native
+
+      - name: Unit tests
+        run: pio test -e native
+
+      # AddressSanitizer + UBSan: out-of-bounds in the maze grid, signed
+      # overflow, misaligned access. Aborts on the first violation.
+      - name: Unit tests under ASan + UBSan
+        run: pio test -e native_san
+
+      - name: Unit tests with coverage
+        run: pio test -e native_cov
+
+      - name: Coverage floor
+        run: |
+          rc=0
+          scripts/check-coverage.sh > coverage.txt 2>&1 || rc=$?
+          cat coverage.txt
+          { echo '### Line coverage (include/, lib/)'; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+  avr-build:
+    name: "Firmware: AVR build (mega)"
+    needs: [lint, static-checks]
+    if: needs.static-checks.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: avr
+
+      # -Werror comes from platformio.ini (src/ and lib/maze), so a warning is a failed build.
+      - name: Build
+        run: pio run -e mega
+
+      # The built-in Mega pin table behind check-pin-map.py must match the core.
+      - name: Pin table matches the Arduino core
+        run: scripts/check-pin-map.py --core-header ~/.platformio/packages/framework-arduino-avr/variants/mega/pins_arduino.h
+
+      - name: Memory budgets
+        run: |
+          { echo '### Memory use'; echo '| Resource | Used (bytes) | Budget (bytes) | % |'; echo '|---|---|---|---|'; } >> "$GITHUB_STEP_SUMMARY"
+          ELF=.pio/build/mega/firmware.elf
+          rc=0
+          scripts/check-ram-budget.sh "$ELF" || rc=1
+          scripts/check-flash-budget.sh "$ELF" || rc=1
+          exit "$rc"
+
+      # Kept 7 days so a failed size check can be investigated with avr-nm.
+      - name: Upload firmware
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firmware-mega
+          path: |
+            .pio/build/mega/firmware.elf
+            .pio/build/mega/firmware.hex
+          retention-days: 7
+          if-no-files-found: warn
+
+      # ubuntu-24.04 pins the cppcheck version. warning/performance/portability
+      # hard-fail; style is advisory.
+      - name: Install cppcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cppcheck
+
       - name: cppcheck (correctness - hard fail)
-        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
           cppcheck --enable=warning,performance,portability \
-                    --std=c++17 \
-                    --error-exitcode=1 \
-                    --suppress=missingIncludeSystem \
-                    -Iinclude src/
+                   --std=c++17 \
+                   --error-exitcode=1 \
+                   --suppress=missingIncludeSystem \
+                   -Iinclude src/ lib/
 
       - name: cppcheck (style - advisory only)
-        if: hashFiles('src/**/*.cpp', 'src/**/*.c') != ''
+        run: cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ lib/ || true
+
+  # ADVISORY - deliberately not in ci-gate's needs. Keeps one comment on the PR
+  # with (1) the firmware's flash / static-SRAM change against the base commit
+  # and the symbols that grew, and (2) the open <<TBD>> placeholders, as a
+  # reminder of what is still to be measured or tuned. Posting needs a write
+  # token, which a fork PR does not get; there the report goes to the job
+  # summary only.
+  report:
+    name: "Report: firmware size & open TBDs"
+    needs: [lint, static-checks]
+    if: github.event_name == 'pull_request' && needs.static-checks.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Depth 2: HEAD^1 of the PR merge commit is the tip of main it merges into.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: avr
+
+      - name: Build this PR
+        run: pio run -e mega
+
+      # If the base does not build, the report just has no comparison column.
+      - name: Build the base commit
+        continue-on-error: true
         run: |
-          cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ || true
+          git worktree add --detach "$RUNNER_TEMP/base" HEAD^1
+          pio run -e mega -d "$RUNNER_TEMP/base"
+
+      - name: Report
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo '<!-- pr-report -->'
+            scripts/size-report.py \
+              --head-elf .pio/build/mega/firmware.elf \
+              --base-elf "$RUNNER_TEMP/base/.pio/build/mega/firmware.elf" \
+              --base-label "main ($(git rev-parse --short HEAD^1))"
+            echo
+            scripts/tbd-report.py --base-root "$RUNNER_TEMP/base" --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA"
+          } > "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/report.md"
+
+      # One comment per PR, edited in place on every push (an edit does not
+      # notify anyone). A failure to post must not turn the check red.
+      - name: Comment on the PR
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- pr-report -->'
+          ids=$(MARKER="$marker" gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+                --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith($ENV.MARKER))) | .id')
+          id=${ids%%$'\n'*}
+          body=$(cat "$RUNNER_TEMP/report.md")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" > /dev/null
+          fi
+
+  # THE required status check. It always runs, fails if any job failed or was
+  # cancelled, and requires the heavy jobs to have actually succeeded whenever
+  # static-checks decided the change touches code. Skipped is only acceptable
+  # for a docs-only change; a heavy job skipped because a Repo job failed is
+  # covered by that job's own failure.
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs: [lint, static-checks, native, avr-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Check results
+        env:
+          LINT: ${{ needs.lint.result }}
+          STATIC: ${{ needs.static-checks.result }}
+          NATIVE: ${{ needs.native.result }}
+          AVR: ${{ needs.avr-build.result }}
+          CODE: ${{ needs.static-checks.outputs.code }}
+        run: |
+          echo "lint=$LINT static-checks=$STATIC native=$NATIVE avr-build=$AVR code-changed=$CODE"
+          [ "$LINT" = "success" ] || { echo "lint did not succeed"; exit 1; }
+          [ "$STATIC" = "success" ] || { echo "static-checks did not succeed"; exit 1; }
+          if [ "$CODE" = "true" ]; then
+            [ "$NATIVE" = "success" ] || { echo "native did not succeed"; exit 1; }
+            [ "$AVR" = "success" ] || { echo "avr-build did not succeed"; exit 1; }
+          fi

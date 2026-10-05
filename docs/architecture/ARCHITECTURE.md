@@ -68,10 +68,16 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 
 ## HAL modules
 
-Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is
-built with `-Wextra`, `-Werror=return-type` and `-Wstack-usage=128` on top of
-the default `-Wall` (`lib/` gets only `-Wall`). The banned-pattern scan covers
-only `src/` and `include/`, and CI's cppcheck only `src/`.
+Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is built
+with `-Wextra`, `-Werror` and `-fno-exceptions` on top of the default `-Wall`,
+so a warning fails the build; `env:mega` adds `-fno-rtti` and
+`-Wstack-usage=128`. `lib/maze` opts into the same through its `library.json`; the flags are
+not global because they would also hit the Arduino core. `lib/maze` is
+header-only today, so nothing is compiled with those flags yet — a header is
+built under the flags of whatever includes it. They take effect when the
+library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers only, no
+`digitalWrite`/`analogRead`/`attachInterrupt` and the like) is checked
+automatically; see the [testing guide](../testing.md).
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
 `include/` so `env:native` can test it.
@@ -80,6 +86,11 @@ Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
 the driver fails the build. The pin, timer and interrupt allocation is in
 [`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md).
+
+State shared between an ISR and the main loop is a `volatile` variable private
+to its driver file, read through an accessor under `ATOMIC_BLOCK` (an AVR
+load or store wider than a byte can be torn by an interrupt). This is checked
+automatically, not left to review; see the [testing guide](../testing.md).
 
 ## Driver/algorithm boundary — RobotState
 
@@ -109,13 +120,30 @@ happen to read.
 
 ## Dual build target
 
-`platformio.ini` defines two environments, both extending `[common]`
-(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror=return-type`) so neither drifts
-out of parity with the other:
+`platformio.ini` defines four environments, all extending `[common]`
+(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`, `-fno-exceptions`) so none
+drifts out of parity
+with the others:
 
-- `env:mega` — the real robot.
+- `env:mega` — the real robot. The platform and its framework and toolchain
+  packages are pinned to exact versions.
 - `env:native` — host-PC build for `lib/maze` and the pure-logic headers in
   `include/`, which must never include `Arduino.h`.
+- `env:native_san`, `env:native_cov` — the same host tests built with
+  sanitizers, and with coverage instrumentation. What they are for is in the
+  [testing guide](../testing.md).
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+`lint` and `static-checks` first, then `native` and `avr-build` in parallel,
+then `CI gate`. The gate is the one required status check; it always reports, so
+a docs-only change passes without running the heavy jobs. Beside it, and not part
+of it, an advisory `report` job comments the firmware size change and the open
+`<<TBD>>` placeholders on each PR. `pr-title.yml` (the PR title check) and
+`nightly.yml` (slow extras) are separate workflows because their triggers
+differ. What each check does, how to run it locally and what to do when it
+fails is in the [testing guide](../testing.md).
 
 ---
 
