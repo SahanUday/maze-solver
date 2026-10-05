@@ -61,7 +61,7 @@ constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that s
 constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
 
 // ---- IR array ---------------------------------------------------------- --
-// Digital (comparator) array. See decisions/0002-*.md.
+// Digital (comparator) array. See decisions/0004-*.md.
 constexpr uint8_t IR_CHANNEL_COUNT = 8;
 
 // Majority-vote debounce, within one tick. Count must be odd.

@@ -2,7 +2,7 @@
 
 HAL driver for the floor-sensing IR array. Decision record and bench
 measurements:
-[`../decisions/0002-digital-ir-array-sensing.md`](../decisions/0002-digital-ir-array-sensing.md).
+[`../decisions/0004-digital-ir-array-sensing.md`](../decisions/0004-digital-ir-array-sensing.md).
 
 ## What it is for
 

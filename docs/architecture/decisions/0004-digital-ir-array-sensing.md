@@ -1,4 +1,4 @@
-# 0002: Digital IR array sensing — single-port read, no calibration
+# 0004: Digital IR array sensing — single-port read, no calibration
 
 - **Status:** Accepted
 - **Date:** 2026-10-04

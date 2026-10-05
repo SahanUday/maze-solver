@@ -66,7 +66,7 @@ constexpr uint8_t PIN_US_RIGHT_ECHO = A15; // PK7
 // ---- 8-element IR array ----------------------------------------- [FIXED] --
 // Digital (comparator) array, left to right, D1..D8 -> A0..A7.
 // A0-A7 are PF0-PF7; line_sensors reads PINF directly.
-// Keep all 8 channels on PORTF. See decisions/0002-*.md.
+// Keep all 8 channels on PORTF. See decisions/0004-*.md.
 constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
 // Emitter enable. Pin 36 is PC1. HIGH = emitters on.

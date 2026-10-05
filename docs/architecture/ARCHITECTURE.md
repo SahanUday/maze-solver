@@ -24,7 +24,7 @@ The IR array turned out to be a digital (comparator) array, not the analog one
 ADR 0001 assumed, so the ADC-sweep cost that ADR cites does not apply to that
 peripheral. The register mandate still holds there, for a different reason —
 atomicity. See "IR array sensing" below and
-[`decisions/0002-digital-ir-array-sensing.md`](decisions/0002-digital-ir-array-sensing.md).
+[`decisions/0004-digital-ir-array-sensing.md`](decisions/0004-digital-ir-array-sensing.md).
 
 Full reasoning, benchmarks, and the alternatives considered:
 [`decisions/0001-hybrid-hardware-abstraction.md`](decisions/0001-hybrid-hardware-abstraction.md).
