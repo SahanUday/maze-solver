@@ -36,3 +36,9 @@ repos:
         language: script
         files: ^(include/RobotConfig\.h|src/.*)$
         pass_filenames: false
+      - id: isr-atomicity
+        name: ISR atomicity (multi-byte volatiles only inside ISR / ATOMIC_BLOCK)
+        entry: scripts/check-isr-atomicity.py
+        language: script
+        files: ^src/.*\.(c|h|cpp|hpp)$
+        pass_filenames: false

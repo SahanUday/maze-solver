@@ -114,10 +114,6 @@ class PinMapTest(unittest.TestCase):
         }
         self.assertEqual(self.run_check(files), [])
 
-    def test_strip_comments_keeps_line_numbers(self):
-        text = "a /* x\ny */ b // c\n\"s//t\" 'q'\nd\n"
-        self.assertEqual(pin_map.strip_comments(text).count("\n"), text.count("\n"))
-
     def test_main_returns_nonzero_on_findings(self):
         tree = Tree(config("constexpr uint8_t PIN_A = 30;", "constexpr uint8_t PIN_B = 30;"))
         self.addCleanup(tree.close)

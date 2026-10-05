@@ -1,10 +1,12 @@
 """Shared helpers for the script self-tests (stdlib unittest, no pip deps)."""
 
 import importlib.util
+import sys
 import tempfile
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SCRIPTS))  # the scripts import cpplex as a sibling
 
 
 def load_script(filename: str):
