@@ -30,7 +30,7 @@ void setup()
 static void readSensors(RobotState &state)
 {
     encodersRead(state.encoderCountL, state.encoderCountR);
-    state.irRaw = hal::line_sensors::read();
+    hal::line_sensors::read(state.irRaw);
 }
 
 // Algorithms read g_state and decide what to do next. Empty until real

@@ -64,12 +64,13 @@ constexpr uint8_t PIN_US_LEFT_ECHO = A14;  // PK6
 constexpr uint8_t PIN_US_RIGHT_ECHO = A15; // PK7
 
 // ---- 8-element IR array ----------------------------------------- [FIXED] --
-// Digital (comparator) array, left to right, D1..D8 -> A0..A7.
-// A0-A7 are PF0-PF7; line_sensors reads PINF directly.
-// Keep all 8 channels on PORTF. See decisions/0004-*.md.
+// Analog array (the silkscreen says D1..D8, but the outputs are analog), left to right,
+// D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7. line_sensors drives the ADC directly, so keep
+// all 8 channels on ADC0-7 in order. See decisions/0005-*.md.
 constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
-// Emitter enable. Pin 36 is PC1. HIGH = emitters on.
+// Emitter enable. Pin 36 is PC1. HIGH = emitters on, LOW = off. The module pulls it up,
+// so a floating pin also lights them; the driver drives it anyway.
 constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --

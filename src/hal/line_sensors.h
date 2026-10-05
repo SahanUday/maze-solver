@@ -1,5 +1,5 @@
 // ============================================================================
-//  line_sensors.h  --  8-channel digital IR array driver.
+//  line_sensors.h  --  8-channel analog IR reflectance array driver.
 //  docs/architecture/modules/line_sensors.md
 // ============================================================================
 
@@ -7,18 +7,22 @@
 
 #include <stdint.h>
 
+#include "RobotSpec.h"
+
 namespace hal
 {
 namespace line_sensors
 {
 
-// Configures PORTF and turns the emitters on. Call once.
+// Takes over the ADC and PORTF, turns the emitters on and waits for them to settle. Call once.
 void begin();
 
-// Debounced raw levels. Bit 0 = A0 = module D1.
-uint8_t read();
+// One 10-bit ADC conversion per channel, index 0 = A0 = module D1. Lower = more reflection.
+// Blocks for ~240 us (measured).
+void read(uint16_t (&counts)[IR_CHANNEL_COUNT]);
 
-// Switches the IR emitter bank.
+// Switches the IR emitter bank and, if that changed it, waits IR_EMITTER_SETTLE_US so the
+// next read() is valid.
 void setEmitters(bool on);
 
 } // namespace line_sensors
