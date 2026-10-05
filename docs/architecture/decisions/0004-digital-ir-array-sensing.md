@@ -29,10 +29,15 @@ A throwaway diagnostic (not in this repo) was uploaded with the array wired to
 | Observation | Conclusion |
 |---|---|
 | Covering D1/D2/D3 drove `A0`/`A1`/`A2` low | channel order is 1:1, not mirrored |
-| Only ever one bit low at a time | no crosstalk between adjacent channels |
+| Only ever one bit low at a time | channels respond independently |
 | Idle held `0xFF` for tens of seconds, internal pull-ups off | lines are actively held high |
 | Enabling internal pull-ups changed nothing | internal pull-ups unnecessary |
 | Sustained covers gave 8–18 identical samples | settled state is clean; chatter is a boundary effect |
+
+Those rows were taken without the emitters driven, so they establish the
+electrical behaviour — channel mapping, output drive, settling — but not the
+optical behaviour. Anything depending on emitted light reaching a detector is
+covered by the polarity measurement below and nothing else.
 
 The module's `IR` pin is a **high-impedance logic enable, active HIGH**, feeding
 an on-board transistor. The decisive observation: a ~30kΩ internal pull-up — at
@@ -134,6 +139,14 @@ What remains adjustable is entirely physical:
   analog array would.
 - **Weaker ambient rejection** — only the one-bit comparison above, not true
   subtraction.
+- **Black and out of range read identically.** A channel reports HIGH whenever
+  no light returns, whether the floor is black or simply too far away. With the
+  mounting height unresolved this is not academic: an array mounted too high
+  reports a continuous line across every channel.
+- **Optical crosstalk is untested.** Adjacent channels sit about 9.5mm apart and
+  nothing prevents one emitter's light reaching a neighbouring detector. The
+  bench run above does not cover it, and a false neighbouring channel would
+  widen the apparent line rather than fail visibly.
 - The emitter enable is load-bearing: forget to assert it and the array fails
   *silently and uniformly* rather than loudly. `begin()` owns it.
 
