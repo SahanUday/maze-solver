@@ -1,0 +1,32 @@
+name: Set up PlatformIO
+description: Python, the pinned CI tooling (requirements-ci.txt) and a cache of the PlatformIO packages.
+
+inputs:
+  target:
+    description: Cache namespace, so the AVR toolchain and the host-only platform are cached apart.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: requirements-ci.txt
+
+    - name: Install pinned tooling
+      shell: bash
+      run: pip install -r requirements-ci.txt
+
+    # The toolchain download is the slow part of a cold run. PRs read the cache
+    # that the push-to-main run saved (a PR's own caches are invisible to other PRs).
+    - name: Cache PlatformIO packages
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.platformio
+          .pio/libdeps
+        key: pio-${{ runner.os }}-${{ inputs.target }}-${{ hashFiles('platformio.ini', 'requirements-ci.txt') }}
+        restore-keys: |
+          pio-${{ runner.os }}-${{ inputs.target }}-

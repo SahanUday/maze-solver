@@ -1,0 +1,99 @@
+name: Nightly
+
+# The slower, wider checks that would be wasteful on every PR push. A failure
+# here is a lead, not a merge blocker: it means something that passes at the
+# default settings is fragile (an optimisation level, an unlucky ordering, a
+# stricter static analysis).
+#
+# Scheduled workflows run from the default branch only and GitHub disables
+# them after 60 days without repository activity.
+on:
+  schedule:
+    # GitHub cron is UTC. 21:30 UTC = 03:00 the next day in Sri Lanka (UTC+5:30,
+    # no daylight saving). A run can start a few minutes late when GitHub is busy.
+    - cron: '30 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  avr-opt-levels:
+    name: AVR build at -O${{ matrix.opt }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        opt: ['1', '2', '3']
+    env:
+      # The Arduino core builds at -Os, which wins over a later -O flag, so it
+      # is unflagged first. -O0 is not offered: avr-libc's <util/delay.h>
+      # refuses to build without optimisation.
+      PLATFORMIO_BUILD_UNFLAGS: -Os
+      PLATFORMIO_BUILD_FLAGS: -O${{ matrix.opt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: avr
+
+      # Inlining changes with the optimiser, so this also re-checks the
+      # -Wstack-usage and -Werror gates and the memory budgets.
+      - name: Build and check budgets
+        run: |
+          pio run -e mega
+          scripts/check-ram-budget.sh .pio/build/mega/firmware.elf
+          scripts/check-flash-budget.sh .pio/build/mega/firmware.elf
+
+  native-repeat:
+    name: Native tests, repeated under sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: native
+
+      # The suites are deterministic, so a failure on repeat 17 means hidden
+      # state (a static, an uninitialised read) rather than bad luck.
+      - name: Run the suites 25 times
+        run: |
+          for i in $(seq 1 25); do
+            echo "::group::run $i"
+            pio test -e native_san
+            echo "::endgroup::"
+          done
+
+  cppcheck-full:
+    name: cppcheck (everything, advisory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install cppcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cppcheck
+
+      # Findings are read in the summary; the PR check already hard-fails on
+      # warning/performance/portability.
+      - name: cppcheck --enable=all
+        run: |
+          cppcheck --enable=all --inconclusive --std=c++17 \
+                   --suppress=missingIncludeSystem --suppress=unusedFunction \
+                   -Iinclude -Isrc src/ lib/ 2> cppcheck.txt || true
+          { echo '### cppcheck --enable=all'; echo '```'; cat cppcheck.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat cppcheck.txt

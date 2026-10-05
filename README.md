@@ -9,3 +9,9 @@ pre-commit install
 ```
 
 Firmware builds/uploads are handled by the PlatformIO VS Code extension - no separate PlatformIO install needed for that.
+
+## Testing and checks
+
+Commits are checked automatically by pre-commit, and every pull request runs the
+full set in CI. What each check is, how to run it yourself, and what to do when
+one fails: [docs/testing.md](docs/testing.md).
