@@ -25,7 +25,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-MARKER = "<!-- firmware-size-report -->"
 FLASH_TYPES = set("TtWwRr")
 RAM_TYPES = set("DdBbVv")
 TOP_SYMBOLS = 10
@@ -75,7 +74,7 @@ def cell(used: int, total: int) -> str:
 
 
 def render(head, base, budgets, head_syms=None, base_syms=None, base_label="base") -> str:
-    out = [MARKER, "### Firmware size (`env:mega`)", ""]
+    out = ["### Firmware size (`env:mega`)", ""]
     if base:
         out += [f"| | {base_label} | This PR | Change |", "|---|---:|---:|---:|"]
     else:

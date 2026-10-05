@@ -227,12 +227,14 @@ jobs:
       - name: cppcheck (style - advisory only)
         run: cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ lib/ || true
 
-  # ADVISORY - deliberately not in ci-gate's needs. Builds the PR's base commit
-  # too and keeps one comment on the PR with the flash / static-SRAM change and
-  # the symbols that grew. Posting needs a write token, which a fork PR does
-  # not get; there the report goes to the job summary only.
-  size-report:
-    name: "Firmware: size report"
+  # ADVISORY - deliberately not in ci-gate's needs. Keeps one comment on the PR
+  # with (1) the firmware's flash / static-SRAM change against the base commit
+  # and the symbols that grew, and (2) the open <<TBD>> placeholders, as a
+  # reminder of what is still to be measured or tuned. Posting needs a write
+  # token, which a fork PR does not get; there the report goes to the job
+  # summary only.
+  report:
+    name: "Report: firmware size & open TBDs"
     needs: [lint, static-checks]
     if: github.event_name == 'pull_request' && needs.static-checks.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -262,13 +264,20 @@ jobs:
           pio run -e mega -d "$RUNNER_TEMP/base"
 
       - name: Report
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          scripts/size-report.py \
-            --head-elf .pio/build/mega/firmware.elf \
-            --base-elf "$RUNNER_TEMP/base/.pio/build/mega/firmware.elf" \
-            --base-label "main ($(git rev-parse --short HEAD^1))" > "$RUNNER_TEMP/size-report.md"
-          cat "$RUNNER_TEMP/size-report.md" >> "$GITHUB_STEP_SUMMARY"
-          cat "$RUNNER_TEMP/size-report.md"
+          {
+            echo '<!-- pr-report -->'
+            scripts/size-report.py \
+              --head-elf .pio/build/mega/firmware.elf \
+              --base-elf "$RUNNER_TEMP/base/.pio/build/mega/firmware.elf" \
+              --base-label "main ($(git rev-parse --short HEAD^1))"
+            echo
+            scripts/tbd-report.py --base-root "$RUNNER_TEMP/base" --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA"
+          } > "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/report.md"
 
       # One comment per PR, edited in place on every push (an edit does not
       # notify anyone). A failure to post must not turn the check red.
@@ -279,11 +288,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          marker='<!-- firmware-size-report -->'
+          marker='<!-- pr-report -->'
           ids=$(MARKER="$marker" gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
                 --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith($ENV.MARKER))) | .id')
           id=${ids%%$'\n'*}
-          body=$(cat "$RUNNER_TEMP/size-report.md")
+          body=$(cat "$RUNNER_TEMP/report.md")
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
           else

@@ -58,7 +58,7 @@ class SizeReportTest(unittest.TestCase):
         head_syms = {"main": ("flash", 1350), "g_pad": ("ram", 200), "old": ("flash", 10)}
         base_syms = {"main": ("flash", 1264), "old": ("flash", 10), "gone": ("flash", 5)}
         text = size.render(head, base, BUDGETS, head_syms, base_syms, "main (abc1234)")
-        self.assertTrue(text.startswith(size.MARKER))
+        self.assertTrue(text.startswith("### Firmware size"))
         self.assertIn("**+300 B**", text)
         self.assertIn("**+200 B**", text)
         self.assertIn("`g_pad` (new) | SRAM", text)
