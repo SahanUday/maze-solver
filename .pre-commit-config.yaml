@@ -30,3 +30,9 @@ repos:
         language: script
         files: \.(c|h|cpp|hpp|cc)$
         pass_filenames: false
+      - id: pin-map
+        name: pin map (duplicate pins, notes, static_asserts, peripheral owners)
+        entry: scripts/check-pin-map.py
+        language: script
+        files: ^(include/RobotConfig\.h|src/.*)$
+        pass_filenames: false
