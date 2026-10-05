@@ -114,6 +114,11 @@ def resolve_value(token: str, known: dict[str, int]) -> int | None:
     return known.get(token)
 
 
+def code_only(text: str) -> str:
+    """`text` with every line's trailing // comment removed, newlines kept."""
+    return "\n".join(line.split("//")[0] for line in text.splitlines())
+
+
 def parse_pins(text: str):
     """Return (pins, aliases, errors). pins: [(name, number, line, note)]."""
     pins, errors = [], []
@@ -126,11 +131,15 @@ def parse_pins(text: str):
             continue
         start = i
         stmt = lines[i]
-        while ";" not in stmt.split("//")[0] and i + 1 < len(lines):
+        # Strip the comments per line, not once over the whole accumulated
+        # statement: `PIN_IR[8] = {  // left to right` has its terminating ';'
+        # on a later line, and splitting the joined text on the FIRST '//'
+        # would hide it - the loop then swallowed the rest of the file.
+        while ";" not in code_only(stmt) and i + 1 < len(lines):
             i += 1
             stmt += "\n" + lines[i]
         i += 1
-        code = "\n".join(s.split("//")[0] for s in stmt.splitlines())
+        code = code_only(stmt)
         note = " ".join(s.split("//", 1)[1] for s in stmt.splitlines() if "//" in s)
         m = re.match(r"\s*constexpr\s+\w+\s+(PIN_\w+)\s*(\[\s*\d*\s*\])?\s*=\s*(.*?);", code, re.S)
         if not m:

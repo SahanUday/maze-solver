@@ -68,6 +68,17 @@ class TestingDocTest(unittest.TestCase):
         self.assertTrue(any("report-y.sh" in m for m in messages))
         self.assertTrue(any("env:native_san" in m for m in messages))
 
+    # Regression: the check was a plain substring test, so a documented
+    # env:native_san also satisfied the undocumented env:native it contains.
+    def test_a_longer_env_name_does_not_cover_its_prefix(self):
+        files = {
+            "platformio.ini": "[env:native]\n[env:native_san]\n",
+            "docs/testing.md": "only env:native_san is described here\n",
+        }
+        messages = [f.message for f in self.run_check(files)]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("env:native is not described", messages[0])
+
     def test_fully_documented_passes_and_helpers_are_exempt(self):
         files = {
             "scripts/check-x.py": "",

@@ -18,6 +18,10 @@ A multi-byte volatile with external linkage (extern, or a non-static global)
 is rejected outright: other files' accesses cannot be checked, so expose it
 through an accessor that does the ATOMIC_BLOCK.
 
+A type whose width cannot be read off the declaration - a typedef, a struct, a
+scoped enum - is assumed to be multi-byte. Only `char`, `bool`, `int8_t` and
+`uint8_t` are treated as safe to access unguarded.
+
 Escape hatch for a reviewed exception: `// isr-safe: <reason>` on the access
 line or the line above it.
 
@@ -46,6 +50,13 @@ DECL = re.compile(
     re.S,
 )
 DECLARATOR = re.compile(r"^\s*(?P<ptr>\*?)\s*(?:const\s*)?(?P<vol>volatile\s*)?(?P<name>[A-Za-z_]\w*)\s*(?P<arr>\[[^\]]*\])?\s*(?:=.*)?$", re.S)
+# A declaration whose type is a single identifier this script does not know -
+# a typedef, a struct/union/enum tag, a scoped enum. Assumed multi-byte.
+UNKNOWN_DECL = re.compile(
+    rf"^\s*(?P<pre>(?:{QUALIFIERS}\b\s+)*)(?:(?:struct|union|enum|class)\s+)?"
+    r"(?P<type>[A-Za-z_][\w:]*)\s+(?P<mid>(?:volatile|const)\b\s*)*(?P<rest>[^;]+)$",
+    re.S,
+)
 NOT_FUNCTIONS = {"if", "for", "while", "switch", "catch", "ISR", "ATOMIC_BLOCK", "NONATOMIC_BLOCK", "__attribute__", "noexcept", "decltype", "sizeof", "alignas"}
 TOKEN = re.compile(r"[{};]|[A-Za-z_]\w*")
 EXEMPT = re.compile(r"isr-safe:\s*\S")
@@ -64,28 +75,75 @@ def is_multibyte(type_text: str) -> bool:
     return not any(w in ("char", "bool", "int8_t", "uint8_t") for w in words)
 
 
+def statement_end(code: str, pos: int) -> int:
+    """Offset of the ';' that ends the statement containing `pos`, ignoring the
+    ';'s inside a braced type definition (`volatile struct { uint16_t a; } s;`)."""
+    depth = 0
+    for j in range(pos, len(code)):
+        if code[j] == "{":
+            depth += 1
+        elif code[j] == "}":
+            depth -= 1
+        elif code[j] == ";" and depth <= 0:
+            return j
+    return -1
+
+
+def declaration_parts(stmt: str, volatile_at: int):
+    """(pre, mid, rest, multibyte) for a volatile declaration, or None.
+
+    A type this script does not recognise - a typedef, a struct, a scoped enum -
+    cannot have its width read off the declaration, so it is assumed MULTI-BYTE
+    rather than skipped. Skipping was a silent pass on exactly the declarations
+    an ISR state machine uses (`static volatile UsState g_state;`), which is the
+    wrong way for this check to fail.
+    """
+    parts = DECL.match(stmt)
+    if parts and "volatile" in parts["pre"] + parts["mid"]:
+        return parts["pre"], parts["mid"], parts["rest"], is_multibyte(parts["type"])
+
+    # Not a declaration at all: a parameter list (`void f(volatile uint8_t *p)`)
+    # or a cast (`*(volatile uint8_t *)addr`) has a '(' ahead of the volatile.
+    if "(" in stmt[:volatile_at]:
+        return None
+
+    if "{" in stmt:  # an inline struct/union/enum definition; declarator follows '}'
+        if not re.search(r"\bvolatile\b\s*(?:struct|union|enum|class)\b", stmt):
+            return None
+        rest = stmt[stmt.rfind("}") + 1 :]
+        if not rest.strip():
+            return None
+        return stmt[:volatile_at], "", rest, True
+
+    parts = UNKNOWN_DECL.match(stmt)
+    if not parts or "volatile" not in parts["pre"] + (parts["mid"] or ""):
+        return None
+    return parts["pre"], parts["mid"] or "", parts["rest"], True
+
+
 def find_volatiles(code: str):
     """Multi-byte volatile variable declarations: [(name, offset, external)]."""
     found = []
     for m in re.finditer(r"\bvolatile\b", code):
         start = max(code.rfind(c, 0, m.start()) for c in ";{}") + 1
-        end = code.find(";", m.end())
+        end = statement_end(code, m.end())
         if end == -1:
             continue
         stmt = code[start:end]
-        parts = DECL.match(stmt)
-        if not parts or "volatile" not in parts["pre"] + parts["mid"]:
+        parsed = declaration_parts(stmt, m.start() - start)
+        if parsed is None:
             continue
-        if not is_multibyte(parts["type"]):
+        pre, mid, rest, multibyte = parsed
+        if not multibyte:
             continue
-        offset = start + len(stmt) - len(parts["rest"])
-        is_static = "static" in parts["pre"]
-        is_extern = "extern" in parts["pre"]
+        offset = start + len(stmt) - len(rest)
+        is_static = "static" in pre
+        is_extern = "extern" in pre
         pos = 0
-        for decl in re.split(r",(?![^(]*\))", parts["rest"]):
+        for decl in re.split(r",(?![^(]*\))", rest):
             d = DECLARATOR.match(decl)
             if d and (not d["ptr"] or d["vol"]):
-                name_at = offset + parts["rest"].index(d["name"], pos)
+                name_at = offset + rest.index(d["name"], pos)
                 found.append((d["name"], name_at, is_extern, is_static, start))
             pos += len(decl) + 1
     return found

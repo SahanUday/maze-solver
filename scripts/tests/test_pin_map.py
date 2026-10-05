@@ -117,6 +117,30 @@ class PinMapTest(unittest.TestCase):
         }
         self.assertEqual(self.run_check(files), [])
 
+    # Regression: a trailing comment on the first line of a multi-line
+    # declaration used to swallow the rest of the file into one statement, so
+    # every later pin went unparsed and duplicates were never reported.
+    def test_trailing_comment_on_a_multiline_declaration_does_not_hide_later_pins(self):
+        files = config(
+            "constexpr uint8_t PIN_IR[8] = {  // left to right",
+            "    A0, A1, A2, A3, A4, A5, A6, A7};",
+            "constexpr uint8_t PIN_LED = 26;",
+            "constexpr uint8_t PIN_DUP = 26;",
+        )
+        findings = self.run_check(files)
+        self.assertEqual([f.rule for f in findings], ["pins"])
+        self.assertIn("claimed twice", findings[0].message)
+
+    def test_multiline_declaration_with_comments_on_every_line_parses(self):
+        files = config(
+            "constexpr uint8_t PIN_IR[3] = {  // left to right",
+            "    A0,  // outer left",
+            "    A1,  // centre",
+            "    A2}; // outer right",
+            "constexpr uint8_t PIN_LED = 26;",
+        )
+        self.assertEqual(self.run_check(files), [])
+
     def test_main_returns_nonzero_on_findings(self):
         tree = Tree(config("constexpr uint8_t PIN_A = 30;", "constexpr uint8_t PIN_B = 30;"))
         self.addCleanup(tree.close)

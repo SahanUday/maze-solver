@@ -102,7 +102,9 @@ compiler can't. They run on the **whole project**, not just changed files.
 
 ### 3. Strict compiler build (`Firmware: AVR build`)
 **What:** the robot firmware (`env:mega`) is compiled with `-Wall -Wextra
--Werror` (every warning is an error) and `-Wstack-usage=128` (a function using
+-Werror` (every warning is an error), `-fno-exceptions -fno-rtti` (so a `throw`
+or a `dynamic_cast` is a compile error, not just a convention) and
+`-Wstack-usage=128` (a function using
 more than 128 bytes of stack is an error: 8 KB of RAM is shared with the
 stack, and a stack overflow corrupts memory silently). `lib/maze` gets the same
 strictness from `lib/maze/library.json`.
@@ -180,8 +182,9 @@ int main()
 scripts have their own tests. Each feeds a script a tiny fake project (a
 duplicated pin, a missing `ATOMIC_BLOCK`) and confirms it is reported, and that
 a clean project passes. Files: `test_pin_map.py`, `test_isr_atomicity.py`,
-`test_docs_drift.py`, `test_pr_title.py`, `test_size_report.py`,
-`test_tbd_report.py`, with shared helpers in `support.py`. They use Python's
+`test_docs_drift.py`, `test_banned_patterns.py`, `test_pr_title.py`,
+`test_size_report.py`, `test_tbd_report.py`, with shared helpers in
+`support.py`. They use Python's
 built-in `unittest`; nothing to install.
 **Run:** `python -m unittest discover -s scripts/tests`.
 **Changing a script?** Add or update its test in the same PR.

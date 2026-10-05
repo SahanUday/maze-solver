@@ -69,7 +69,8 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 ## HAL modules
 
 Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is
-built with `-Wextra`, `-Werror` and `-Wstack-usage=128` on top of the default
+built with `-Wextra`, `-Werror`, `-fno-exceptions`, `-fno-rtti` and
+`-Wstack-usage=128` on top of the default
 `-Wall`, so a warning fails the build. `lib/maze` opts into the same through its
 `library.json`; the flags are not global because they would also hit the
 Arduino core. The HAL access policy of ADR 0001 (registers only, no
@@ -118,7 +119,8 @@ happen to read.
 ## Dual build target
 
 `platformio.ini` defines four environments, all extending `[common]`
-(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`) so none drifts out of parity
+(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`, `-fno-exceptions`,
+`-fno-rtti`) so none drifts out of parity
 with the others:
 
 - `env:mega` — the real robot. The platform and its framework and toolchain

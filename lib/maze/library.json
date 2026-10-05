@@ -2,6 +2,6 @@
   "name": "maze",
   "version": "0.0.0",
   "build": {
-    "flags": ["-Wall", "-Wextra", "-Werror"]
+    "flags": ["-Wall", "-Wextra", "-Werror", "-fno-exceptions", "-fno-rtti"]
   }
 }

@@ -104,7 +104,9 @@ def check_testing_doc(root: Path, findings: list[Finding]):
         if name not in text:
             findings.append(Finding(f"scripts/{name}", 1, "testing-doc", f"scripts/{name} is not described in {TESTING_DOC}"))
     for env in envs:
-        if f"env:{env}" not in text:
+        # \b so that a documented `env:native_san` does not also satisfy the
+        # undocumented `env:native` that is a prefix of it.
+        if not re.search(rf"env:{re.escape(env)}\b", text):
             findings.append(Finding("platformio.ini", 1, "testing-doc", f"env:{env} is not described in {TESTING_DOC}"))
 
 

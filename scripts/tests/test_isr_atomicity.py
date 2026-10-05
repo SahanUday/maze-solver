@@ -161,6 +161,64 @@ void encodersRead(int32_t &left) { ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { left = g_
 """
         self.assertEqual(lines(src), [])
 
+    # Regression: a volatile whose type the script cannot measure used to be
+    # dropped before the width test, so it was never checked at all.
+    def test_typedefd_type_is_assumed_multibyte(self):
+        src = """
+typedef uint32_t ticks_t;
+static volatile ticks_t g = 0;
+ISR(INT4_vect) { g++; }
+ticks_t read() { return g; }
+"""
+        self.assertEqual(lines(src), [7])
+
+    def test_scoped_enum_state_is_assumed_multibyte(self):
+        src = """
+enum class UsState : uint16_t { Idle, Waiting };
+static volatile UsState g_state = UsState::Idle;
+ISR(INT4_vect) { g_state = UsState::Waiting; }
+UsState read() { return g_state; }
+"""
+        self.assertEqual(lines(src), [7])
+
+    def test_inline_struct_state_is_assumed_multibyte(self):
+        src = """
+static volatile struct { uint16_t start; uint16_t end; } g_echo;
+ISR(INT4_vect) { g_echo.start = 1; }
+uint16_t read() { return g_echo.start; }
+"""
+        self.assertEqual(lines(src), [6])
+
+    def test_unknown_type_guarded_by_atomic_block_is_fine(self):
+        src = """
+typedef uint32_t ticks_t;
+static volatile ticks_t g = 0;
+ISR(INT4_vect) { g++; }
+ticks_t read() {
+    ticks_t v;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { v = g; }
+    return v;
+}
+"""
+        self.assertEqual(lines(src), [])
+
+    def test_unknown_type_no_isr_touches_it_is_not_reported(self):
+        src = """
+typedef uint32_t ticks_t;
+static volatile ticks_t g = 0;
+ticks_t read() { return g; }
+"""
+        self.assertEqual(lines(src), [])
+
+    def test_volatile_parameter_and_cast_are_not_declarations(self):
+        src = """
+static volatile int32_t g = 0;
+ISR(INT4_vect) { g = *(volatile int32_t *)0x100; }
+void poke(volatile uint8_t *reg, volatile UnknownType &s) { *reg = 1; }
+int32_t read() { int32_t v; ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { v = g; } return v; }
+"""
+        self.assertEqual(lines(src), [])
+
 
 if __name__ == "__main__":
     unittest.main()

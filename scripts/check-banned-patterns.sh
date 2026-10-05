@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Hard bans: no dynamic allocation, no STL containers, no virtual dispatch, no
 # float-formatting printf. Exceptions/RTTI are rejected by the compiler itself
-# (-fno-exceptions -fno-rtti), not grepped for here. Also enforces the HAL
-# access policy (src/hal/ goes through AVR registers, not the Arduino GPIO API;
-# see docs/architecture/decisions/0001). Used by pre-commit and CI.
+# (-fno-exceptions -fno-rtti in [common] build_src_flags and lib/maze's
+# library.json, so src/ and lib/maze in every env), not grepped for here. Also
+# enforces the HAL access policy (src/hal/ goes through AVR registers, not the
+# Arduino GPIO API; see docs/architecture/decisions/0001). Used by pre-commit
+# and CI.
 set -euo pipefail
 
 SEARCH_DIRS=()
@@ -60,11 +62,16 @@ check '%[-+ 0#]*[0-9]*\.?[0-9]*[fFeEgG]' \
 # HAL policy (ADR 0001): drivers touch registers directly. Scoped to src/hal/ -
 # main.cpp and other glue may use the Arduino framework. Comment-only mentions
 # are ignored so a driver can explain why it avoids digitalWrite().
+#
+# The comment is removed from each line BEFORE matching. Filtering out whole
+# lines that mention the API after a '//' let a real call hide behind a comment
+# that happened to name it ("digitalWrite(13, 1); // digitalWrite() is fine").
+HAL_API='\b(pinMode|digitalWrite|digitalRead|analogRead|analogWrite|analogReference|attachInterrupt|detachInterrupt|pulseIn|shiftIn|shiftOut|tone|noTone)\s*\('
 if [ -d src/hal ]; then
-    hal_matches=$(grep -rnE '\b(pinMode|digitalWrite|digitalRead|analogRead|analogWrite|analogReference|attachInterrupt|detachInterrupt|pulseIn|shiftIn|shiftOut|tone|noTone)\s*\(' \
-        src/hal "${EXTS[@]}" \
-        | grep -vE '^[^:]+:[0-9]+:\s*(//|\*|/\*)' \
-        | grep -vE '//.*\b(pinMode|digitalWrite|digitalRead|analogRead|analogWrite|analogReference|attachInterrupt|detachInterrupt|pulseIn|shiftIn|shiftOut|tone|noTone)\s*\(' \
+    hal_matches=$(grep -rn '' src/hal "${EXTS[@]}" \
+        | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(\*|/\*)' \
+        | sed -E 's|//.*$||' \
+        | grep -E "$HAL_API" \
         || true)
     if [ -n "$hal_matches" ]; then
         echo "BANNED PATTERN: Arduino GPIO/ADC/interrupt API inside src/hal/ - HAL drivers must use AVR registers directly (ADR 0001)"
