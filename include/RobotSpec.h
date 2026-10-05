@@ -84,9 +84,38 @@ constexpr uint8_t LINE_MASK_OFF_PCT = 40;
 // Sensor face to floor at the final mount; the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
 
-// ---- Ultrasonic sensing ------------------------------- <<TBD HARDWARE>> --
-constexpr uint16_t US_MIN_RANGE_MM = 0; // closest reliable reading
-constexpr uint16_t US_MAX_RANGE_MM = 0;
+// ---- Ultrasonic sensing ------------------------------------------------ --
+// HC-SR04 x3, round-robin. See decisions/0007-*.md.
+constexpr uint8_t US_SENSOR_COUNT = 3;
+
+// One sensor per slot; 2 ticks, so slots land on tick boundaries.
+constexpr uint8_t US_SLOT_MS = 20;
+
+// Timer1 prescaler 8 at 16MHz gives 0.5us per tick.
+constexpr uint8_t US_TIMER_PRESCALER = 8;
+
+// Speed of sound at 20C. Temperature is not compensated.
+constexpr uint16_t SPEED_OF_SOUND_M_S = 343;
+
+// Datasheet capability. <<TBD HARDWARE>> - confirm on the bench.
+constexpr uint16_t US_MIN_RANGE_MM = 20;
+constexpr uint16_t US_MAX_RANGE_MM = 4000;
+
+// Driver stops listening here, before the module's own ~38ms timeout.
+// Exceeds the 2250mm longest sightline a 9x9 arena can present.
+constexpr uint16_t US_RANGE_CAP_MM = 2500;
+
+// ---- Ultrasonic offsets --------------------------- <<TBD CALIBRATION>> --
+// Added to the raw face-to-target reading, per sensor.
+// Negative = sensor sits ahead of its reference point.
+// Each sensor may use a different reference point.
+constexpr int16_t US_OFFSET_FRONT_MM = 0;
+constexpr int16_t US_OFFSET_LEFT_MM = 0;
+constexpr int16_t US_OFFSET_RIGHT_MM = 0;
+
+// Echo deadline in 0.5us ticks: US_RANGE_CAP_MM * 4000 / 343.
+constexpr uint16_t US_ECHO_TIMEOUT_TICKS =
+    static_cast<uint16_t>((static_cast<uint32_t>(US_RANGE_CAP_MM) * 4000u) / SPEED_OF_SOUND_M_S);
 
 // ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
 constexpr float KP_DISTANCE = 0.0f;
