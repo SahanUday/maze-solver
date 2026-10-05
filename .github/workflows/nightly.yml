@@ -8,6 +8,9 @@ name: Nightly
 # Scheduled workflows run from the default branch only and GitHub disables
 # them after 60 days without repository activity.
 on:
+  # TEMPORARY: lets this PR exercise the workflow once. Removed before merge.
+  pull_request:
+    paths: ['.github/workflows/nightly.yml']
   schedule:
     - cron: '17 2 * * *'
   workflow_dispatch:
