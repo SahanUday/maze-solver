@@ -20,6 +20,12 @@ Checks (stdlib only, ~100 ms):
             code has a static_assert on it (the convention in
             encoders.cpp/motors.cpp). Uses inside the assert itself do not
             count, or the assert would be its own evidence.
+  registers a src/hal module that touches a GPIO port register (DDRx/PORTx/PINx)
+            or names a pin bit (PC1) has a static_assert naming a PIN_* on that
+            same port / bit. A driver that never mentions a PIN_* is invisible
+            to the `asserts` rule, so moving its pin in RobotConfig.h would
+            still pass CI. This makes sure the tie exists; what the assert
+            compares is still up to the author.
   owners    each peripheral (timerN, intN, pcintN, usartN, adc, twi, spi) is
             driven by one src/ module. Timer0 is reserved for the Arduino core.
             Deliberate sharing: put `// pin-check: shared timer4 - <reason>`
@@ -95,6 +101,11 @@ RESOURCE_PATTERNS = [
     (re.compile(r"\b(?:TWCR|TWSR|TWBR|TWDR|TWAR|TWAMR)\b|\bISR\s*\(\s*TWI_vect"), "twi"),
     (re.compile(r"\b(?:SPCR|SPSR|SPDR)\b|\bISR\s*\(\s*SPI_STC_vect"), "spi"),
 ]
+
+# DDRC, PORTC, PINC ... A bit name like PIND2 is not a register (the \b after the port letter).
+GPIO_REGISTER = re.compile(r"\b(?:DDR|PORT|PIN)([A-L])\b")
+# PC1, PH3 ... a pin bit. The digit must follow the port letter directly, so PIND2 is not one.
+PIN_BIT = re.compile(r"\bP[A-L][0-7]\b")
 
 SHARED_MARKER = re.compile(r"pin-check:\s*shared\s+([a-z0-9_,\s]+?)(?:\s+-|\s*$)", re.M)
 ALIAS_MARKER = re.compile(r"pin-check:\s*alias(?:\s+of\s+(PIN_\w+))?")
@@ -271,22 +282,54 @@ def without_static_asserts(code: str) -> str:
     return "".join(out)
 
 
-def check_hal(root: Path, findings: list[Finding]):
+def pin_bits_by_name(pins) -> dict[str, set[str]]:
+    """PIN_X (or PIN_X[i], merged) -> the port bits (PC1, PF0 ...) of the pins it names."""
+    bits: dict[str, set[str]] = defaultdict(set)
+    for name, number, _line, _note in pins:
+        if 0 <= number < NUM_PINS:
+            bits[name.split("[")[0]].add(MEGA_PINS[number])
+    return bits
+
+
+def check_hal(root: Path, findings: list[Finding], pins=()):
+    bits_of = pin_bits_by_name(pins)
     modules = defaultdict(list)
     for path in code_files(root, "src/hal"):
         modules[module_of(root, path)].append(path)
     for module, paths in sorted(modules.items()):
-        used, asserted = {}, ""
+        used, touched, bits_used, asserted = {}, {}, {}, ""
         for path in paths:
             code = strip_comments(path.read_text())
             asserted += static_assert_text(code)
             for ln, text in enumerate(without_static_asserts(code).splitlines(), 1):
                 for name in re.findall(r"\bPIN_[A-Z0-9_]+\b", text):
                     used.setdefault(name, (path, ln))
+                for port in GPIO_REGISTER.findall(text):
+                    touched.setdefault(port, (path, ln))
+                for bit in PIN_BIT.findall(text):
+                    bits_used.setdefault(bit, (path, ln))
         covered = set(re.findall(r"\bPIN_[A-Z0-9_]+\b", asserted))
         for name, (path, ln) in sorted(used.items()):
             if name not in covered:
                 findings.append(Finding(str(path.relative_to(root)), ln, "asserts", f"{name} is used here but no static_assert in {module}.* ties it to the register code"))
+
+        # A name this script cannot place on a pin (an alias, say) makes the
+        # comparison a guess, so it is skipped rather than reported.
+        if any(name not in bits_of for name in covered):
+            continue
+        asserted_bits = set().union(*(bits_of[name] for name in covered)) if covered else set()
+        asserted_ports = {bit[1] for bit in asserted_bits}
+        none_on = f"none of the PIN_* it asserts ({', '.join(sorted(covered))}) is" if covered else "no static_assert in it names a PIN_* that is"
+        fix = "assert the pin from include/RobotConfig.h so moving it breaks the build"
+
+        flagged_ports = set()
+        for bit, (path, ln) in sorted(bits_used.items()):
+            if bit not in asserted_bits:
+                flagged_ports.add(bit[1])
+                findings.append(Finding(str(path.relative_to(root)), ln, "registers", f"{module}.* uses {bit} but {none_on} {bit}; {fix}"))
+        for port, (path, ln) in sorted(touched.items()):
+            if port not in asserted_ports and port not in flagged_ports:
+                findings.append(Finding(str(path.relative_to(root)), ln, "registers", f"{module}.* touches port {port} (DDR{port}/PORT{port}/PIN{port}) but {none_on} on port {port}; {fix}"))
 
 
 def check_owners(root: Path, findings: list[Finding]):
@@ -338,8 +381,8 @@ def verify_core_table(header: Path) -> list[str]:
 
 def check(root: Path) -> list[Finding]:
     findings: list[Finding] = []
-    check_pins(root, findings)
-    check_hal(root, findings)
+    pins = check_pins(root, findings)
+    check_hal(root, findings, pins)
     check_owners(root, findings)
     return findings
 
