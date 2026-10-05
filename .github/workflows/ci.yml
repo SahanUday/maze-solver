@@ -1,4 +1,4 @@
-name: Firmware CI
+name: CI
 
 # Layout (cheap checks first, so a typo fails in seconds and never starts the
 # toolchain):
@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint & static checks
+    name: "Repo: lint & static checks"
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -98,7 +98,7 @@ jobs:
           fi
 
   native:
-    name: Native tests (sanitizers, coverage)
+    name: "Software: native tests (sanitizers, coverage)"
     needs: lint
     if: needs.lint.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -132,7 +132,7 @@ jobs:
           exit "$rc"
 
   avr-build:
-    name: AVR build (mega)
+    name: "Firmware: AVR build (mega)"
     needs: lint
     if: needs.lint.outputs.code == 'true'
     runs-on: ubuntu-24.04
