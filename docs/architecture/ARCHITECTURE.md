@@ -15,16 +15,10 @@ libraries (e.g. MPU-6050 fusion) without reinventing them under deadline
 pressure.
 
 Timing-critical / performance-critical HAL modules (motor PWM, encoders,
-ultrasonic timing, IR array port reads) bypass the Arduino I/O primitives
+ultrasonic timing, IR array ADC sweep) bypass the Arduino I/O primitives
 entirely and access AVR registers directly (`DDRx`/`PORTx`/`TCCRn`/`ADMUX`/
 `EICRA`/etc.) instead. `digitalWrite`/`digitalRead`/`analogRead` each cost
 roughly 20-60x a direct register access.
-
-The IR array turned out to be a digital (comparator) array, not the analog one
-ADR 0001 assumed, so the ADC-sweep cost that ADR cites does not apply to that
-peripheral. The register mandate still holds there, for a different reason —
-atomicity. See "IR array sensing" below and
-[`decisions/0004-digital-ir-array-sensing.md`](decisions/0004-digital-ir-array-sensing.md).
 
 Full reasoning, benchmarks, and the alternatives considered:
 [`decisions/0001-hybrid-hardware-abstraction.md`](decisions/0001-hybrid-hardware-abstraction.md).
@@ -151,27 +145,28 @@ fails is in the [testing guide](../testing.md).
 
 ## IR array sensing
 
-The floor sensor is an 8-channel **digital** IR array — a comparator per
-channel, one bit of output each, against a fixed, non-adjustable threshold. It
-exists for the bridge between Section A and Section B, where a 30mm black line
+The floor sensor is an 8-channel **analog** reflectance array: one phototransistor
+per channel with an on-board pull-up, so each output falls from ~1020 counts
+(nothing in range) toward 0 as reflected emitter light rises. It exists for the
+bridge between Section A and Section B, where a 30mm black line
 (`BRIDGE_LINE_WIDTH_MM`) is the only lateral reference; the walled sections are
 navigated by ultrasonic ranging plus odometry instead.
 
-`A0`–`A7` are `PF0`–`PF7`, one contiguous port, so `src/hal/line_sensors` reads
-all 8 channels with a single `PINF` access — every channel sampled in the same
-clock cycle. That atomicity, not throughput, is what rules out `digitalRead()`
-here. The array must stay on one port.
+`src/hal/line_sensors` sweeps `A0`-`A7` (`ADC0`-`ADC7`) with one polled
+conversion per channel at a 500 kHz ADC clock (~240µs per sweep) and writes the
+10-bit counts to `RobotState::irRaw[8]` once per tick. `begin()` takes over the
+ADC and PORTF (Mega pull-ups and digital input buffers off) and drives the
+module's emitter enable on pin 36 HIGH. The wiring assumptions are
+`static_assert`-ed against `RobotConfig.h`. The module owns the ADC, so later
+readers of `PIN_POT` / `PIN_VBAT_SENSE` must declare the sharing.
 
-`read()` majority-votes 3 samples 100µs apart (~2% of a tick) and writes
-`RobotState::irRaw`, which holds the bits exactly as the pins present them. The
-measured polarity (`IR_BLACK_IS_HIGH`) is recorded but deliberately not applied.
-`begin()` also asserts the module's emitter-enable line on pin 36 — without it
-the emitters stay dark and every channel reads the same regardless of the floor.
+Nothing interprets the counts yet: calibration and position math wait for the real
+arena line material and the final mount height, which is unresolved. At the
+22.77mm mount white-vs-black contrast is only 4-6% of full scale, against about
+half of full scale at 3mm.
 
-Nothing interprets those bits yet. Turning a pattern into a lateral position is
-deferred until the array is shown to work at its mounted height, which is
-currently unresolved.
-
+Decision and bench measurements:
+[`decisions/0005-analog-ir-array-adc-sampling.md`](decisions/0005-analog-ir-array-adc-sampling.md).
 Module detail and known limitations:
 [`modules/line_sensors.md`](modules/line_sensors.md).
 
