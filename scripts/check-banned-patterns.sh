@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Hard bans: no dynamic allocation, no STL containers, no virtual dispatch, no
-# float-formatting printf. Exceptions/RTTI are rejected by the compiler itself
-# (-fno-exceptions -fno-rtti in [common] build_src_flags and lib/maze's
-# library.json, so src/ and lib/maze in every env), not grepped for here. Also
-# enforces the HAL access policy (src/hal/ goes through AVR registers, not the
-# Arduino GPIO API; see docs/architecture/decisions/0001). Used by pre-commit
-# and CI.
+# float-formatting printf. Exceptions/RTTI are rejected by the compiler itself,
+# not grepped for here: -fno-exceptions in [common] build_src_flags (every env)
+# and -fno-rtti in env:mega's, since it is a C++-only option and src flags
+# reach a .c file under env:native. Also enforces the HAL access policy
+# (src/hal/ goes through AVR registers, not the Arduino GPIO API; see
+# docs/architecture/decisions/0001). Used by pre-commit and CI.
 set -euo pipefail
 
 SEARCH_DIRS=()

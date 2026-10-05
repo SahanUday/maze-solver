@@ -69,9 +69,9 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 ## HAL modules
 
 Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is built
-with `-Wextra`, `-Werror`, `-fno-exceptions`, `-fno-rtti` and
-`-Wstack-usage=128` on top of the default `-Wall`, so a warning fails the
-build. `lib/maze` opts into the same through its `library.json`; the flags are
+with `-Wextra`, `-Werror` and `-fno-exceptions` on top of the default `-Wall`,
+so a warning fails the build; `env:mega` adds `-fno-rtti` and
+`-Wstack-usage=128`. `lib/maze` opts into the same through its `library.json`; the flags are
 not global because they would also hit the Arduino core. `lib/maze` is
 header-only today, so nothing is compiled with those flags yet — a header is
 built under the flags of whatever includes it. They take effect when the
@@ -121,8 +121,8 @@ happen to read.
 ## Dual build target
 
 `platformio.ini` defines four environments, all extending `[common]`
-(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`, `-fno-exceptions`,
-`-fno-rtti`) so none drifts out of parity
+(`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`, `-fno-exceptions`) so none
+drifts out of parity
 with the others:
 
 - `env:mega` — the real robot. The platform and its framework and toolchain

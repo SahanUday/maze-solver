@@ -103,7 +103,9 @@ compiler can't. They run on the **whole project**, not just changed files.
 ### 3. Strict compiler build (`Firmware: AVR build`)
 **What:** the robot firmware (`env:mega`) is compiled with `-Wall -Wextra
 -Werror` (every warning is an error), `-fno-exceptions -fno-rtti` (so a `throw`
-or a `dynamic_cast` is a compile error, not just a convention) and
+or a `dynamic_cast` is a compile error, not just a convention; the host envs get
+`-fno-exceptions` only, since `-fno-rtti` is not valid for the one C file in
+Unity's test harness) and
 `-Wstack-usage=128` (a function using more than 128 bytes of stack is an error:
 8 KB of RAM is shared with the stack, and a stack overflow corrupts memory
 silently). `lib/maze` is set up for the same strictness in
