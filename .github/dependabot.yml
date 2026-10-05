@@ -8,6 +8,9 @@ updates:
       - /.github/actions/setup-platformio
     schedule:
       interval: monthly
+    # So the bot's PR titles pass the PR title check (ci: Bump ...).
+    commit-message:
+      prefix: ci
     groups:
       actions:
         patterns: ['*']
