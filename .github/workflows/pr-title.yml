@@ -6,10 +6,11 @@ name: PR title
 # Its own workflow because it has to re-run when the title is EDITED, which
 # ci.yml deliberately does not: renaming a PR must not rebuild the firmware.
 # Not part of `CI gate`; add "Conventional title" to the ruleset's required
-# checks if a bad title should block the merge.
+# checks if a bad title should block the merge. `synchronize` is listed so the
+# check also exists on every new head commit, which a required check needs.
 on:
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, synchronize, reopened]
     branches: [main]
 
 permissions:

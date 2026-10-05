@@ -152,6 +152,13 @@ with the others:
 3. `CI gate` — the one required status check. It always reports, so a
    docs-only change passes without running the heavy jobs.
 
+Two things sit beside the gate and do not feed it: on a PR, `size-report`
+builds the base commit as well and keeps one comment with the flash and
+static-SRAM change (`scripts/size-report.py`); and `.github/workflows/pr-title.yml`
+checks the PR title is `type(scope): Subject` (`scripts/check-pr-title.py`) in
+its own workflow, because it must re-run when a title is edited, which the main
+workflow should not.
+
 The repository checks, all in `scripts/`:
 
 - `check-pin-map.py` — duplicate pins in `RobotConfig.h`, reserved pins, port

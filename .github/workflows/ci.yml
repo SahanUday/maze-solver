@@ -227,6 +227,69 @@ jobs:
       - name: cppcheck (style - advisory only)
         run: cppcheck --enable=style --std=c++17 --suppress=missingIncludeSystem -Iinclude src/ lib/ || true
 
+  # ADVISORY - deliberately not in ci-gate's needs. Builds the PR's base commit
+  # too and keeps one comment on the PR with the flash / static-SRAM change and
+  # the symbols that grew. Posting needs a write token, which a fork PR does
+  # not get; there the report goes to the job summary only.
+  size-report:
+    name: "Firmware: size report"
+    needs: [lint, static-checks]
+    if: github.event_name == 'pull_request' && needs.static-checks.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Depth 2: HEAD^1 of the PR merge commit is the tip of main it merges into.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-platformio
+        with:
+          target: avr
+
+      - name: Build this PR
+        run: pio run -e mega
+
+      # If the base does not build, the report just has no comparison column.
+      - name: Build the base commit
+        continue-on-error: true
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/base" HEAD^1
+          pio run -e mega -d "$RUNNER_TEMP/base"
+
+      - name: Report
+        run: |
+          scripts/size-report.py \
+            --head-elf .pio/build/mega/firmware.elf \
+            --base-elf "$RUNNER_TEMP/base/.pio/build/mega/firmware.elf" \
+            --base-label "main ($(git rev-parse --short HEAD^1))" > "$RUNNER_TEMP/size-report.md"
+          cat "$RUNNER_TEMP/size-report.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/size-report.md"
+
+      # One comment per PR, edited in place on every push (an edit does not
+      # notify anyone). A failure to post must not turn the check red.
+      - name: Comment on the PR
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- firmware-size-report -->'
+          ids=$(MARKER="$marker" gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+                --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith($ENV.MARKER))) | .id')
+          id=${ids%%$'\n'*}
+          body=$(cat "$RUNNER_TEMP/size-report.md")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" > /dev/null
+          fi
+
   # THE required status check. It always runs, fails if any job failed or was
   # cancelled, and requires the heavy jobs to have actually succeeded whenever
   # static-checks decided the change touches code. Skipped is only acceptable
