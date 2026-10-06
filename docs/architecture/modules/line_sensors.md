@@ -14,7 +14,8 @@ reference and dead reckoning alone would drift off the edge.
 
 ## Hardware interface
 
-Board: **QYF-750**, 8-channel line-follow module. Silkscreen pinout
+Board: 8-channel line-follow module labelled **QYF-750** (no public datasheet
+was found; the name comes from the original driver PR). Silkscreen pinout
 `GND, IR, D1…D8, VCC`. The silkscreen says `D`, but each output is an analog
 voltage.
 
@@ -49,8 +50,8 @@ drives it anyway so the state is firm. The emitters draw roughly 140 mA from
 `begin()` clears `DDRF`/`PORTF`, sets `DIDR0 = 0xFF` (the pins are analog-only,
 so `PINF` reads 0 from now on), selects the AVcc reference, enables the ADC at
 F_CPU/`IR_ADC_PRESCALER` (500 kHz) and does one throwaway conversion. `read()`
-writes `ADMUX`, starts a conversion, polls `ADSC` and reads `ADC`, channel by
-channel. There is no ISR.
+clears `MUX5`, writes `ADMUX`, starts a conversion, polls `ADSC` and reads `ADC`,
+channel by channel. There is no ISR.
 
 The wiring assumptions are `static_assert`-ed against `RobotConfig.h`: the
 channels are A0-A7 in order, the emitter enable is pin 36, and the prescaler is a
@@ -60,11 +61,16 @@ power of two giving an ADC clock of at most 1 MHz, the highest value checked.
 
 - A0-A7 stay on `ADC0`-`ADC7` in order. Moving a channel means changing the
   driver, and the build fails until the assertion is updated with it.
-- This module owns the ADC. `PIN_POT` (A8) and `PIN_VBAT_SENSE` (A9) will need
-  it; whoever adds them declares the sharing with
+- This module owns the ADC registers. A boot-time `analogRead(PIN_POT)` in
+  `main.cpp` is fine: every conversion here re-selects the reference, the channel
+  group (`MUX5`) and the channel, because the Arduino core leaves `MUX5` set after
+  reading A8-A15. A second register-level ADC driver must declare
   `// pin-check: shared adc - <reason>` in both modules.
 - `read()` is valid only after the emitters have settled, which `begin()` and
-  `setEmitters()` guarantee.
+  `setEmitters()` guarantee. `setEmitters()` works only after `begin()` has made
+  pin 36 an output.
+- Counts are ratiometric to AVcc: power the module from the same 5 V rail as the
+  Mega. A separate supply shifts every reading.
 
 ## Status
 
@@ -79,6 +85,10 @@ on a bench board (details and numbers in the ADR):
   when it does;
 - all 8 channels respond in order, with white ~350-650 and black paper 956-1011 at
   ~3 mm, and white 958-978 against black 1019 at 22.77 mm.
+
+A host build of the driver against a fake ADC shows `read()` still converts ADC0-7
+when `MUX5` was left set the way `analogRead(A8)` leaves it. That is a simulation of
+the register semantics; it is not yet confirmed on the board.
 
 Still to check: the real arena line material (black tape can reflect far more than
 black paper), sensitivity to height and tilt (the bridge incline changes both),

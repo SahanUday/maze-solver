@@ -15,10 +15,12 @@ libraries (e.g. MPU-6050 fusion) without reinventing them under deadline
 pressure.
 
 Timing-critical / performance-critical HAL modules (motor PWM, encoders,
-ultrasonic timing, IR array ADC sweep) bypass the Arduino I/O primitives
+ultrasonic timing, IR array ADC muxing) bypass the Arduino I/O primitives
 entirely and access AVR registers directly (`DDRx`/`PORTx`/`TCCRn`/`ADMUX`/
 `EICRA`/etc.) instead. `digitalWrite`/`digitalRead`/`analogRead` each cost
-roughly 20-60x a direct register access.
+roughly 20-60x a direct register access, and a naive sequential `analogRead()`
+sweep of the 8-channel IR array alone would burn a meaningful slice of a 10ms
+control-loop tick.
 
 Full reasoning, benchmarks, and the alternatives considered:
 [`decisions/0001-hybrid-hardware-abstraction.md`](decisions/0001-hybrid-hardware-abstraction.md).
@@ -142,33 +144,6 @@ of it, an advisory `report` job comments the firmware size change and the open
 `nightly.yml` (slow extras) are separate workflows because their triggers
 differ. What each check does, how to run it locally and what to do when it
 fails is in the [testing guide](../testing.md).
-
-## IR array sensing
-
-The floor sensor is an 8-channel **analog** reflectance array: one phototransistor
-per channel with an on-board pull-up, so each output falls from ~1020 counts
-(nothing in range) toward 0 as reflected emitter light rises. It exists for the
-bridge between Section A and Section B, where a 30mm black line
-(`BRIDGE_LINE_WIDTH_MM`) is the only lateral reference; the walled sections are
-navigated by ultrasonic ranging plus odometry instead.
-
-`src/hal/line_sensors` sweeps `A0`-`A7` (`ADC0`-`ADC7`) with one polled
-conversion per channel at a 500 kHz ADC clock (~240µs per sweep) and writes the
-10-bit counts to `RobotState::irRaw[8]` once per tick. `begin()` takes over the
-ADC and PORTF (Mega pull-ups and digital input buffers off) and drives the
-module's emitter enable on pin 36 HIGH. The wiring assumptions are
-`static_assert`-ed against `RobotConfig.h`. The module owns the ADC, so later
-readers of `PIN_POT` / `PIN_VBAT_SENSE` must declare the sharing.
-
-Nothing interprets the counts yet: calibration and position math wait for the real
-arena line material and the final mount height, which is unresolved. At the
-22.77mm mount white-vs-black contrast is only 4-6% of full scale, against about
-half of full scale at 3mm.
-
-Decision and bench measurements:
-[`decisions/0005-analog-ir-array-adc-sampling.md`](decisions/0005-analog-ir-array-adc-sampling.md).
-Module detail and known limitations:
-[`modules/line_sensors.md`](modules/line_sensors.md).
 
 ---
 
