@@ -7,24 +7,16 @@
 
 #include <stdint.h>
 
-namespace hal
-{
-namespace ultrasonic
-{
+enum class Ultrasonic : uint8_t { Front = 0, Left = 1, Right = 2 };
 
-enum Sensor : uint8_t { kFront = 0, kLeft = 1, kRight = 2 };
-
-// Configures trigger pins, echo pins and Timer1. Call once.
-void begin();
+// Trigger pins, echo pins and the echo timer. Call once.
+void ultrasonicInit();
 
 // Advances the round-robin. Call once per tick. Never blocks.
-void update();
+void ultrasonicUpdate();
 
-// Last distance for one sensor. Check validMask() first.
-uint16_t distanceMm(Sensor s);
+// Last distance for one sensor. Check ultrasonicValidMask() first.
+uint16_t ultrasonicDistanceMm(Ultrasonic sensor);
 
 // Bit per sensor, same order as the enum.
-uint8_t validMask();
-
-} // namespace ultrasonic
-} // namespace hal
+uint8_t ultrasonicValidMask();

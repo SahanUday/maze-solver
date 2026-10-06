@@ -29,21 +29,21 @@ what most tutorials say.
 ## How a measurement happens
 
 ```
-startPing()   TCNT1 = 0; PCMSK2 = this sensor; 10us pulse on TRIG
+startPing()   TCNT5 = 0; PCMSK2 = this sensor; 10us pulse on TRIG
      |
      |  module emits 8 cycles at 40 kHz, raises ECHO
      v
-ISR (rising)  g_startTicks = TCNT1
+ISR (rising)  g_startTicks = TCNT5
      |
      v
-ISR (falling) g_endTicks = TCNT1; PCMSK2 = 0
+ISR (falling) g_endTicks = TCNT5; PCMSK2 = 0
      |
      v
-update()      ranging::fromTicks(end - start) -> mm, or invalid
+update()      ultrasonicReadingFromTicks(end - start) -> mm, or invalid
 ```
 
-Timer 1 runs free in normal mode at prescaler 8 — **0.5 µs per tick**, wrapping
-at 32.7 ms. The ISR copies `TCNT1` and nothing else: no arithmetic, no division.
+Timer 5 runs free in normal mode at prescaler 8 — **0.5 µs per tick**, wrapping
+at 32.7 ms. The ISR copies `TCNT5` and nothing else: no arithmetic, no division.
 
 ## Scheduling
 
@@ -86,9 +86,10 @@ keep working as analog inputs.
 
 - **PORT C** also carries the IR array's emitter enable on `PC1`, so every
   trigger write is read-modify-write.
-- **Timer 1** is claimed by this module. Timer 0 is `millis()`, Timer 2 is
-  `tone()`, Timer 5 is motor PWM. A future driver needing a timer must take 3
-  or 4.
+- **Timer 5** is claimed by this module, which zeroes it on every ping. Timer 0
+  is `millis()`, Timer 2 is 8-bit, and `motors` owns Timer 1 and Timer 4. Timer 3
+  is the only 16-bit timer still free; note its compare outputs are pins 5/2/3
+  and pins 2/3 are the left encoder.
 
 ## Validity
 
@@ -116,7 +117,8 @@ average out.
 ## Calibration
 
 Each sensor has a signed offset (`US_OFFSET_FRONT_MM` / `_LEFT_` / `_RIGHT_`),
-applied inside `fromTicks()` so `RobotState` holds corrected distances. All
+applied inside `ultrasonicReadingFromTicks()` so `RobotState` holds corrected
+distances. All
 three are `0` until measured.
 
 **To measure:** park the robot with a flat wall at a known distance from that

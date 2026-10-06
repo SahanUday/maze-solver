@@ -24,7 +24,7 @@ void setup()
     motorsInit(); // EN stays low (coast) until the control layer enables it
     encodersInit();
     lineSensorsInit();
-    hal::ultrasonic::begin();
+    ultrasonicInit();
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -34,11 +34,11 @@ static void readSensors(RobotState &state)
     encodersRead(state.encoderCountL, state.encoderCountR);
     lineSensorsRead(state.irRaw);
 
-    hal::ultrasonic::update();
-    state.distFrontMm = hal::ultrasonic::distanceMm(hal::ultrasonic::kFront);
-    state.distLeftMm = hal::ultrasonic::distanceMm(hal::ultrasonic::kLeft);
-    state.distRightMm = hal::ultrasonic::distanceMm(hal::ultrasonic::kRight);
-    state.usValid = hal::ultrasonic::validMask();
+    ultrasonicUpdate();
+    state.distFrontMm = ultrasonicDistanceMm(Ultrasonic::Front);
+    state.distLeftMm = ultrasonicDistanceMm(Ultrasonic::Left);
+    state.distRightMm = ultrasonicDistanceMm(Ultrasonic::Right);
+    state.usValid = ultrasonicValidMask();
 }
 
 // Algorithms read g_state and decide what to do next. Empty until real

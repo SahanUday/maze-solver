@@ -10,23 +10,20 @@
 
 #include "RobotSpec.h"
 
-namespace ranging
-{
-
 static_assert(US_RANGE_CAP_MM <= US_MAX_RANGE_MM, "cap must be within sensor range");
 static_assert(US_RANGE_CAP_MM > US_MIN_RANGE_MM, "cap must exceed the dead zone");
 
-struct Reading {
+struct UltrasonicReading {
     // Meaningful only when valid. Never a guess on timeout.
     uint16_t distanceMm = 0;
     bool valid = false;
 };
 
-// Timer1 ticks (0.5us) to millimetres, plus a per-sensor offset.
+// Echo timer ticks (0.5us) to millimetres, plus a per-sensor offset.
 // mm = ticks * speed / 4000. See ADR 0007.
-inline Reading fromTicks(uint16_t ticks, int16_t offsetMm = 0)
+inline UltrasonicReading ultrasonicReadingFromTicks(uint16_t ticks, int16_t offsetMm = 0)
 {
-    Reading r;
+    UltrasonicReading r;
 
     // No echo, or past the deadline.
     if (ticks == 0 || ticks > US_ECHO_TIMEOUT_TICKS) {
@@ -52,5 +49,3 @@ inline Reading fromTicks(uint16_t ticks, int16_t offsetMm = 0)
     r.valid = true;
     return r;
 }
-
-} // namespace ranging

@@ -1,4 +1,4 @@
-# 0007: Non-blocking ultrasonic ranging — PORT K echo, Timer 1 capture
+# 0007: Non-blocking ultrasonic ranging — PORT K echo, Timer 5 capture
 
 - **Status:** Accepted
 - **Date:** 2026-10-04
@@ -57,11 +57,19 @@ work as analog inputs.
 Triggers stay on pins 30/32/34 (PORT C), written **read-modify-write** — PORT C
 also carries the IR array's emitter enable on `PC1`.
 
-### Timer 1, prescaler 8
+### Timer 5, prescaler 8
 
 0.5µs per tick, 32.7ms span. Resolution is 0.086mm — far finer than the sensor's
-own accuracy, and free: the ISR latches `TCNT1` and returns. Timer 0 is
-`millis()`, Timer 2 is `tone()`, Timer 5 is motor PWM; Timer 1 is free.
+own accuracy, and cheap: the ISR latches `TCNT5` and returns.
+
+The timer must be 16-bit and owned outright, because `startPing()` zeroes it on
+every ping. Timer 0 is `millis()`, Timer 2 is 8-bit, and `motors` holds **Timer 1
+(OC1A/OC1B, right) and Timer 4 (OC4A/OC4B, left)** — so the choice is Timer 3 or
+Timer 5. Timer 5, because Timer 3's compare outputs are PE3/PE4/PE5 = pins 5/2/3,
+and pins 2/3 are the left encoder: nothing here drives those outputs, but a later
+driver enabling one would silently stomp the encoder. Timer 5's outputs
+(pins 44/45/46) are unallocated. This module needs no timer *pin* at all — only
+`TCNT5` as a time base — so the choice costs no wiring.
 
 ### Round-robin, one sensor per 20ms slot
 
@@ -108,7 +116,7 @@ ADR 0002.
 ### Per-sensor calibration
 
 Each sensor carries a signed `int16_t` offset (`US_OFFSET_*_MM`,
-`<<TBD CALIBRATION>>`, all `0` until measured), applied in `fromTicks()` before
+`<<TBD CALIBRATION>>`, all `0` until measured), applied in `ultrasonicReadingFromTicks()` before
 the result reaches `RobotState`. So `RobotState` holds **corrected** distances
 and every consumer gets the same number.
 
@@ -130,7 +138,7 @@ Order of operations matters:
 4. reject if the result underflows past zero
 
 Only an **offset** is corrected, not a gain. All three sensors share one clock,
-one Timer 1 and the same air, so there is no per-unit scale error to speak of;
+one Timer 5 and the same air, so there is no per-unit scale error to speak of;
 what differs is where each module sits relative to the point navigation cares
 about. If a bench measurement ever shows error growing proportionally with
 distance rather than staying constant, the cause is the speed-of-sound constant

@@ -91,7 +91,7 @@ constexpr uint8_t US_SENSOR_COUNT = 3;
 // One sensor per slot; 2 ticks, so slots land on tick boundaries.
 constexpr uint8_t US_SLOT_MS = 20;
 
-// Timer1 prescaler 8 at 16MHz gives 0.5us per tick.
+// Echo timer (Timer5) prescaler 8 at 16MHz gives 0.5us per tick.
 constexpr uint8_t US_TIMER_PRESCALER = 8;
 
 // Speed of sound at 20C. Temperature is not compensated.
