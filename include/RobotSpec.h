@@ -70,6 +70,16 @@ constexpr uint8_t IR_ADC_PRESCALER = 32;
 // Wait after the emitter enable switches before a reading is valid.
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
+// ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
+// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
+// +-1 count).
+constexpr uint16_t ADC_FULL_SCALE_COUNTS = 1023;
+constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 10;
+
+// Normalized 0 (white) .. 255 (black): a channel turns black above ON and white below OFF.
+constexpr uint8_t LINE_MASK_ON_PCT = 60;
+constexpr uint8_t LINE_MASK_OFF_PCT = 40;
+
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
 // Sensor face to floor at the final mount; the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
