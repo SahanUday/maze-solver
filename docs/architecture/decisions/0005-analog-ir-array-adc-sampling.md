@@ -72,7 +72,7 @@ optical crosstalk, and a second board.
 
 - `line_sensors` reads A0-A7 with the ADC, directly through its registers
   ([0001](0001-hybrid-hardware-abstraction.md)): AVcc reference, ADC clock
-  F_CPU/32 (`IR_ADC_PRESCALER`), one polled conversion per channel, 10-bit
+  CPU_HZ/32 (`IR_ADC_PRESCALER`), one polled conversion per channel, 10-bit
   counts into `RobotState::irRaw[8]`. Lower means more reflected light.
 - The driver does not threshold, calibrate or interpret the counts. Position
   math and per-channel white/black calibration wait for data from the real arena
@@ -80,9 +80,9 @@ optical crosstalk, and a second board.
 - Every conversion writes `ADMUX` and clears `MUX5` itself. The Arduino core's
   `analogRead()` leaves `MUX5` set after reading A8-A15, so a boot-time read of
   `PIN_POT` would otherwise turn every later sweep into ADC8-15 without any error.
-- `begin()` turns the digital input buffers off (`DIDR0`), keeps the Mega's
+- `lineSensorsInit()` turns the digital input buffers off (`DIDR0`), keeps the Mega's
   pull-ups off (they would shift every reading ~20%), drives pin 36 HIGH and
-  waits `IR_EMITTER_SETTLE_US`. `setEmitters()` waits it again when it changes
+  waits `IR_EMITTER_SETTLE_US`. `lineSensorsSetEmitters()` waits it again when it changes
   the state.
 - The wiring assumptions are `static_assert`-ed against `RobotConfig.h`: the
   channels are A0-A7 in order, the emitter enable is pin 36, and the prescaler
@@ -111,7 +111,7 @@ optical crosstalk, and a second board.
   driver would have to declare `// pin-check: shared adc - <reason>` in both
   modules.
 - The channels are sampled one after another over ~0.24 ms, not in one instant.
-- `read()` blocks for ~240 µs of the 10 ms tick.
+- `lineSensorsRead()` blocks for ~240 µs of the 10 ms tick.
 - A0-A7 cannot be read as GPIO any more (`PINF` reads 0).
 - At the 22.77 mm mount the white/black contrast is only 4-6% of full scale and
   falls steeply with height, so the mount height remains the largest lever.
