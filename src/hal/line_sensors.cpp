@@ -55,7 +55,7 @@ inline uint16_t convert(uint8_t channel)
 {
     // Every conversion picks its own channel group: the Arduino core's analogRead() leaves
     // MUX5 set after reading A8-A15 (PIN_POT, say), which would silently turn this into ADC8-15.
-    ADCSRB = static_cast<uint8_t>(ADCSRB & ~_BV(MUX5));
+    ADCSRB &= ~_BV(MUX5);
     ADMUX = _BV(REFS0) | channel; // AVcc reference, right-adjusted, MUX4:0 = channel
     ADCSRA |= _BV(ADSC);
     while (ADCSRA & _BV(ADSC)) {
@@ -71,12 +71,11 @@ void lineSensorsSetEmitters(bool on)
     if (on == isOn) {
         return;
     }
-    // Read-modify-write: PORTC 7-2 are the ultrasonic pins. A single-bit change to a low I/O
-    // register compiles to one sbi/cbi, so an ISR can't land in the middle of it.
+    // PORTC also carries the ultrasonic triggers; one sbi/cbi is atomic against ISRs.
     if (on) {
         PORTC |= kEmitterBit;
     } else {
-        PORTC = static_cast<uint8_t>(PORTC & ~kEmitterBit);
+        PORTC &= ~kEmitterBit;
     }
     _delay_us(IR_EMITTER_SETTLE_US);
 }

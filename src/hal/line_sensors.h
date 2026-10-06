@@ -13,7 +13,7 @@
 void lineSensorsInit();
 
 // One 10-bit ADC conversion per channel, index 0 = A0 = module D1. Lower = more reflection.
-// Blocks for ~240 us (measured).
+// Blocks for ~240 us.
 void lineSensorsRead(uint16_t (&counts)[IR_CHANNEL_COUNT]);
 
 // Switches the IR emitter bank and, if that changed it, waits IR_EMITTER_SETTLE_US so the

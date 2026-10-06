@@ -64,17 +64,14 @@ constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Ard
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
 constexpr uint8_t IR_CHANNEL_COUNT = 8;
 
-// ADC clock = CPU_HZ / IR_ADC_PRESCALER. Datasheet full accuracy is 50-200 kHz; /32 (500 kHz)
-// matched /128 within one count on the bench and sweeps the array in ~240 us.
+// ADC clock = CPU_HZ / IR_ADC_PRESCALER; the driver caps it at 1 MHz.
 constexpr uint8_t IR_ADC_PRESCALER = 32;
 
-// Wait after the emitter enable switches before a reading is valid (bench: settled to
-// within one count in ~0.4 ms turning on, ~0.9 ms turning off).
+// Wait after the emitter enable switches before a reading is valid.
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
-// Signal falls steeply with height: white-vs-black contrast was ~half of full scale at
-// 3 mm and 4-6% at 22.77 mm. Measure it from the sensor face to the floor at the final mount.
+// Sensor face to floor at the final mount; the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
 
 // ---- Ultrasonic sensing ------------------------------- <<TBD HARDWARE>> --
