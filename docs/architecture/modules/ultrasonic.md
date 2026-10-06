@@ -53,8 +53,8 @@ boundaries with no drift.
 ```
 t (ms)   0         20        40        60        80
 front  TRIG                                    TRIG
-left             TRIG                                   
-right                      TRIG                         
+left             TRIG
+right                      TRIG
 ```
 
 Each sensor re-triggers every 60 ms (**16.7 Hz**), satisfying the datasheet's
