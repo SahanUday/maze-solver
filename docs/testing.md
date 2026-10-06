@@ -162,14 +162,14 @@ and structs need nothing.
 
 **What can be unit tested.** Only code that does not touch hardware and does not
 include `Arduino.h`: the headers in `include/` (`Scheduler.h`, `Quadrature.h`,
-`MotorDrive.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
+`MotorDrive.h`, `LineSense.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
 `main.cpp`) is built only for the robot. That is why drivers keep their
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
 
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
-`test_scheduler`, `test_quadrature`, `test_motor_drive`, and `test_native`
+`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, and `test_native`
 (a placeholder that proves the host build works). A test file looks like this
 (Unity is the test framework):
 ```cpp
