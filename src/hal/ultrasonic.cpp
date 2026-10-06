@@ -10,6 +10,7 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
+#include "RobotConfig.h"
 #include "RobotSpec.h"
 #include "UltrasonicMath.h"
 
@@ -19,6 +20,14 @@ namespace ultrasonic
 {
 
 static_assert(US_SENSOR_COUNT == 3, "front, left, right");
+
+// The register bits below are hand-mapped to these pins; moving one must break the build.
+static_assert(PIN_US_FRONT_TRIG == 30, "front trigger must be pin 30 (PC7)");
+static_assert(PIN_US_LEFT_TRIG == 32, "left trigger must be pin 32 (PC5)");
+static_assert(PIN_US_RIGHT_TRIG == 34, "right trigger must be pin 34 (PC3)");
+static_assert(PIN_US_FRONT_ECHO == A10, "front echo must be A10 (PK2, PCINT18)");
+static_assert(PIN_US_LEFT_ECHO == A11, "left echo must be A11 (PK3, PCINT19)");
+static_assert(PIN_US_RIGHT_ECHO == A12, "right echo must be A12 (PK4, PCINT20)");
 static_assert(US_SLOT_MS % CONTROL_LOOP_PERIOD_MS == 0, "slot must be whole ticks");
 static_assert(US_TIMER_PRESCALER == 8, "TCCR1B below hardcodes CS11");
 
@@ -37,11 +46,11 @@ constexpr uint8_t kEchoMask = kEchoBits[0] | kEchoBits[1] | kEchoBits[2];
 constexpr uint8_t kSlotTicks = US_SLOT_MS / CONTROL_LOOP_PERIOD_MS;
 
 // Written by the ISR.
-volatile uint16_t g_startTicks = 0;
-volatile uint16_t g_endTicks = 0;
-volatile bool g_haveStart = false;
-volatile bool g_haveEnd = false;
-volatile uint8_t g_activeEcho = 0;
+static volatile uint16_t g_startTicks = 0;
+static volatile uint16_t g_endTicks = 0;
+static volatile bool g_haveStart = false;
+static volatile bool g_haveEnd = false;
+static volatile uint8_t g_activeEcho = 0;
 
 namespace
 {
