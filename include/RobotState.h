@@ -26,7 +26,9 @@ struct RobotState {
     uint16_t distRightMm = 0;
 
     // ---- Floor sensing (from the IR array driver) ---------------------
-    uint16_t irRaw[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    // Debounced raw levels, bit 0 = A0 = D1.
+    // Set bit = no reflection.
+    uint8_t irRaw = 0;
 
     // ---- Operator controls (read once at boot) ------------------------
     bool startButtonPressed = false;

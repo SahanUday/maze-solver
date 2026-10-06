@@ -63,10 +63,14 @@ constexpr uint8_t PIN_US_FRONT_ECHO = A13; // PK5
 constexpr uint8_t PIN_US_LEFT_ECHO = A14;  // PK6
 constexpr uint8_t PIN_US_RIGHT_ECHO = A15; // PK7
 
-// ---- 8-element IR array ------------------------------------- [PROPOSED] --
-// Analog array (QTR-8A style), left to right.
+// ---- 8-element IR array ----------------------------------------- [FIXED] --
+// Digital (comparator) array, left to right, D1..D8 -> A0..A7.
+// A0-A7 are PF0-PF7; line_sensors reads PINF directly.
+// Keep all 8 channels on PORTF. See decisions/0004-*.md.
 constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
-constexpr uint8_t PIN_IR_EMITTER = 36; // HIGH = emitters on
+
+// Emitter enable. Pin 36 is PC1. HIGH = emitters on.
+constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // Physical switches - no reprogramming allowed between trials.

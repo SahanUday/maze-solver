@@ -15,12 +15,16 @@ libraries (e.g. MPU-6050 fusion) without reinventing them under deadline
 pressure.
 
 Timing-critical / performance-critical HAL modules (motor PWM, encoders,
-ultrasonic timing, IR array ADC muxing) bypass the Arduino I/O primitives
+ultrasonic timing, IR array port reads) bypass the Arduino I/O primitives
 entirely and access AVR registers directly (`DDRx`/`PORTx`/`TCCRn`/`ADMUX`/
 `EICRA`/etc.) instead. `digitalWrite`/`digitalRead`/`analogRead` each cost
-roughly 20-60x a direct register access, and a naive sequential `analogRead()`
-sweep of the 8-channel IR array alone would burn a meaningful slice of a 10ms
-control-loop tick.
+roughly 20-60x a direct register access.
+
+The IR array turned out to be a digital (comparator) array, not the analog one
+ADR 0001 assumed, so the ADC-sweep cost that ADR cites does not apply to that
+peripheral. The register mandate still holds there, for a different reason —
+atomicity. See "IR array sensing" below and
+[`decisions/0004-digital-ir-array-sensing.md`](decisions/0004-digital-ir-array-sensing.md).
 
 Full reasoning, benchmarks, and the alternatives considered:
 [`decisions/0001-hybrid-hardware-abstraction.md`](decisions/0001-hybrid-hardware-abstraction.md).
@@ -144,6 +148,32 @@ of it, an advisory `report` job comments the firmware size change and the open
 `nightly.yml` (slow extras) are separate workflows because their triggers
 differ. What each check does, how to run it locally and what to do when it
 fails is in the [testing guide](../testing.md).
+
+## IR array sensing
+
+The floor sensor is an 8-channel **digital** IR array — a comparator per
+channel, one bit of output each, against a fixed, non-adjustable threshold. It
+exists for the bridge between Section A and Section B, where a 30mm black line
+(`BRIDGE_LINE_WIDTH_MM`) is the only lateral reference; the walled sections are
+navigated by ultrasonic ranging plus odometry instead.
+
+`A0`–`A7` are `PF0`–`PF7`, one contiguous port, so `src/hal/line_sensors` reads
+all 8 channels with a single `PINF` access — every channel sampled in the same
+clock cycle. That atomicity, not throughput, is what rules out `digitalRead()`
+here. The array must stay on one port.
+
+`read()` majority-votes 3 samples 100µs apart (~2% of a tick) and writes
+`RobotState::irRaw`, which holds the bits exactly as the pins present them. The
+measured polarity (`IR_BLACK_IS_HIGH`) is recorded but deliberately not applied.
+`begin()` also asserts the module's emitter-enable line on pin 36 — without it
+the emitters stay dark and every channel reads the same regardless of the floor.
+
+Nothing interprets those bits yet. Turning a pattern into a lateral position is
+deferred until the array is shown to work at its mounted height, which is
+currently unresolved.
+
+Module detail and known limitations:
+[`modules/line_sensors.md`](modules/line_sensors.md).
 
 ---
 
