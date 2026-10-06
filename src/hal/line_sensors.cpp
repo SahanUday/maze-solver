@@ -8,6 +8,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
+#include "RobotConfig.h"
 #include "RobotSpec.h"
 
 namespace hal
@@ -21,6 +22,10 @@ namespace
 static_assert(IR_CHANNEL_COUNT == 8, "line_sensors reads one 8-bit port (PINF)");
 static_assert(IR_DEBOUNCE_SAMPLES % 2 == 1, "IR_DEBOUNCE_SAMPLES must be odd");
 static_assert(IR_DEBOUNCE_SAMPLES >= 1, "IR_DEBOUNCE_SAMPLES must be at least 1");
+static_assert(PIN_IR[0] == A0 && PIN_IR[1] == A1 && PIN_IR[2] == A2 && PIN_IR[3] == A3 &&
+                  PIN_IR[4] == A4 && PIN_IR[5] == A5 && PIN_IR[6] == A6 && PIN_IR[7] == A7,
+              "line sensors must stay on PF0..PF7 (A0..A7) for one-byte PINF reads");
+static_assert(PIN_IR_EMITTER == 36, "IR emitter enable must stay on PC1");
 
 // A channel wins the vote with strictly more than this.
 constexpr uint8_t kVoteThreshold = IR_DEBOUNCE_SAMPLES / 2;
