@@ -55,6 +55,9 @@ constexpr uint8_t kAdcPrescalerBits = adcPrescalerBits(IR_ADC_PRESCALER);
 
 inline uint16_t convert(uint8_t channel)
 {
+    // Every conversion picks its own channel group: the Arduino core's analogRead() leaves
+    // MUX5 set after reading A8-A15 (PIN_POT, say), which would silently turn this into ADC8-15.
+    ADCSRB = static_cast<uint8_t>(ADCSRB & ~_BV(MUX5));
     ADMUX = _BV(REFS0) | channel; // AVcc reference, right-adjusted, MUX4:0 = channel
     ADCSRA |= _BV(ADSC);
     while (ADCSRA & _BV(ADSC)) {
@@ -86,7 +89,6 @@ void begin()
     PORTF = 0x00; // pull-ups off: the module has its own, ours would shift every reading ~20%
     DIDR0 = 0xFF; // analog-only: no digital input buffer on ADC0-7
 
-    ADCSRB = static_cast<uint8_t>(ADCSRB & ~_BV(MUX5)); // MUX5 selects ADC8-15
     ADCSRA = _BV(ADEN) | kAdcPrescalerBits;
     convert(0); // first conversion after ADEN is longer and the result is not trusted
 
