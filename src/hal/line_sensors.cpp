@@ -3,18 +3,13 @@
 //  docs/architecture/modules/line_sensors.md
 // ============================================================================
 
-#include "line_sensors.h"
+#include "hal/line_sensors.h"
 
 #include <avr/io.h>
 #include <util/delay.h>
 
 #include "RobotConfig.h"
 #include "RobotSpec.h"
-
-namespace hal
-{
-namespace line_sensors
-{
 
 namespace
 {
@@ -48,8 +43,11 @@ static_assert(IR_ADC_PRESCALER >= 2 && IR_ADC_PRESCALER <= 128 &&
                   (IR_ADC_PRESCALER & (IR_ADC_PRESCALER - 1)) == 0,
               "IR_ADC_PRESCALER must be a power of two from 2 to 128");
 // Only validated up to 1 MHz on the bench (decisions/0005).
-static_assert(F_CPU / IR_ADC_PRESCALER <= 1000000UL,
+static_assert(CPU_HZ / IR_ADC_PRESCALER <= 1000000UL,
               "IR_ADC_PRESCALER gives an ADC clock above 1 MHz");
+
+// _delay_us() below is computed from the F_CPU macro, the ADC clock from CPU_HZ.
+static_assert(CPU_HZ == F_CPU, "CPU_HZ in RobotSpec.h must match the F_CPU the build uses");
 
 constexpr uint8_t kAdcPrescalerBits = adcPrescalerBits(IR_ADC_PRESCALER);
 
@@ -67,7 +65,7 @@ inline uint16_t convert(uint8_t channel)
 
 } // namespace
 
-void setEmitters(bool on)
+void lineSensorsSetEmitters(bool on)
 {
     const bool isOn = (PORTC & kEmitterBit) != 0;
     if (on == isOn) {
@@ -83,7 +81,7 @@ void setEmitters(bool on)
     _delay_us(IR_EMITTER_SETTLE_US);
 }
 
-void begin()
+void lineSensorsInit()
 {
     DDRF = 0x00;  // all 8 channels are inputs
     PORTF = 0x00; // pull-ups off: the module has its own, ours would shift every reading ~20%
@@ -98,12 +96,9 @@ void begin()
     _delay_us(IR_EMITTER_SETTLE_US);
 }
 
-void read(uint16_t (&counts)[IR_CHANNEL_COUNT])
+void lineSensorsRead(uint16_t (&counts)[IR_CHANNEL_COUNT])
 {
     for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
         counts[ch] = convert(ch);
     }
 }
-
-} // namespace line_sensors
-} // namespace hal

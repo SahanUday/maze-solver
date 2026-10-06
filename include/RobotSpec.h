@@ -64,7 +64,7 @@ constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Ard
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
 constexpr uint8_t IR_CHANNEL_COUNT = 8;
 
-// ADC clock = F_CPU / IR_ADC_PRESCALER. Datasheet full accuracy is 50-200 kHz; /32 (500 kHz)
+// ADC clock = CPU_HZ / IR_ADC_PRESCALER. Datasheet full accuracy is 50-200 kHz; /32 (500 kHz)
 // matched /128 within one count on the bench and sweeps the array in ~240 us.
 constexpr uint8_t IR_ADC_PRESCALER = 32;
 
