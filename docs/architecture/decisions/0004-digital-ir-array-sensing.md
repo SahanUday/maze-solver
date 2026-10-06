@@ -1,6 +1,6 @@
 # 0004: Digital IR array sensing — single-port read, no calibration
 
-- **Status:** Accepted
+- **Status:** Superseded by [0005](0005-analog-ir-array-adc-sampling.md)
 - **Date:** 2026-10-04
 
 ## Context

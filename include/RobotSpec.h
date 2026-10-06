@@ -61,21 +61,28 @@ constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that s
 constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
 
 // ---- IR array ---------------------------------------------------------- --
-// Digital (comparator) array. See decisions/0004-*.md.
+// Analog reflectance array read through the ADC. See decisions/0005-*.md.
 constexpr uint8_t IR_CHANNEL_COUNT = 8;
 
-// Majority-vote debounce, within one tick. Count must be odd.
-constexpr uint8_t IR_DEBOUNCE_SAMPLES = 3;
-constexpr uint16_t IR_DEBOUNCE_SPACING_US = 100;
+// ADC clock = CPU_HZ / IR_ADC_PRESCALER; the driver caps it at 1 MHz.
+constexpr uint8_t IR_ADC_PRESCALER = 32;
+
+// Wait after the emitter enable switches before a reading is valid.
+constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
+
+// ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
+// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
+// +-1 count).
+constexpr uint16_t ADC_FULL_SCALE_COUNTS = 1023;
+constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 10;
+
+// Normalized 0 (white) .. 255 (black): a channel turns black above ON and white below OFF.
+constexpr uint8_t LINE_MASK_ON_PCT = 60;
+constexpr uint8_t LINE_MASK_OFF_PCT = 40;
 
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
-// No trimpots on this board; height is the only adjustment.
-constexpr uint8_t IR_RIDE_HEIGHT_MM = 0;
-
-// ---- IR array polarity ------------------------------------------------- --
-// Measured with emitters on: white reads LOW, so black reads HIGH.
-// Not applied by the driver; irRaw holds levels as read.
-constexpr bool IR_BLACK_IS_HIGH = true;
+// Sensor face to floor at the final mount; the signal falls steeply with height.
+constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
 
 // ---- Ultrasonic sensing ------------------------------- <<TBD HARDWARE>> --
 constexpr uint16_t US_MIN_RANGE_MM = 0; // closest reliable reading

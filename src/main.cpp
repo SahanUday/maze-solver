@@ -22,7 +22,7 @@ void setup()
     pinMode(PIN_LED_STATUS, OUTPUT);
     motorsInit(); // EN stays low (coast) until the control layer enables it
     encodersInit();
-    hal::line_sensors::begin();
+    lineSensorsInit();
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -30,7 +30,7 @@ void setup()
 static void readSensors(RobotState &state)
 {
     encodersRead(state.encoderCountL, state.encoderCountR);
-    state.irRaw = hal::line_sensors::read();
+    lineSensorsRead(state.irRaw);
 }
 
 // Algorithms read g_state and decide what to do next. Empty until real
