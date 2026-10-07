@@ -64,8 +64,9 @@ given sensor, so **wall distances are staler than everything else in
 
 ### The driver stops listening before the module does
 
-The module holds `ECHO` high for ~38 ms when nothing returns, which is longer
-than the slot. Rather than lengthen the slot, the driver gives up at
+The module holds `ECHO` high for ~71 ms when nothing returns (bench-measured on
+the front and right units; the datasheet says ~38 ms), which is longer than the
+slot. Rather than lengthen the slot, the driver gives up at
 `US_RANGE_CAP_MM` (2500 mm ≈ 14.6 ms) and moves on.
 
 Nothing is lost: 2500 mm already exceeds the 2250 mm longest sightline a 9×9
@@ -74,10 +75,12 @@ about trigger-to-trigger spacing, which is unchanged.
 
 ### `PCMSK2` masking is load-bearing
 
-All three echo lines share the `PCINT2` vector. An abandoned sensor drops its
-echo pin at t≈38 ms, part-way through a *later* sensor's slot. Masking `PCMSK2`
-to only the active sensor means that stray edge never reaches the ISR, rather
-than having to be detected and filtered.
+All three echo lines share the `PCINT2` vector. On these modules an abandoned
+sensor drops its echo pin at t≈73 ms, inside *that same sensor's* next slot,
+where the falling edge is ignored because no rising edge was seen. Other
+modules time out differently, and a stray edge from another sensor would
+otherwise reach the ISR. Masking `PCMSK2` to only the active sensor means that
+never happens, rather than having it detected and filtered.
 
 `PCMSK2` also admits nothing on `PK0`/`PK1`, so `PIN_POT` and `PIN_VBAT_SENSE`
 keep working as analog inputs.
@@ -142,9 +145,16 @@ invalid, not wrapped.
 - **Dead zone below `US_MIN_RANGE_MM`.** A centred robot sees walls at ~117 mm,
   but one hugging a wall could get inside it.
 - **16.7 Hz per sensor**, a sixth of the loop rate.
-- **Unmeasured constants.** `US_MIN_RANGE_MM` / `US_MAX_RANGE_MM` hold datasheet
-  figures, not bench measurements, and the real no-echo timeout of these
-  specific units is unverified — clones vary from 38 ms to 200 ms.
+- **Partly measured constants.** `US_MIN_RANGE_MM` / `US_MAX_RANGE_MM` hold
+  datasheet figures, not bench measurements. The no-echo timeout was measured at
+  ~71 ms on the front and right units (the left unit was not measured); clones
+  vary from 38 ms to 200 ms.
+- **A miss costs that sensor's next slot.** A module ignores any trigger until
+  its `ECHO` falls (bench: ignored at 30-70 ms, accepted from 75 ms after the
+  first trigger). After a ping that hears nothing, the 60 ms revisit lands while
+  the module is still busy, so that slot reads invalid and the next real attempt
+  is 120 ms after the miss. Setting `US_SLOT_MS` to 30 would avoid it at the cost
+  of a 90 ms revisit; not done while misses are rare.
 - **Cross-sensor interference at 20 ms spacing is unverified.** A stale
   reflection would have travelled ~6.9 m by then, well past the sensor's range,
   but a walled maze is a reflective box. Lengthening the slot costs rate, not

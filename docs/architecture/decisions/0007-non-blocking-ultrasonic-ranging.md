@@ -14,11 +14,11 @@ Two datasheet numbers dominate the design:
 
 | | Value | Consequence |
 |---|---|---|
-| No-echo timeout | ~38ms | `ECHO` stays high this long when nothing returns |
+| No-echo timeout | ~38ms datasheet, ~71ms on our modules (bench) | `ECHO` stays high this long when nothing returns, and the module ignores new triggers meanwhile |
 | Recommended recycle | ≥60ms per sensor | residual echo corrupts the next ping |
 
 The control loop ticks every 10ms (`CONTROL_LOOP_PERIOD_MS`). A wall at 235mm
-answers in 1.4ms, but **silence costs ~38ms — nearly four ticks.** The common
+answers in 1.4ms, but **silence costs ~71ms — seven ticks.** The common
 `pulseIn()` approach blocks for exactly that, stopping PID, odometry and maze
 logic at the moment the robot is somewhere open and moving. ADR 0001 already
 identified this as the real problem in the sensing budget, independent of
@@ -87,8 +87,9 @@ sensor — wall distances are therefore inherently staler than encoder counts.
 
 ### We stop listening before the module does
 
-The module's ~38ms timeout is longer than the 20ms slot, so a failed ping would
-still be driving `ECHO` high when the next sensor's slot begins. Rather than
+The module's no-echo timeout (~71ms measured, ~38ms on the datasheet) is longer
+than the 20ms slot, so a failed ping would still be driving `ECHO` high when the
+next sensor's slot begins. Rather than
 lengthen the slot, **the driver caps its own wait** at `US_RANGE_CAP_MM`
 (2500mm ≈ 14.6ms), abandons the reading, and moves on.
 
@@ -99,11 +100,13 @@ is about trigger-to-trigger spacing, which is unchanged.
 Cross-talk is unaffected. A module emits for ~200µs and then only listens, so at
 t=20ms the front sensor is silent; the two never chirp together.
 
-**The `PCMSK2` mask is load-bearing here.** An abandoned sensor drops its echo
-pin at t≈38ms, part-way through a later slot. With all three lines on one
-vector, that stray edge would otherwise land in the ISR and corrupt an unrelated
-reading. Masking to the active sensor makes the problem not exist, rather than
-needing to be filtered out.
+**The `PCMSK2` mask stays, though it matters less than first thought.** On our
+modules an abandoned sensor drops its echo pin at t≈73ms (2.3ms rise + ~71ms
+timeout), which is inside that same sensor's next slot, where no rising edge has
+been seen and the falling edge is ignored. Other modules time out differently
+(clones range from 38ms to 200ms), and a stray edge from a different sensor
+would otherwise land in the ISR and corrupt an unrelated reading. Masking to the
+active sensor makes the problem not exist, rather than needing to be filtered out.
 
 ### Timeouts are reported as invalid, never as a distance
 
@@ -184,9 +187,15 @@ carrying a temperature sensor for.
   nil now and would not have been later.
 - **16.7Hz per sensor**, a sixth of the loop rate. Wall distances are staler
   than everything else in `RobotState`, and any consumer needs to know that.
-- Three more constants whose real values are unmeasured (`US_MIN_RANGE_MM`,
-  `US_MAX_RANGE_MM`, and the actual no-echo timeout of these specific units,
-  which clones vary wildly on).
+- Two constants whose real values are unmeasured (`US_MIN_RANGE_MM` and
+  `US_MAX_RANGE_MM`). The no-echo timeout was measured at ~71ms on the front and
+  right modules; the left was not measured, and clones vary wildly.
+- **A ping that hears nothing costs that sensor its next slot.** A module ignores
+  any trigger until its `ECHO` falls (bench: ignored at 30-70ms, accepted from
+  75ms after the first trigger). With a ~73ms busy period and a 60ms revisit,
+  the next ping is ignored, so that slot reads invalid and the next real attempt
+  is 120ms after the miss. Accepted for now: it only follows a miss, and a
+  30ms slot (90ms revisit) would slow every reading to avoid it.
 - Readings remain silently wrong when a wall is angled past ~15°: the sensor
   reports a timeout, and a timeout is indistinguishable from open space.
 
@@ -202,7 +211,7 @@ timing with no ISR latency at all. Rejected: only two capture pins are broken
 out on the Mega and there are three sensors, so it would need either a fourth
 mechanism for the third sensor or external multiplexing.
 
-**`pulseIn()`.** Rejected per ADR 0001 and R1 — blocks up to 38ms.
+**`pulseIn()`.** Rejected per ADR 0001 and R1 — blocks up to ~71ms on our modules.
 
 **Shorter slots for a faster update rate.** 3× the rate by ignoring the 60ms
 recycle guidance. Rejected: a stale echo read as a close wall would make the

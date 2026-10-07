@@ -101,7 +101,7 @@ constexpr uint16_t SPEED_OF_SOUND_M_S = 343;
 constexpr uint16_t US_MIN_RANGE_MM = 20;
 constexpr uint16_t US_MAX_RANGE_MM = 4000;
 
-// Driver stops listening here, before the module's own ~38ms timeout.
+// Driver stops listening here, before the module's own ~71ms no-echo timeout (bench).
 // Exceeds the 2250mm longest sightline a 9x9 arena can present.
 constexpr uint16_t US_RANGE_CAP_MM = 2500;
 
