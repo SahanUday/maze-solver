@@ -1,7 +1,7 @@
 // ============================================================================
 //  main.cpp  --  fixed-period control loop scheduler.
 //  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
-//  Only this file and src/hal/ may touch hardware - see RobotState.h.
+//  Hardware is reached only through src/hal/* drivers - see RobotState.h.
 // ============================================================================
 
 #include <Arduino.h>
@@ -13,6 +13,7 @@
 #include "hal/encoders.h"
 #include "hal/line_sensors.h"
 #include "hal/motors.h"
+#include "hal/ultrasonic.h"
 
 static RobotState g_state;
 
@@ -23,6 +24,7 @@ void setup()
     motorsInit(); // EN stays low (coast) until the control layer enables it
     encodersInit();
     lineSensorsInit();
+    ultrasonicInit();
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -31,6 +33,12 @@ static void readSensors(RobotState &state)
 {
     encodersRead(state.encoderCountL, state.encoderCountR);
     lineSensorsRead(state.irRaw);
+
+    ultrasonicUpdate();
+    state.distFrontMm = ultrasonicDistanceMm(Ultrasonic::Front);
+    state.distLeftMm = ultrasonicDistanceMm(Ultrasonic::Left);
+    state.distRightMm = ultrasonicDistanceMm(Ultrasonic::Right);
+    state.usValid = ultrasonicValidMask();
 }
 
 // Algorithms read g_state and decide what to do next. Empty until real
