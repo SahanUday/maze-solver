@@ -33,11 +33,11 @@ constexpr uint8_t kWhoAmIValue = 0x68;
 // Clears SLEEP (the chip boots asleep and reads zeros until then) and selects the
 // gyro's own PLL over the internal oscillator, as the register map recommends.
 constexpr uint8_t kPwrMgmt1ClockPllGyroX = 0x01;
-constexpr uint8_t kConfigDlpf20Hz = 0x04;     // 20 Hz gyro / 21 Hz accel, 1 kHz internal rate
-constexpr uint8_t kGyroConfig500Dps = 0x08;   // FS_SEL = 1
-constexpr uint8_t kAccelConfig2G = 0x00;      // AFS_SEL = 0
-constexpr uint8_t kSmplrtDivNone = 0x00;      // keep the internal 1 kHz
-constexpr uint8_t kBurstBytes = 14;           // accel[3], temp, gyro[3], 2 bytes each
+constexpr uint8_t kConfigDlpf20Hz = 0x04;   // 20 Hz gyro / 21 Hz accel, 1 kHz internal rate
+constexpr uint8_t kGyroConfig500Dps = 0x08; // FS_SEL = 1
+constexpr uint8_t kAccelConfig2G = 0x00;    // AFS_SEL = 0
+constexpr uint8_t kSmplrtDivNone = 0x00;    // keep the internal 1 kHz
+constexpr uint8_t kBurstBytes = 14;         // accel[3], temp, gyro[3], 2 bytes each
 constexpr uint8_t kValues = kBurstBytes / 2;
 
 static_assert(IMU_GYRO_AXIS_YAW < 3, "IMU_GYRO_AXIS_YAW indexes ImuRaw::gyro");

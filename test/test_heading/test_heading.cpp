@@ -133,8 +133,7 @@ static void test_the_bias_is_subtracted_from_the_rate()
 {
     const GyroBias bias = calibrated(100, GYRO_BIAS_SAMPLES);
     const int16_t counts = static_cast<int16_t>(100.0f + 90.0f * GYRO_COUNTS_PER_DPS);
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, GYRO_YAW_INVERT ? -90.0f : 90.0f,
-                             gyroYawRateDps(bias, counts));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, GYRO_YAW_INVERT ? -90.0f : 90.0f, gyroYawRateDps(bias, counts));
 }
 
 static void test_rotating_back_returns_to_where_it_started()
