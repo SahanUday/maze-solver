@@ -70,6 +70,24 @@ constexpr uint8_t IR_ADC_PRESCALER = 32;
 // Wait after the emitter enable switches before a reading is valid.
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
+// ---- IMU (MPU-6050) ---------------------------------------- [FROM DESIGN] --
+// Register values and the reasoning: decisions/0007-mpu6050-heading-and-tilt.md.
+constexpr uint8_t IMU_I2C_ADDRESS = 0x68;      // ADO left floating
+constexpr uint32_t IMU_I2C_CLOCK_HZ = 400000;  // the MPU-6050's fast-mode limit
+constexpr uint8_t IMU_STARTUP_DELAY_MS = 30;   // gyro start-up after clearing SLEEP
+constexpr float GYRO_COUNTS_PER_DPS = 65.5f;   // +-500 deg/s full scale
+constexpr uint16_t ACCEL_COUNTS_PER_G = 16384; // +-2 g full scale
+constexpr uint8_t IMU_GYRO_AXIS_YAW = 2;       // board mounted flat, so yaw is Z
+
+// Gyro bias: averaged at boot with the robot held still. Integrating an
+// uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.
+constexpr uint16_t GYRO_BIAS_SAMPLES = 1000;
+constexpr uint16_t GYRO_BIAS_MIN_SAMPLES = 500; // fewer usable reads = not trustworthy
+
+// ---- Gyro polarity ----------------------------------- <<TBD HARDWARE>> --
+// Set on the bench: rotate the robot counter-clockwise, headingDeg must rise.
+constexpr bool GYRO_YAW_INVERT = false;
+
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
 // 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
 // +-1 count).
