@@ -170,8 +170,9 @@ carrying a temperature sensor for.
 **Good**
 
 - The tick is never blocked. A failed ping costs one slot, not four ticks.
-- 0.086mm timing resolution, hardware-latched, with an ISR that does no
-  arithmetic.
+- 0.086mm timing resolution, with an ISR that does no arithmetic. The `TCNT5`
+  read is software-latched: the fixed entry delay is the same on both edges and
+  cancels, so only jitter from other ISRs (~0.17mm per µs) adds error.
 - One ISR vector for all three sensors, and no external-interrupt pins consumed
   — there were none left.
 - The analog pins already in use (`A8`, `A9`) are unaffected.

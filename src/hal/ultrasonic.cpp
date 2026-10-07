@@ -154,6 +154,8 @@ uint8_t ultrasonicValidMask()
 
 // Shared by all of PORTK.
 // PCMSK2 admits only the active sensor.
+// Timer5's 16-bit temp register is per timer (datasheet p. 137-138), so the motor
+// timers are unaffected. Any main-context TCNT5/OCR5x/ICR5 access needs ATOMIC_BLOCK.
 ISR(PCINT2_vect)
 {
     const uint16_t now = TCNT5;
