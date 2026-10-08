@@ -37,8 +37,10 @@ constexpr uint8_t PIN_ENC_L_B = 3;  // PE5, INT5
 constexpr uint8_t PIN_ENC_R_A = 19; // PD2, INT2
 constexpr uint8_t PIN_ENC_R_B = 18; // PD3, INT3
 
-// ---- I2C bus (MPU-6050 gyro) ----------------------------------- [FIXED] --
-// Owned by the Wire library - do not reference directly.
+// ---- I2C bus (MPU-6050 IMU) ----------------------------------- [FIXED] --
+// The bus itself is driven by Wire.h, not by our register code. imu.cpp still
+// names both constants: it clears the AVR's internal pull-ups through PORTD
+// (decisions/0007), so check-pin-map.py's `registers` rule wants the tie.
 constexpr uint8_t PIN_I2C_SDA = 20; // INT1
 constexpr uint8_t PIN_I2C_SCL = 21; // INT0
 

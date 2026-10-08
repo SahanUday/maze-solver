@@ -9,6 +9,15 @@
 
 #include <stdint.h>
 
+// One burst read of the MPU-6050's data registers, in the sensor's own axes and
+// its own counts. Which axis is "forward" and which sign is nose-up depend on
+// how the board is bolted down; the driver does not interpret either.
+struct ImuRaw {
+    int16_t accel[3] = {0, 0, 0}; // X, Y, Z
+    int16_t temp = 0;             // chip temperature, for bias-drift diagnostics
+    int16_t gyro[3] = {0, 0, 0};  // X, Y, Z; index IMU_GYRO_AXIS_YAW is the yaw rate
+};
+
 struct RobotState {
     // ---- Timing ------------------------------------------------------
     uint32_t timestampMs = 0; // millis() at the start of this tick
@@ -19,6 +28,12 @@ struct RobotState {
 
     // ---- Orientation (from the gyro driver) ---------------------------
     float headingDeg = 0.0f; // fused/integrated yaw, 0 = start heading
+
+    // ---- Inertial sensing (from the IMU driver) -----------------------
+    // A straight mirror of the MPU-6050's 0x3B..0x48 block, raw counts, no
+    // angles (see decisions/0007). Scales: ACCEL_COUNTS_PER_G per g,
+    // GYRO_COUNTS_PER_DPS per deg/s.
+    ImuRaw imu;
 
     // ---- Wall sensing (from the ultrasonic driver) --------------------
     // Meaningful only when the matching usValid bit is set.

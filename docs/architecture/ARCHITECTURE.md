@@ -46,8 +46,12 @@ Three layers, enforced structurally — nothing in layer 2 or 3 may touch a
 register or an Arduino I/O call directly:
 
 1. **HAL** — one file pair per peripheral (`motors`, `encoders`, `ultrasonic`,
-   `line_sensors`, ...). Only layer allowed to touch hardware, per the hybrid
-   policy above.
+   `line_sensors`, `imu`, ...). Only layer allowed to touch hardware, per the
+   hybrid policy above. `imu` is the one module that takes the framework
+   exception rather than the register rule: it drives the MPU-6050 through
+   `Wire.h`, and is also the only driver whose device can be absent, so both of
+   its entry points return success/failure instead of a reading
+   ([`decisions/0007`](decisions/0007-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
    and plain data. `lib/maze` lives here and must never include `Arduino.h`
    (see "Dual build target" below).
@@ -79,8 +83,10 @@ library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers onl
 `digitalWrite`/`analogRead`/`attachInterrupt` and the like) is checked
 automatically; see the [testing guide](../testing.md).
 
-Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
-`include/` so `env:native` can test it.
+Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
+`Heading.h`) stays in `include/` so `env:native` can test it. A header there
+with function bodies in it must appear in the coverage report or declare
+`// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
