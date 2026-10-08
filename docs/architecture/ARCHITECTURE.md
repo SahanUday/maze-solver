@@ -90,13 +90,67 @@ with function bodies in it must appear in the coverage report or declare
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
-the driver fails the build. The pin, timer and interrupt allocation is in
-[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md).
+the driver fails the build. The allocation is summarised under
+[Hardware allocation](#hardware-allocation) below.
 
 State shared between an ISR and the main loop is a `volatile` variable private
 to its driver file, read through an accessor under `ATOMIC_BLOCK` (an AVR
 load or store wider than a byte can be torn by an interrupt). This is checked
 automatically, not left to review; see the [testing guide](../testing.md).
+
+## Hardware allocation
+
+Current state. Reasoning lives in
+[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md) for
+drive and sensing and
+[`decisions/0007`](decisions/0007-non-blocking-ultrasonic-ranging.md) for the
+ultrasonic echo path; per-module detail is in [`modules/`](modules/).
+
+### Ports
+
+| Pins | Port bits | Owner |
+|---|---|---|
+| A0–A7 | `PF0`–`PF7` | IR array channels, read as one `PINF` |
+| 36 | `PC1` | IR array emitter enable |
+| 30 / 32 / 34 | `PC7` / `PC5` / `PC3` | ultrasonic triggers |
+| A10 / A11 / A12 | `PK2` / `PK3` / `PK4` | ultrasonic echoes |
+| A8 / A9 | `PK0` / `PK1` | pot, battery sense (analog) |
+| 2 / 3 / 18 / 19 | `PE4` / `PE5` / `PD3` / `PD2` | encoders |
+| 20 / 21 | — | I2C |
+
+`PORTC` is shared between the ultrasonic triggers and the IR emitter enable, so
+every write to it is read-modify-write; a plain assignment from one driver would
+switch off the other's pin. `PORTF` must stay whole: the IR driver reads all
+eight channels in a single `PINF`, and splitting them across ports loses that.
+
+### Timers
+
+| Timer | Owner |
+|---|---|
+| 0 | `millis()` — Arduino core |
+| 1 | motors, right (`OC1A`/`OC1B`) |
+| 2 | unused; 8-bit, so unusable as a 16-bit time base |
+| 3 | free, but its outputs are pins 5/2/3 and 2/3 are the left encoder |
+| 4 | motors, left (`OC4A`/`OC4B`) |
+| 5 | ultrasonic time base — `TCNT5` only, no timer pin |
+
+A 16-bit timer's temp register is per timer, so the motor timers are unaffected
+by the ultrasonic driver. Any main-context access to `TCNT5`/`OCR5x`/`ICR5`
+needs `ATOMIC_BLOCK`.
+
+### Interrupts
+
+All six external-interrupt pins are taken: `INT2`–`INT5` by the encoders,
+`INT0`/`INT1` by I2C. Serial1 is unavailable as a result.
+
+`PORTC` has no pin-change or external interrupt at all, which is why the echo
+lines sit on `PORTK`. The three echoes share the `PCINT2` vector as
+`PCINT18`–`PCINT20`, and `PCMSK2` admits only the sensor currently ranging —
+which is what keeps `PK0`/`PK1` usable as analog inputs.
+
+A future pot or battery driver on A8/A9 must not write `DIDR2` wholesale:
+setting bits 2–4 (`ADC10`–`ADC12`) disables the digital input buffers on the
+echo pins, and `PINK` then reads 0 for them.
 
 ## Driver/algorithm boundary — RobotState
 

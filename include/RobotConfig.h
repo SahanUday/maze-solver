@@ -56,14 +56,18 @@ constexpr uint8_t PIN_MOTOR_R_RPWM = 11; // PB5, OC1A
 constexpr uint8_t PIN_MOTOR_R_LPWM = 12; // PB6, OC1B
 
 // ---- Ultrasonic wall sensors -------------------------------- [PROPOSED] --
-// HC-SR04-style: front, left, right. Fire one at a time (avoid cross-talk).
-// ECHO pins are on PORTK (PCINT21-23) so edges can be timestamped by interrupt.
+// HC-SR04 x3, front/left/right. Fire one at a time (avoid cross-talk).
+// Trig on PORTC: PC7, PC5, PC3.
 constexpr uint8_t PIN_US_FRONT_TRIG = 30;
 constexpr uint8_t PIN_US_LEFT_TRIG = 32;
 constexpr uint8_t PIN_US_RIGHT_TRIG = 34;
-constexpr uint8_t PIN_US_FRONT_ECHO = A13; // PK5
-constexpr uint8_t PIN_US_LEFT_ECHO = A14;  // PK6
-constexpr uint8_t PIN_US_RIGHT_ECHO = A15; // PK7
+
+// Echo on PORTK: PK2, PK3, PK4 = PCINT18-20, so edges can be timestamped by interrupt.
+// PORTC has no interrupt capability, so the trigger and echo sides are split.
+// ultrasonic.cpp hand-maps these bits; keep all three on PORTK. See decisions/0007-*.md.
+constexpr uint8_t PIN_US_FRONT_ECHO = A10;
+constexpr uint8_t PIN_US_LEFT_ECHO = A11;
+constexpr uint8_t PIN_US_RIGHT_ECHO = A12;
 
 // ---- 8-element IR array ----------------------------------------- [FIXED] --
 // Left to right, D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7. line_sensors drives the ADC

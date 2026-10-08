@@ -36,9 +36,15 @@ struct RobotState {
     ImuRaw imu;
 
     // ---- Wall sensing (from the ultrasonic driver) --------------------
+    // Meaningful only when the matching usValid bit is set.
+    // Includes each sensor's mounting offset.
     uint16_t distFrontMm = 0;
     uint16_t distLeftMm = 0;
     uint16_t distRightMm = 0;
+
+    // Bit 0 front, 1 left, 2 right.
+    // Clear means no echo heard, not an empty corridor.
+    uint8_t usValid = 0;
 
     // ---- Floor sensing (from the IR array driver) ---------------------
     // Raw 10-bit ADC counts, index 0 = A0 = D1. Lower = more reflected light (white);
