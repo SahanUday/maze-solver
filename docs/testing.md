@@ -199,8 +199,8 @@ duplicated pin, a missing `ATOMIC_BLOCK`) and confirms it is reported, and that
 a clean project passes. Files: `test_pin_map.py`, `test_isr_atomicity.py`,
 `test_docs_drift.py`, `test_banned_patterns.py`, `test_pr_title.py`,
 `test_size_report.py`, `test_tbd_report.py`, `test_untested_headers.py`,
-`test_check_coverage.py` (the shell wiring, run against a stub `gcovr`), with shared helpers in
-`support.py`. They use Python's
+`test_check_coverage.py` (the shell wiring, run against a stub `gcovr`),
+`test_fit_motor_sweep.py` (the calibration helper below), with shared helpers in `support.py`. They use Python's
 built-in `unittest`; nothing to install.
 **Run:** `python -m unittest discover -s scripts/tests`.
 **Changing a script?** Add or update its test in the same PR.
@@ -232,6 +232,10 @@ when you edit the title. **Run:** `scripts/check-pr-title.py "your title"`.
 Both appear in one comment that the bot edits on each push.
 
 ## Calibration helper scripts (not run by CI)
+- `scripts/fit-motor-sweep.py CAPTURE` turns a capture of the sweep run (or
+  `motor-speed-curve.csv`) into the dead zone, the rpm-per-duty slope, the top
+  speed and how well the two motors match. Plain Python, no packages; it exits
+  1 for a sweep with missing rungs. Its tests are in `scripts/tests/`.
 - `scripts/plot-motor-curve.py` draws the motor speed-curve figures in
   `docs/calibration/` from `motor-speed-curve.csv`. It needs matplotlib, which
   CI does not install; run it by hand after recording a new sweep.
