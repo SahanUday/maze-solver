@@ -231,7 +231,11 @@ when you edit the title. **Run:** `scripts/check-pr-title.py "your title"`.
 
 Both appear in one comment that the bot edits on each push.
 
-## Calibration helper scripts (not run by CI)
+## Calibration firmware and helper scripts (not run by CI)
+- `env:calibrate` builds the calibration firmware (`src/calibration/`: the safe
+  run and the sweep) with `env:mega`'s toolchain and flags, so it is held to the
+  same `-Werror`. CI does not build it and the RAM and flash budget checks do not
+  cover it: `pio run -e calibrate` and read the size line.
 - `scripts/fit-motor-sweep.py CAPTURE` turns a capture of the sweep run (or
   `motor-speed-curve.csv`) into the dead zone, the rpm-per-duty slope, the top
   speed and how well the two motors match. Plain Python, no packages; it exits
