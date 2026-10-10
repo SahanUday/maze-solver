@@ -78,6 +78,9 @@ constexpr uint8_t IMU_STARTUP_DELAY_MS = 30;   // gyro start-up after clearing S
 constexpr float GYRO_COUNTS_PER_DPS = 65.5f;   // +-500 deg/s full scale
 constexpr uint16_t ACCEL_COUNTS_PER_G = 16384; // +-2 g full scale
 constexpr uint8_t IMU_GYRO_AXIS_YAW = 2;       // board mounted flat, so yaw is Z
+// Wire has no timeout by default: a bus held low (an unpowered or unplugged gyro can do it) would
+// hang the control loop with the motors still driving. A transfer takes < 1 ms at 400 kHz.
+constexpr uint32_t IMU_I2C_TIMEOUT_US = 3000;
 
 // Gyro bias: averaged at boot with the robot held still. Integrating an
 // uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.
