@@ -1,4 +1,4 @@
-# 0007: Heading and tilt from the MPU-6050
+# 0008: Heading and tilt from the MPU-6050
 
 - **Status:** Accepted
 - **Date:** 2026-10-07
