@@ -82,6 +82,8 @@ bool imuInit()
     PORTD = static_cast<uint8_t>(PORTD & ~(_BV(PD0) | _BV(PD1)));
 
     Wire.setClock(IMU_I2C_CLOCK_HZ);
+    // On a timeout, reset the TWI hardware as well so the next transfer starts clean.
+    Wire.setWireTimeout(IMU_I2C_TIMEOUT_US, true);
 
     uint8_t who = 0;
     if (!readRegister(kRegWhoAmI, who) || who != kWhoAmIValue) {

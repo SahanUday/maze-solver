@@ -40,7 +40,7 @@ constexpr uint8_t PIN_ENC_R_B = 18; // PD3, INT3
 // ---- I2C bus (MPU-6050 IMU) ----------------------------------- [FIXED] --
 // The bus itself is driven by Wire.h, not by our register code. imu.cpp still
 // names both constants: it clears the AVR's internal pull-ups through PORTD
-// (decisions/0007), so check-pin-map.py's `registers` rule wants the tie.
+// (decisions/0008), so check-pin-map.py's `registers` rule wants the tie.
 constexpr uint8_t PIN_I2C_SDA = 20; // INT1
 constexpr uint8_t PIN_I2C_SCL = 21; // INT0
 
@@ -86,3 +86,6 @@ constexpr uint8_t PIN_POT = A8;                  // read once at boot
 // ---- Indicators --------------------------------------------- [PROPOSED] --
 constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
 constexpr uint8_t PIN_LED_ERROR = 27;  // something is wrong
+// The Mega's own "L" LED (PB7). Needs no wiring; shows the run state when no serial
+// monitor is attached (include/StatusLed.h).
+constexpr uint8_t PIN_LED_ONBOARD = 13;

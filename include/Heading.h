@@ -4,7 +4,7 @@
 //
 //  The gyro measures a rate, not an angle, so heading is the integral of that
 //  rate and any uncorrected bias accumulates without bound. Bias removal is
-//  therefore not optional: see decisions/0007-mpu6050-heading-and-tilt.md.
+//  therefore not optional: see decisions/0008-mpu6050-heading-and-tilt.md.
 //  docs/architecture/modules/heading.md
 // ============================================================================
 

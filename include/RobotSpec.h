@@ -42,7 +42,7 @@ constexpr uint16_t MOTOR_PWM_TOP = CPU_HZ / MOTOR_PWM_FREQ_HZ - 1; // 799
 // The motors are mounted mirrored, so one side needs its direction flipped.
 // Set on the bench: command a positive speed, the robot must roll forward and
 // the encoder count must rise.
-constexpr bool MOTOR_L_INVERT = false;
+constexpr bool MOTOR_L_INVERT = true;
 constexpr bool MOTOR_R_INVERT = false;
 constexpr bool ENC_L_INVERT = false;
 constexpr bool ENC_R_INVERT = false;
@@ -50,15 +50,24 @@ constexpr bool ENC_R_INVERT = false;
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
 
-// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
-constexpr uint16_t WHEEL_DIAMETER_MM = 0;      // rolled circumference / pi
-constexpr uint16_t TRACK_WIDTH_MM = 0;         // measured, not nominal
-constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // one full wheel turn
-constexpr float MM_PER_ENCODER_COUNT = 0.0f;   // derived from the two rows above
+// ---- Wheel / drivetrain geometry --------------------------- [MEASURED] --
+constexpr uint16_t WHEEL_DIAMETER_MM = 65; // measured with a ruler, rolled circumference / pi
+// Effective track, from a recorded 109 degree pivot (gyro) against the encoder difference: 170 mm.
+// The two motors sit end to end between the tyres and the axle is 180 mm over the tyres, so tyre
+// centre to tyre centre is ~155 mm geometrically; the extra is tyre scrub. Re-measure geometrically
+// on the new chassis.
+constexpr uint16_t TRACK_WIDTH_MM = 170;
+constexpr uint16_t ENCODER_COUNTS_PER_REV = 898; // 10 hand turns: left 8978, right 8971 counts
+constexpr float MM_PER_ENCODER_COUNT =
+    3.14159265f * WHEEL_DIAMETER_MM / ENCODER_COUNTS_PER_REV; // ~0.2274
 
 // ---- Motor limits ------------------------------------ <<TBD HARDWARE>> --
-constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
-constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
+constexpr uint16_t MOTOR_MIN_PWM_L = 160; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
+constexpr uint16_t MOTOR_MIN_PWM_R = 250; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
+// Both are forward, on the floor, from single 150 ms pulses starting at rest. The left moved at
+// 160, the lowest tried. A wheel already turning on the stand keeps going down to duty ~100-120, so
+// these are start-from-rest values under load, not the floor of the speed curve
+// (docs/calibration/).
 
 // ---- IR array ---------------------------------------------------------- --
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
@@ -71,13 +80,16 @@ constexpr uint8_t IR_ADC_PRESCALER = 32;
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
 // ---- IMU (MPU-6050) ---------------------------------------- [FROM DESIGN] --
-// Register values and the reasoning: decisions/0007-mpu6050-heading-and-tilt.md.
+// Register values and the reasoning: decisions/0008-mpu6050-heading-and-tilt.md.
 constexpr uint8_t IMU_I2C_ADDRESS = 0x68;      // ADO left floating
 constexpr uint32_t IMU_I2C_CLOCK_HZ = 400000;  // the MPU-6050's fast-mode limit
 constexpr uint8_t IMU_STARTUP_DELAY_MS = 30;   // gyro start-up after clearing SLEEP
 constexpr float GYRO_COUNTS_PER_DPS = 65.5f;   // +-500 deg/s full scale
 constexpr uint16_t ACCEL_COUNTS_PER_G = 16384; // +-2 g full scale
 constexpr uint8_t IMU_GYRO_AXIS_YAW = 2;       // board mounted flat, so yaw is Z
+// Wire has no timeout by default: a bus held low (an unpowered or unplugged gyro can do it) would
+// hang the control loop with the motors still driving. A transfer takes < 1 ms at 400 kHz.
+constexpr uint32_t IMU_I2C_TIMEOUT_US = 3000;
 
 // Gyro bias: averaged at boot with the robot held still. Integrating an
 // uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.

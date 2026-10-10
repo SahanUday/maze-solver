@@ -3,7 +3,7 @@
 MPU-6050 6-axis IMU (GY-521 breakout) on the I2C bus, read once per tick for the
 yaw rate that becomes `RobotState::headingDeg` and the accelerometer counts that
 will detect the bridge incline. Code: `src/hal/imu.{h,cpp}`. Decision:
-[0007](../decisions/0007-mpu6050-heading-and-tilt.md). The counts are turned into
+[0008](../decisions/0008-mpu6050-heading-and-tilt.md). The counts are turned into
 an angle by [heading](heading.md).
 
 This is the one HAL module that uses the Arduino framework rather than registers,
@@ -44,6 +44,10 @@ same byte selects the gyro's PLL over the internal oscillator), waits 30 ms for
 gyro start-up and PLL lock, and finally writes `CONFIG` = `0x04` (DLPF 20 Hz
 gyro / 21 Hz accel, 1 kHz internal rate), `GYRO_CONFIG` = `0x08` (+-500 deg/s),
 `ACCEL_CONFIG` = `0x00` (+-2 g) and `SMPLRT_DIV` = `0`.
+
+A transfer that gets no answer within `IMU_I2C_TIMEOUT_US` gives up and resets the TWI
+hardware, so a bus held low (an unplugged or unpowered gyro) fails the read instead of hanging the
+control loop with the motors driving.
 
 `imuRead()` writes the start address, ends the transmission with `false` for a
 repeated start, and requests all 14 bytes in **one** transaction. The chip holds
