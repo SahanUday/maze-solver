@@ -67,10 +67,38 @@ bool readRegister(uint8_t reg, uint8_t &value)
     return true;
 }
 
-} // namespace
-
-bool imuInit()
+// Frees the bus if the MPU-6050 is holding it. On this robot a reset in the middle of a
+// transfer leaves the chip waiting for the clocks that finish its byte; the TWI timeout resets
+// the AVR side only, so the next transfer times out until the chip is clocked out. Runs ahead of
+// Wire.begin(), while the pins are plain inputs: DDRD=1 with PORTD=0 drives a line low and
+// DDRD=0 releases it to the bus pull-ups (ATmega2560 datasheet, Table 34). SCL is PD0 and SDA
+// is PD1 (asserted above). Harmless on an idle bus.
+void releaseStuckBus()
 {
+    constexpr uint8_t kScl = _BV(PD0);
+    constexpr uint8_t kSda = _BV(PD1);
+    constexpr uint8_t kHalfPeriodUs = 5;
+    constexpr uint8_t kBitClocks = 9; // 8 data bits and the ACK slot
+
+    PORTD = static_cast<uint8_t>(PORTD & ~(kScl | kSda));
+    DDRD = static_cast<uint8_t>(DDRD & ~(kScl | kSda));
+    // A chip still holding SDA after one byte is sending the next: allow one more byte.
+    for (uint8_t i = 0; i < 2 * kBitClocks && (i < kBitClocks || !(PIND & kSda)); ++i) {
+        DDRD = static_cast<uint8_t>(DDRD | kScl); // SCL low
+        _delay_us(kHalfPeriodUs);
+        DDRD = static_cast<uint8_t>(DDRD & ~kScl); // released, pulled high
+        _delay_us(kHalfPeriodUs);
+    }
+    DDRD = static_cast<uint8_t>(DDRD | kSda); // STOP: SDA rises while SCL is high
+    _delay_us(kHalfPeriodUs);
+    DDRD = static_cast<uint8_t>(DDRD & ~kSda);
+    _delay_us(kHalfPeriodUs);
+}
+
+// One complete start-up sequence.
+bool initOnce()
+{
+    releaseStuckBus();
     Wire.begin();
 
     // The MPU-6050's logic pins are not 5 V tolerant and the breakout's own 4.7k
@@ -100,6 +128,18 @@ bool imuInit()
            writeRegister(kRegGyroConfig, kGyroConfig500Dps) &&
            writeRegister(kRegAccelConfig, kAccelConfig2G) &&
            writeRegister(kRegSmplrtDiv, kSmplrtDivNone);
+}
+
+} // namespace
+
+bool imuInit()
+{
+    if (initOnce()) {
+        return true;
+    }
+    // A transfer that timed out leaves the bus state unknown: clear it and run the sequence again.
+    Wire.end();
+    return initOnce();
 }
 
 bool imuRead(ImuRaw &out)
