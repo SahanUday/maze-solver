@@ -38,14 +38,16 @@ constexpr uint32_t MOTOR_PWM_FREQ_HZ = 20000;
 static_assert(CPU_HZ % MOTOR_PWM_FREQ_HZ == 0, "PWM frequency must divide CPU_HZ exactly");
 constexpr uint16_t MOTOR_PWM_TOP = CPU_HZ / MOTOR_PWM_FREQ_HZ - 1; // 799
 
-// ---- Drivetrain polarity ------------------------------ <<TBD HARDWARE>> --
+// ---- Drivetrain polarity ------------------------------------ [MEASURED] --
 // The motors are mounted mirrored, so one side needs its direction flipped.
 // Set on the bench: command a positive speed, the robot must roll forward and
 // the encoder count must rise.
-constexpr bool MOTOR_L_INVERT = false;
+constexpr bool MOTOR_L_INVERT = true;
 constexpr bool MOTOR_R_INVERT = false;
 constexpr bool ENC_L_INVERT = false;
 constexpr bool ENC_R_INVERT = false;
+// Measured 2026-10-13 on the compact chassis, wheels free, duty 300 for 800 ms: each wheel rolled
+// forward and its own encoder rose (left +1155, right +1154; both together +1173 / +1154).
 
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
@@ -87,9 +89,19 @@ constexpr uint32_t IMU_I2C_TIMEOUT_US = 3000;
 constexpr uint16_t GYRO_BIAS_SAMPLES = 1000;
 constexpr uint16_t GYRO_BIAS_MIN_SAMPLES = 500; // fewer usable reads = not trustworthy
 
-// ---- Gyro polarity ----------------------------------- <<TBD HARDWARE>> --
+// ---- Gyro polarity ----------------------------------------- [MEASURED] --
 // Set on the bench: rotate the robot counter-clockwise, headingDeg must rise.
 constexpr bool GYRO_YAW_INVERT = false;
+// Measured 2026-10-13: a hand turn of about 90 degrees counter-clockwise took headingDeg from 0 to
+// +89.4 with this false. Gyro Z carried the turn (peak 35 deg/s; X and Y peaked at 12 and 3).
+
+// ---- Accel orientation ------------------------------------- [MEASURED] --
+// Which accel axis lies along the robot, and which sign it reads when the nose rises; the bridge
+// incline test reads it (decisions/0008). Measured 2026-10-13 by lifting the front end about
+// 26 degrees by hand: Y went from +165 to -7250 counts, against -1790 on X (the sideways lean of
+// a hand-held tilt) and -1910 on Z. +Y therefore points toward the rear.
+constexpr uint8_t IMU_ACCEL_AXIS_FORWARD = 1;     // index into ImuRaw::accel (0 X, 1 Y, 2 Z)
+constexpr bool IMU_ACCEL_NOSE_UP_NEGATIVE = true; // that axis reads negative when the nose is up
 
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
 // 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is

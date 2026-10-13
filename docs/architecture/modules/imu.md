@@ -110,13 +110,19 @@ restarting, and counting `imuInit()` results alongside an uninterrupted control:
 tight loop, 0 failures. Without the release and retry the same two tests failed
 124 of 859 starts (all at four read-data positions) and 12 of 40 resets.
 
+Orientation, measured by hand on the compact chassis (2026-10-13): a counter-clockwise
+turn of about 90 deg takes `headingDeg` from 0 to +89.4 with `GYRO_YAW_INVERT` false, and
+gyro Z carries it (`IMU_GYRO_AXIS_YAW` = 2). Lifting the nose about 26 deg moves accel Y by
+-7415 counts, so Y is the forward axis and it reads negative nose-up
+(`IMU_ACCEL_AXIS_FORWARD` = 1, `IMU_ACCEL_NOSE_UP_NEGATIVE` = true). The turn was not
+measured against a reference angle, so this fixes the sign, not the gyro scale.
+
 **Everything else about the device is unverified**: that the configuration takes,
 that the counts mean what the scales say. The ~0.4 ms read time is derived from
 the bit count at 400 kHz, not measured.
 
 Still to check, in roughly this order: that 400 kHz is reliable over the real harness length (fall back to 100 kHz if
 not); the actual read duration; the gyro bias magnitude and how far it moves as
-the chip warms up; which accel axis is "forward" and which sign is nose-up;
-`GYRO_YAW_INVERT`; vibration amplitude at the real mount with the motors
+the chip warms up; vibration amplitude at the real mount with the motors
 running; and whether clearing the internal pull-ups is enough or the bus needs
 level shifting.
