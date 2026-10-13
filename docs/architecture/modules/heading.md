@@ -66,7 +66,7 @@ the angle wraps - and not any measured sensor behaviour.
 Nothing calls `gyroYawRateDps()`, `headingSet()` or `headingWrapDeg()` from the
 firmware yet; `main.cpp` calls only the bias functions and `headingUpdate()`.
 
-Still to check: the real bias magnitude and its warm-up drift, `GYRO_YAW_INVERT`,
+Still to check: the real bias magnitude and its warm-up drift,
 how much heading is actually lost over `RUN_LIMIT_MS`, and the per-tick cost of
 the float arithmetic on the Mega. The two mechanisms meant to bound the residual
 drift - re-zeroing the bias when the robot is known stationary, and snapping to
