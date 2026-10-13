@@ -88,6 +88,14 @@ constexpr uint32_t IMU_I2C_TIMEOUT_US = 3000;
 // uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.
 constexpr uint16_t GYRO_BIAS_SAMPLES = 1000;
 constexpr uint16_t GYRO_BIAS_MIN_SAMPLES = 500; // fewer usable reads = not trustworthy
+// A capture whose readings scatter more than this (standard deviation, raw counts) is thrown away
+// and repeated: a wrong zero is silent and heading integrates it without bound. Measured on the
+// compact chassis, 2026-10-13/14: a still gyro scatters 1.9-2.9 counts in every still capture and
+// still stretch logged; the first 1.5 s of a log taken while the robot was being turned scattered
+// 334.
+constexpr float GYRO_BIAS_MAX_SPREAD_COUNTS = 8.0f;
+constexpr uint8_t GYRO_BIAS_MAX_ATTEMPTS = 10; // each is ~1.4 s at boot
+static_assert(GYRO_BIAS_MAX_ATTEMPTS >= 1, "at least one capture attempt");
 
 // ---- Gyro polarity ----------------------------------------- [MEASURED] --
 // Set on the bench: rotate the robot counter-clockwise, headingDeg must rise.

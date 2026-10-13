@@ -20,6 +20,19 @@ static GyroBias calibrated(int16_t counts, uint16_t samples)
     return bias;
 }
 
+// A capture of `samples` readings alternating `centre` +- `half`: mean `centre`, standard deviation
+// `half`. Stands in for a still gyro (small `half`) or one that was being moved (large `half`).
+static GyroBias scattered(int16_t centre, int16_t half, uint16_t samples)
+{
+    GyroBias bias;
+    gyroBiasReset(bias);
+    for (uint16_t i = 0; i < samples; ++i) {
+        gyroBiasAccumulate(bias, static_cast<int16_t>(centre + ((i & 1) ? half : -half)));
+    }
+    gyroBiasFinish(bias);
+    return bias;
+}
+
 static void test_reset_leaves_nothing_sampled_and_not_ready()
 {
     GyroBias bias;
@@ -27,6 +40,9 @@ static void test_reset_leaves_nothing_sampled_and_not_ready()
     gyroBiasReset(bias);
     TEST_ASSERT_EQUAL_INT32(0, bias.sum);
     TEST_ASSERT_EQUAL_UINT16(0, bias.samples);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.mean);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.m2);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.spread);
     TEST_ASSERT_FALSE(bias.ready);
 }
 
@@ -91,6 +107,60 @@ static void test_accumulating_past_the_limit_is_ignored_not_overflowed()
     TEST_ASSERT_EQUAL_INT32(32767L * GYRO_BIAS_SAMPLES, bias.sum);
     TEST_ASSERT_TRUE(gyroBiasFinish(bias));
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 32767.0f, bias.counts);
+}
+
+static void test_spread_is_the_standard_deviation_of_the_samples()
+{
+    GyroBias bias = scattered(16, 5, GYRO_BIAS_SAMPLES);
+    TEST_ASSERT_TRUE(bias.ready);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 5.0f, bias.spread);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 16.0f, bias.counts);
+}
+
+static void test_a_capture_with_a_still_robots_noise_is_accepted()
+{
+    // The compact chassis scattered 1.9-2.9 counts while still.
+    GyroBias bias = scattered(15, 3, GYRO_BIAS_SAMPLES);
+    TEST_ASSERT_TRUE(bias.ready);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 15.0f, bias.counts);
+}
+
+static void test_a_capture_taken_while_the_robot_moved_is_rejected()
+{
+    // A hand turn at ~24 deg/s reads ~1600 counts and varies a lot: this is the failure the gate is
+    // for.
+    GyroBias bias = scattered(1600, 330, GYRO_BIAS_SAMPLES);
+    TEST_ASSERT_FALSE(bias.ready);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.counts);
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 330.0f, bias.spread);
+}
+
+static void test_the_spread_limit_itself_is_the_boundary()
+{
+    TEST_ASSERT_TRUE(scattered(15, 7, GYRO_BIAS_SAMPLES).ready);  // 7 < 8
+    TEST_ASSERT_FALSE(scattered(15, 9, GYRO_BIAS_SAMPLES).ready); // 9 > 8
+}
+
+static void test_a_rejected_capture_can_be_redone_after_a_reset()
+{
+    GyroBias bias = scattered(1600, 330, GYRO_BIAS_SAMPLES);
+    TEST_ASSERT_FALSE(bias.ready);
+    gyroBiasReset(bias);
+    for (uint16_t i = 0; i < GYRO_BIAS_SAMPLES; ++i) {
+        gyroBiasAccumulate(bias, static_cast<int16_t>(15 + ((i & 1) ? 2 : -2)));
+    }
+    TEST_ASSERT_TRUE(gyroBiasFinish(bias));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 15.0f, bias.counts); // nothing left over from the first try
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 2.0f, bias.spread);
+}
+
+static void test_a_steady_offset_has_no_spread_and_is_not_caught()
+{
+    // Documents the limit of the gate: a rotation at a perfectly constant rate looks like a still
+    // gyro with a big zero. Nothing in the readings alone can tell them apart.
+    GyroBias bias = calibrated(1600, GYRO_BIAS_SAMPLES);
+    TEST_ASSERT_TRUE(bias.ready);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.spread);
 }
 
 static void test_a_still_robot_does_not_drift_whatever_the_bias()
@@ -200,6 +270,12 @@ int main()
     RUN_TEST(test_too_few_samples_is_a_failed_calibration);
     RUN_TEST(test_the_minimum_sample_count_itself_succeeds);
     RUN_TEST(test_accumulating_past_the_limit_is_ignored_not_overflowed);
+    RUN_TEST(test_spread_is_the_standard_deviation_of_the_samples);
+    RUN_TEST(test_a_capture_with_a_still_robots_noise_is_accepted);
+    RUN_TEST(test_a_capture_taken_while_the_robot_moved_is_rejected);
+    RUN_TEST(test_the_spread_limit_itself_is_the_boundary);
+    RUN_TEST(test_a_rejected_capture_can_be_redone_after_a_reset);
+    RUN_TEST(test_a_steady_offset_has_no_spread_and_is_not_caught);
     RUN_TEST(test_a_still_robot_does_not_drift_whatever_the_bias);
     RUN_TEST(test_an_uncorrected_bias_is_what_would_drift);
     RUN_TEST(test_a_constant_rate_integrates_to_rate_times_time);
