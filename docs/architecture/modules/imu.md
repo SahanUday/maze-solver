@@ -3,7 +3,7 @@
 MPU-6050 6-axis IMU (GY-521 breakout) on the I2C bus, read once per tick for the
 yaw rate that becomes `RobotState::headingDeg` and the accelerometer counts that
 will detect the bridge incline. Code: `src/hal/imu.{h,cpp}`. Decision:
-[0007](../decisions/0007-mpu6050-heading-and-tilt.md). The counts are turned into
+[0008](../decisions/0008-mpu6050-heading-and-tilt.md). The counts are turned into
 an angle by [heading](heading.md).
 
 This is the one HAL module that uses the Arduino framework rather than registers,

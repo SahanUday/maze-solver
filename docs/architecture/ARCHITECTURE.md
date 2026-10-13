@@ -51,7 +51,7 @@ register or an Arduino I/O call directly:
    exception rather than the register rule: it drives the MPU-6050 through
    `Wire.h`, and is also the only driver whose device can be absent, so both of
    its entry points return success/failure instead of a reading
-   ([`decisions/0007`](decisions/0007-mpu6050-heading-and-tilt.md)).
+   ([`decisions/0008`](decisions/0008-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
    and plain data. `lib/maze` lives here and must never include `Arduino.h`
    (see "Dual build target" below).

@@ -71,7 +71,7 @@ constexpr uint8_t IR_ADC_PRESCALER = 32;
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
 // ---- IMU (MPU-6050) ---------------------------------------- [FROM DESIGN] --
-// Register values and the reasoning: decisions/0007-mpu6050-heading-and-tilt.md.
+// Register values and the reasoning: decisions/0008-mpu6050-heading-and-tilt.md.
 constexpr uint8_t IMU_I2C_ADDRESS = 0x68;      // ADO left floating
 constexpr uint32_t IMU_I2C_CLOCK_HZ = 400000;  // the MPU-6050's fast-mode limit
 constexpr uint8_t IMU_STARTUP_DELAY_MS = 30;   // gyro start-up after clearing SLEEP

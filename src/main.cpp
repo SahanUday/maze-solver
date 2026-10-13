@@ -26,7 +26,7 @@ static GyroBias g_gyroBias;
 static Heading g_heading;
 
 // Average the yaw rate with the robot held still: an uncorrected gyro bias
-// integrates into heading without bound (decisions/0007). Blocking, and only at
+// integrates into heading without bound (decisions/0008). Blocking, and only at
 // boot - the control loop has not started yet. ~1.4 s: the chip updates at 1 kHz,
 // so 1 ms between reads keeps the samples independent.
 static void calibrateGyroBias()
