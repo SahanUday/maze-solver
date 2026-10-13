@@ -45,6 +45,10 @@ gyro start-up and PLL lock, and finally writes `CONFIG` = `0x04` (DLPF 20 Hz
 gyro / 21 Hz accel, 1 kHz internal rate), `GYRO_CONFIG` = `0x08` (+-500 deg/s),
 `ACCEL_CONFIG` = `0x00` (+-2 g) and `SMPLRT_DIV` = `0`.
 
+A transfer that gets no answer within `IMU_I2C_TIMEOUT_US` gives up and resets the TWI
+hardware, so a bus held low (an unplugged or unpowered gyro) fails the read instead of hanging the
+control loop with the motors driving.
+
 `imuRead()` writes the start address, ends the transmission with `false` for a
 repeated start, and requests all 14 bytes in **one** transaction. The chip holds
 its data registers still for the duration of a single read, so several smaller
