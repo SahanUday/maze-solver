@@ -1,19 +1,18 @@
 // ============================================================================
 //  Maze.h  --  exploration of an unknown grid from an unknown start tile. No
 //  hardware, no Arduino.h - testable under env:native.
-//  docs/architecture/modules/maze.md
 //
-//  The robot does not know which tile it starts on, so the map is kept in the
-//  start's own frame: the start tile is the centre of a (2N-1) x (2N-1) grid and
-//  North is the way the robot faced at the start. N tiles in any direction fit.
+//  The map is kept in the start's own frame: the start tile is the centre of a
+//  (2N-1) x (2N-1) grid and North is the way the robot faced at the start.
 //
-//  One cell visit, in order:
+//  One cell visit:
 //      explorerObserve()   walls seen from here, relative to the heading
 //      explorerPlan()      first step toward the nearest unvisited cell
-//      turn to it, explorerFace(), then explorerObserve() again: the new front
-//                          may be an edge nothing has looked at yet
-//      drive one tile, explorerAdvance()
-//  A forward drive must follow an observation whose front reading was valid.
+//      explorerFace()      turn to it, then explorerObserve() again: the new front
+//                          may be an edge nothing has looked at
+//      explorerAdvance()   drive one tile
+//  A forward drive must follow an observation whose front reading was heard.
+//  docs/architecture/modules/maze.md
 // ============================================================================
 
 #pragma once
@@ -51,8 +50,8 @@ constexpr uint8_t wallBit(Dir d)
     return static_cast<uint8_t>(1u << static_cast<uint8_t>(d));
 }
 
-// Planner scratch packs the path length (6 bits) over the first step (2 bits). The longest path
-// is kCells - 1, which has to fit.
+// The planner packs path length (6 bits) over the first step (2 bits); the longest path is
+// kCells - 1.
 static_assert(kCells - 1 < 63, "path length must fit 6 bits");
 constexpr uint8_t kUnseen = 0xFF;
 
@@ -107,9 +106,8 @@ inline bool neighbour(uint8_t idx, Dir d, uint8_t &out)
     return false;
 }
 
-// A wall is recorded on both cells that share the edge, and is never erased: a wrongly seen
-// wall can leave a cell unreachable, which ends the search with an answer, where a flickering
-// one could keep the planner changing its mind for the rest of the run.
+// A wall is recorded on both cells that share the edge and never erased: a wrong one can strand
+// the search, which ends with an answer, where a flickering one would keep it changing its mind.
 inline void markWall(Explorer &e, uint8_t idx, Dir d)
 {
     e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | wallBit(d));
@@ -119,8 +117,8 @@ inline void markWall(Explorer &e, uint8_t idx, Dir d)
     }
 }
 
-// What the three wall sensors say from the current cell. A side that was not heard (no echo) is
-// passed as false: nothing is recorded, and the edge is checked when the robot faces it.
+// Walls seen from the current cell. A side that was not heard is passed as false: nothing is
+// recorded, and the edge is looked at when the robot faces it.
 inline void explorerObserve(Explorer &e, bool frontWall, bool leftWall, bool rightWall)
 {
     if (frontWall) {
@@ -138,8 +136,8 @@ inline void explorerObserve(Explorer &e, bool frontWall, bool leftWall, bool rig
 namespace detail
 {
 
-// Breadth-first from the robot over edges not known to be walls. With `avoidStart` the start tile
-// is not entered (unless the robot is on it).
+// Breadth-first from the robot over edges not known to be walls; `avoidStart` closes the start
+// tile (unless the robot is on it).
 inline bool plan(Explorer &e, Dir &step, bool avoidStart)
 {
     for (uint8_t i = 0; i < kCells; ++i) {
@@ -177,18 +175,16 @@ inline bool plan(Explorer &e, Dir &step, bool avoidStart)
 
 } // namespace detail
 
-// The first step of the shortest path to the nearest unvisited cell, over edges not known to be
-// walls. Equal paths keep going straight, then prefer a right turn, then left, then back. The
-// start tile is kept out of the path when there is another way: re-entering it before the finish
-// aborts the attempt. False: nothing unvisited is reachable.
+// First step of the shortest path to the nearest unvisited cell. Equal paths prefer straight on,
+// then right, left, back. The start tile is kept out of the path when there is another way
+// (re-entering it before the finish aborts the attempt). False: nothing unvisited is reachable.
 inline bool explorerPlan(Explorer &e, Dir &step)
 {
     return detail::plan(e, step, true) || detail::plan(e, step, false);
 }
 
-// Forget every wall and visit but keep the position and heading, so the search starts again from
-// here with fresh readings. For when explorerPlan() runs dry before the finish was seen: with a
-// single attempt, a wall that was only ever a bad reading is the likeliest reason.
+// Forget every wall and visit, keep the pose. For when explorerPlan() runs dry before the finish
+// was seen: a wall that was only a bad reading is the likeliest reason.
 inline void explorerRescan(Explorer &e)
 {
     for (uint8_t i = 0; i < kCells; ++i) {
@@ -212,9 +208,8 @@ inline bool explorerAdvance(Explorer &e)
     return true;
 }
 
-// A wall edge sits ~120 mm from the centreline of a centred robot; with an open side the next
-// thing heard is a tile further, 370 mm or more. Midway is one tile pitch.
-// `heard` is the ultrasonic valid bit: silence is not a measurement.
+// A wall sits ~120 mm from a centred robot's centreline, an open side 370 mm or more: one tile
+// pitch is midway. `heard` is the ultrasonic valid bit; silence is not a measurement.
 constexpr bool wallDetected(bool heard, uint16_t distMm)
 {
     return heard && distMm < TILE_PITCH_MM;

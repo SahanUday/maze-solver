@@ -1,6 +1,6 @@
 // ============================================================================
-//  test_maze.cpp  --  exploration logic on the host, plus a simulator that runs
-//  it against the Section A maze from the team's photo from every start.
+//  test_maze.cpp  --  exploration logic on the host, and a simulator that runs it in the
+//  Section A maze of the team's photo from every start.
 //
 //  Ground truth, 4x4, row 0 at the top, '|' and '-' are interior walls:
 //
@@ -14,8 +14,7 @@
 //      +   +   +   +   +
 //  r3  | . | . . . . . |
 //
-//  Read from the photo of the arena (checked against it again on 2026-10-15): the edges are
-//  listed in kWallEdges, W1..W7 left to right.
+//  Read from the photo of the arena; the edges are in kWallEdges, W1..W7 left to right.
 // ============================================================================
 
 #include <initializer_list>
@@ -101,8 +100,7 @@ struct Sim {
     }
 };
 
-// Sensors as the firmware sees them: the front is read until it is heard (the protocol in
-// Maze.h), the sides may be silent and are then reported as "no wall".
+// The front is always heard; a side may be silent and is then reported as "no wall".
 static void observe(Explorer &e, Sim &s)
 {
     const bool front = truthWall(s.row, s.col, s.heading);
@@ -117,7 +115,7 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
     explorerInit(e);
     Sim s{startRow, startCol, startHeading, seed, missPct};
     SimResult out;
-    // The map's North is the start heading; the truth's is its own. `offset` converts.
+    // The map's North is the start heading; `offset` converts to the truth's.
     const uint8_t offset = static_cast<uint8_t>(startHeading);
     auto toTruth = [offset](Dir mapDir) {
         return static_cast<Dir>((static_cast<uint8_t>(mapDir) + offset) & 3);
@@ -239,7 +237,7 @@ static void test_plan_returns_through_visited_cells_to_the_nearest_unvisited()
 {
     Explorer e;
     explorerInit(e);
-    // A dead-end corridor going North for two cells, the cell beside the start is unexplored.
+    // A dead end one tile north; the tile beside the start is unexplored.
     explorerObserve(e, false, true, true);
     explorerAdvance(e);
     explorerObserve(e, true, true, true); // dead end one tile north
@@ -298,9 +296,9 @@ static void test_wall_detection_threshold()
 
 static void test_plan_keeps_out_of_the_start_tile_when_another_way_exists()
 {
-    // Start S with E1 east of it, NE north of E1, N north of S; the wall between S and N keeps S a
-    // corridor. Unvisited: W (west of S, two steps through S) and NW (west of N, three steps by
-    // NE and N, not through S). The nearer one is through the start; the planner takes the other.
+    // S is the start, E1 east of it, NE north of E1, N north of S, with a wall between S and N.
+    // Unvisited: W (two steps, through S) and NW (three steps, by NE and N). The nearer is through
+    // the start; the planner takes the other.
     Explorer e;
     explorerInit(e);
     uint8_t east1 = 0;
@@ -330,7 +328,7 @@ static void test_plan_crosses_the_start_tile_when_it_is_the_only_way()
 {
     Explorer e;
     explorerInit(e);
-    // A corridor: walls east and west of the start, open north and south. North is a dead end.
+    // A corridor with walls east and west of the start; north is a dead end.
     explorerObserve(e, false, true, true);
     explorerAdvance(e);
     explorerObserve(e, true, true, true);
@@ -342,8 +340,7 @@ static void test_plan_crosses_the_start_tile_when_it_is_the_only_way()
 // ---- Section A -------------------------------------------------------------------------------
 static void test_truth_maze_is_one_connected_region()
 {
-    // Flood from the finish over the truth: every tile must be reachable, otherwise a start in
-    // the unreachable part could never succeed and the test below would say the wrong thing.
+    // Every tile must reach the finish, or a start in the cut-off part could never succeed.
     bool reached[kN][kN] = {};
     int stackR[kN * kN];
     int stackC[kN * kN];
@@ -389,8 +386,7 @@ static void test_every_start_tile_and_heading_reaches_the_white_tile()
             }
         }
     }
-    // Exploring 16 tiles and walking back out of dead ends: each tile is entered at most a few
-    // times. 31 is the worst measured; 40 leaves room for a planner tweak, not for a loop.
+    // 31 is the worst measured; 40 leaves room for a planner tweak, not for a loop.
     TEST_ASSERT_LESS_OR_EQUAL_UINT16(40, worstMoves);
 }
 
@@ -411,9 +407,8 @@ static void test_missed_side_readings_cost_time_not_the_finish()
 
 static void test_the_start_tile_is_re_entered_only_where_it_cannot_be_avoided()
 {
-    // In this maze the start tile is a chokepoint for some starts (a dead end behind it, or the
-    // only way between two parts). Re-entering it elsewhere would abort the attempt: 10 of the 60
-    // runs do, down from 30 without the avoidance.
+    // The start tile is a chokepoint for some starts and is crossed there: 10 of the 60 runs,
+    // down from 30 without the avoidance.
     int reentered = 0;
     for (int r = 0; r < kN; ++r) {
         for (int c = 0; c < kN; ++c) {
