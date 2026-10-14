@@ -258,6 +258,11 @@ constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset either loop may com
 constexpr uint16_t WALL_PRESENT_SIDE_MM = 250;  // side reading below this = wall
 constexpr uint16_t WALL_PRESENT_FRONT_MM = 260; // front reading below this = wall (at the sample)
 constexpr uint16_t WALL_CENTER_DIST_MM = 117; // side reading when centred, used with one wall only
+constexpr uint16_t FRONT_STOP_MM = 117;       // front reading when stopped at a cell centre
+// Braking from SEARCH_SPEED_MM_S at ACCEL_MM_S2 takes v^2 / 2a = 22 mm, so the decision point is
+// 50 mm out; at 150 mm/s each sensor updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
+constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the cell centre
+constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // Turns: with KI_TURN 60 the wheels are pushed through the sticking zone, so the tolerance can be
