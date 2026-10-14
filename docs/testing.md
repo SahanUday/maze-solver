@@ -170,8 +170,7 @@ register code isn't.
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
 `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`,
-`test_ultrasonic`, and `test_native`
-(a placeholder that proves the host build works). A test file looks like this
+`test_ultrasonic`, and `test_maze`. A test file looks like this
 (Unity is the test framework):
 ```cpp
 #include <unity.h>
