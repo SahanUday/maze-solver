@@ -41,26 +41,43 @@ static GyroBias g_gyroBias;
 static Heading g_heading;
 
 // Average the yaw rate with the robot held still: an uncorrected gyro bias
-// integrates into heading without bound (decisions/0007). Blocking, and only at
-// boot - the control loop has not started yet. ~1.4 s: the chip updates at 1 kHz,
-// so 1 ms between reads keeps the samples independent.
+// integrates into heading without bound (decisions/0008). Blocking, and only at
+// boot - the control loop has not started yet. ~1.4 s per attempt: the chip
+// updates at 1 kHz, so 1 ms between reads keeps the samples independent.
+// A capture whose readings scatter (the robot was being moved) is rejected by
+// gyroBiasFinish() and repeated, up to GYRO_BIAS_MAX_ATTEMPTS times: a wrong zero
+// is silent, a missing one is obvious.
 static void calibrateGyroBias()
 {
-    gyroBiasReset(g_gyroBias);
-    for (uint16_t i = 0; i < GYRO_BIAS_SAMPLES; ++i) {
-        ImuRaw sample;
-        if (imuRead(sample)) {
-            gyroBiasAccumulate(g_gyroBias, sample.gyro[IMU_GYRO_AXIS_YAW]);
+    for (uint8_t attempt = 1; attempt <= GYRO_BIAS_MAX_ATTEMPTS; ++attempt) {
+        gyroBiasReset(g_gyroBias);
+        for (uint16_t i = 0; i < GYRO_BIAS_SAMPLES; ++i) {
+            ImuRaw sample;
+            if (imuRead(sample)) {
+                gyroBiasAccumulate(g_gyroBias, sample.gyro[IMU_GYRO_AXIS_YAW]);
+            }
+            delay(1);
         }
-        delay(1);
+        if (gyroBiasFinish(g_gyroBias)) {
+            Serial.print(F("imu: gyro bias "));
+            Serial.print(g_gyroBias.counts);
+            Serial.print(F(" counts, spread "));
+            Serial.println(g_gyroBias.spread);
+            return;
+        }
+        if (g_gyroBias.samples < GYRO_BIAS_MIN_SAMPLES) {
+            Serial.print(F("imu: gyro bias capture got too few readings (attempt "));
+            Serial.print(attempt);
+            Serial.println(F(")"));
+        } else {
+            Serial.print(F("imu: gyro bias capture rejected, spread "));
+            Serial.print(g_gyroBias.spread);
+            Serial.print(F(" counts (attempt "));
+            Serial.print(attempt);
+            Serial.println(F(") - hold the robot still"));
+        }
     }
-    if (gyroBiasFinish(g_gyroBias)) {
-        Serial.print(F("imu: gyro bias "));
-        Serial.print(g_gyroBias.counts);
-        Serial.println(F(" counts"));
-    } else {
-        Serial.println(F("imu: gyro bias calibration failed - heading stays at 0"));
-    }
+    Serial.println(F("imu: gyro bias calibration failed - heading stays at 0"));
 }
 
 // Line calibration mode (DIP_LINE_CAL at power-up): slide the robot by hand across white and

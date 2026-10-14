@@ -31,7 +31,7 @@ struct RobotState {
 
     // ---- Inertial sensing (from the IMU driver) -----------------------
     // A straight mirror of the MPU-6050's 0x3B..0x48 block, raw counts, no
-    // angles (see decisions/0007). Scales: ACCEL_COUNTS_PER_G per g,
+    // angles (see decisions/0008). Scales: ACCEL_COUNTS_PER_G per g,
     // GYRO_COUNTS_PER_DPS per deg/s.
     ImuRaw imu;
 

@@ -38,14 +38,16 @@ constexpr uint32_t MOTOR_PWM_FREQ_HZ = 20000;
 static_assert(CPU_HZ % MOTOR_PWM_FREQ_HZ == 0, "PWM frequency must divide CPU_HZ exactly");
 constexpr uint16_t MOTOR_PWM_TOP = CPU_HZ / MOTOR_PWM_FREQ_HZ - 1; // 799
 
-// ---- Drivetrain polarity ------------------------------ <<TBD HARDWARE>> --
+// ---- Drivetrain polarity ------------------------------------ [MEASURED] --
 // The motors are mounted mirrored, so one side needs its direction flipped.
 // Set on the bench: command a positive speed, the robot must roll forward and
 // the encoder count must rise.
-constexpr bool MOTOR_L_INVERT = false;
+constexpr bool MOTOR_L_INVERT = true;
 constexpr bool MOTOR_R_INVERT = false;
 constexpr bool ENC_L_INVERT = false;
 constexpr bool ENC_R_INVERT = false;
+// Measured 2026-10-13 on the compact chassis, wheels free, duty 300 for 800 ms: each wheel rolled
+// forward and its own encoder rose (left +1155, right +1154; both together +1173 / +1154).
 
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
@@ -71,22 +73,43 @@ constexpr uint8_t IR_ADC_PRESCALER = 32;
 constexpr uint16_t IR_EMITTER_SETTLE_US = 1000;
 
 // ---- IMU (MPU-6050) ---------------------------------------- [FROM DESIGN] --
-// Register values and the reasoning: decisions/0007-mpu6050-heading-and-tilt.md.
+// Register values and the reasoning: decisions/0008-mpu6050-heading-and-tilt.md.
 constexpr uint8_t IMU_I2C_ADDRESS = 0x68;      // ADO left floating
 constexpr uint32_t IMU_I2C_CLOCK_HZ = 400000;  // the MPU-6050's fast-mode limit
 constexpr uint8_t IMU_STARTUP_DELAY_MS = 30;   // gyro start-up after clearing SLEEP
 constexpr float GYRO_COUNTS_PER_DPS = 65.5f;   // +-500 deg/s full scale
 constexpr uint16_t ACCEL_COUNTS_PER_G = 16384; // +-2 g full scale
 constexpr uint8_t IMU_GYRO_AXIS_YAW = 2;       // board mounted flat, so yaw is Z
+// Wire has no timeout by default: a bus held low (an unpowered or unplugged gyro can do it) would
+// hang the control loop with the motors still driving. A transfer takes < 1 ms at 400 kHz.
+constexpr uint32_t IMU_I2C_TIMEOUT_US = 3000;
 
 // Gyro bias: averaged at boot with the robot held still. Integrating an
 // uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.
 constexpr uint16_t GYRO_BIAS_SAMPLES = 1000;
 constexpr uint16_t GYRO_BIAS_MIN_SAMPLES = 500; // fewer usable reads = not trustworthy
+// A capture whose readings scatter more than this (standard deviation, raw counts) is thrown away
+// and repeated: a wrong zero is silent and heading integrates it without bound. Measured on the
+// compact chassis, 2026-10-13/14: a still gyro scatters 1.9-2.9 counts in every still capture and
+// still stretch logged; the first 1.5 s of a log taken while the robot was being turned scattered
+// 334.
+constexpr float GYRO_BIAS_MAX_SPREAD_COUNTS = 8.0f;
+constexpr uint8_t GYRO_BIAS_MAX_ATTEMPTS = 10; // each is ~1.4 s at boot
+static_assert(GYRO_BIAS_MAX_ATTEMPTS >= 1, "at least one capture attempt");
 
-// ---- Gyro polarity ----------------------------------- <<TBD HARDWARE>> --
+// ---- Gyro polarity ----------------------------------------- [MEASURED] --
 // Set on the bench: rotate the robot counter-clockwise, headingDeg must rise.
 constexpr bool GYRO_YAW_INVERT = false;
+// Measured 2026-10-13: a hand turn of about 90 degrees counter-clockwise took headingDeg from 0 to
+// +89.4 with this false. Gyro Z carried the turn (peak 35 deg/s; X and Y peaked at 12 and 3).
+
+// ---- Accel orientation ------------------------------------- [MEASURED] --
+// Which accel axis lies along the robot, and which sign it reads when the nose rises; the bridge
+// incline test reads it (decisions/0008). Measured 2026-10-13 by lifting the front end about
+// 26 degrees by hand: Y went from +165 to -7250 counts, against -1790 on X (the sideways lean of
+// a hand-held tilt) and -1910 on Z. +Y therefore points toward the rear.
+constexpr uint8_t IMU_ACCEL_AXIS_FORWARD = 1;     // index into ImuRaw::accel (0 X, 1 Y, 2 Z)
+constexpr bool IMU_ACCEL_NOSE_UP_NEGATIVE = true; // that axis reads negative when the nose is up
 
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
 // 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is

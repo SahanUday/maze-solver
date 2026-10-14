@@ -4,21 +4,28 @@
 //
 //  The gyro measures a rate, not an angle, so heading is the integral of that
 //  rate and any uncorrected bias accumulates without bound. Bias removal is
-//  therefore not optional: see decisions/0007-mpu6050-heading-and-tilt.md.
+//  therefore not optional: see decisions/0008-mpu6050-heading-and-tilt.md.
 //  docs/architecture/modules/heading.md
 // ============================================================================
 
 #pragma once
 
+#include <math.h>
 #include <stdint.h>
 
 #include "RobotSpec.h"
 
-// A gyro reads slightly non-zero while still. Averaging that offset is the whole
+// A gyro reads slightly non-zero while still. Averaging that offset is the heart
 // of this struct; `counts` is in raw gyro counts, like the samples it came from.
+// It also tracks how much the samples scatter (`spread`, their standard
+// deviation in counts): a robot that was being moved during the capture scatters
+// far more than a still one, and its mean is a wrong zero.
 struct GyroBias {
     int32_t sum = 0;
     uint16_t samples = 0;
+    float mean = 0.0f;   // running mean and sum of squared deviations (Welford),
+    float m2 = 0.0f;     // which stay accurate where sum-of-squares would not
+    float spread = 0.0f; // set by gyroBiasFinish()
     float counts = 0.0f;
     bool ready = false;
 };
@@ -32,6 +39,9 @@ inline void gyroBiasReset(GyroBias &bias)
 {
     bias.sum = 0;
     bias.samples = 0;
+    bias.mean = 0.0f;
+    bias.m2 = 0.0f;
+    bias.spread = 0.0f;
     bias.counts = 0.0f;
     bias.ready = false;
 }
@@ -45,13 +55,27 @@ inline void gyroBiasAccumulate(GyroBias &bias, int16_t yawRateCounts)
     }
     bias.sum += yawRateCounts;
     ++bias.samples;
+    const float x = static_cast<float>(yawRateCounts);
+    const float delta = x - bias.mean;
+    bias.mean += delta / static_cast<float>(bias.samples);
+    bias.m2 += delta * (x - bias.mean);
 }
 
-// End the calibration. False (and not ready) if too few samples got through to
-// trust the average - a half-failed calibration is worse than an obvious one.
+// End the calibration. False (and not ready) if too few samples got through, or
+// if they scatter more than GYRO_BIAS_MAX_SPREAD_COUNTS (the robot was moving):
+// either way the average is not to be trusted, and a half-failed calibration is
+// worse than an obvious one. `spread` is filled in for the caller to report.
+// A perfectly steady rotation has no scatter and is not caught by this.
 inline bool gyroBiasFinish(GyroBias &bias)
 {
+    bias.spread = 0.0f;
     if (bias.samples < GYRO_BIAS_MIN_SAMPLES) {
+        bias.counts = 0.0f;
+        bias.ready = false;
+        return false;
+    }
+    bias.spread = sqrtf(bias.m2 / static_cast<float>(bias.samples));
+    if (bias.spread > GYRO_BIAS_MAX_SPREAD_COUNTS) {
         bias.counts = 0.0f;
         bias.ready = false;
         return false;
