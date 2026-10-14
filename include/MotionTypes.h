@@ -12,6 +12,7 @@ struct MotionTarget {
     float speedRefMmS = 0.0f;
     float headingRefDeg = 0.0f;
     float yawRateRefDps = 0.0f;
+    bool pivot = false; // turning in place: the heading integral is kiTurn, else kiHold
 };
 
 // What the robot is actually doing, from Perception.

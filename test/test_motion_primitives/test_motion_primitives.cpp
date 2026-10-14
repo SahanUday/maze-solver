@@ -263,9 +263,46 @@ static void test_turn_waits_out_the_settle_time()
                       static_cast<int>(turnStep(t, r.plan, r.sim.feedback(), DT_MS, tg)));
 }
 
+// A chain of cells is one Straight that keeps being extended; its timeout is per leg.
+static void test_extending_a_straight_restarts_its_timeout()
+{
+    PlanParams plan = simPlanParams();
+    plan.moveTimeoutMs = 1000;
+    Straight s;
+    MotionFeedback fb;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    MotionTarget t;
+    for (int i = 0; i < 80; ++i) { // 800 ms of a 1000 ms limit
+        TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Running),
+                          static_cast<int>(straightStep(s, plan, fb, 0.0f, 10, t)));
+    }
+    straightExtend(s, 250.0f, 0.0f);
+    for (int i = 0; i < 80; ++i) { // another 800 ms: 1600 ms in all, but only 800 on this leg
+        TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Running),
+                          static_cast<int>(straightStep(s, plan, fb, 0.0f, 10, t)));
+    }
+}
+
+static void test_only_a_turn_asks_for_the_pivot_integral()
+{
+    const PlanParams plan = simPlanParams();
+    MotionFeedback fb;
+    MotionTarget t;
+    Straight s;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_FALSE(t.pivot);
+    Turn turn;
+    turnBegin(turn, fb, 90.0f, 90.0f);
+    turnStep(turn, plan, fb, 10, t);
+    TEST_ASSERT_TRUE(t.pivot);
+}
+
 int main()
 {
     UNITY_BEGIN();
+    RUN_TEST(test_only_a_turn_asks_for_the_pivot_integral);
+    RUN_TEST(test_extending_a_straight_restarts_its_timeout);
     RUN_TEST(test_straight_stops_on_the_target);
     RUN_TEST(test_straight_holds_heading_against_a_disturbance);
     RUN_TEST(test_straight_trim_steers_the_heading);

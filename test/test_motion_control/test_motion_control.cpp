@@ -305,9 +305,70 @@ static void test_reset_clears_a_latched_stall()
     TEST_ASSERT_EQUAL_FLOAT(0.0f, mc.distIntegral);
 }
 
+static void test_clearing_the_integrals_keeps_the_stall_latch()
+{
+    MotionControl mc;
+    mc.distIntegral = 12.0f;
+    mc.turnIntegral = -30.0f;
+    mc.stalled = true;
+    motionControlClearIntegrals(mc);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, mc.distIntegral);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, mc.turnIntegral);
+    TEST_ASSERT_TRUE(mc.stalled);
+}
+
+// The heading integral has its own gain while driving: the turn-sized one rings on a straight.
+static float heldAngular(const MotionControlParams &p, bool pivot)
+{
+    MotionControl mc;
+    MotionTarget t;
+    t.headingRefDeg = 10.0f; // 10 deg to turn left, nothing else asked
+    t.pivot = pivot;
+    MotionOutput o;
+    for (int i = 0; i < 100; ++i) { // one second
+        o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    }
+    return static_cast<float>(o.right - o.left) * 0.5f;
+}
+
+static void test_a_straight_uses_the_hold_integral_and_a_pivot_the_turn_one()
+{
+    MotionControlParams p = params();
+    p.kiTurn = 20.0f;
+    p.kiHold = 2.0f;
+    const float straight = heldAngular(p, false); // 2 * 10 deg * 1 s = 20
+    const float pivot = heldAngular(p, true);     // 20 * 10 deg * 1 s = 200
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 20.0f, straight);
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 200.0f, pivot);
+}
+
+static void test_a_negative_hold_gain_falls_back_to_the_turn_gain()
+{
+    MotionControlParams p = params();
+    p.kiTurn = 20.0f; // kiHold stays at its default, -1
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 200.0f, heldAngular(p, false));
+}
+
+static void test_the_right_scale_multiplies_only_the_right_command()
+{
+    MotionControl mc;
+    MotionControlParams p = params();
+    p.ffPwmPerMmS = 1.0f;
+    p.ffScaleR = 1.2f;
+    MotionTarget t;
+    t.speedRefMmS = 200.0f;
+    const MotionOutput o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(200, o.left);
+    TEST_ASSERT_EQUAL_INT16(240, o.right);
+}
+
 int main()
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_straight_uses_the_hold_integral_and_a_pivot_the_turn_one);
+    RUN_TEST(test_a_negative_hold_gain_falls_back_to_the_turn_gain);
+    RUN_TEST(test_the_right_scale_multiplies_only_the_right_command);
+    RUN_TEST(test_clearing_the_integrals_keeps_the_stall_latch);
     RUN_TEST(test_all_zero_gains_output_nothing);
     RUN_TEST(test_speed_feedforward_drives_both_wheels_equally);
     RUN_TEST(test_distance_error_pushes_forward);

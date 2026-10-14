@@ -44,6 +44,7 @@ enum class FaultCode : uint8_t {
     Stall,       // motors pushed hard and nothing moved
     LineLost,    // searched for the line for LINE_LOST_TIMEOUT_MS
     NoRoute,     // nothing left to explore and no bridge found
+    Aborted,     // set by the caller: stopped from the serial line
 };
 
 struct MissionParams {
@@ -125,6 +126,20 @@ inline void missionFail(Mission &ms, FaultCode code)
 namespace mission_detail
 {
 
+// The sweep that ends exactly on `targetDeg`, going the way `dir` says (positive = CCW). The robot
+// is rarely square to the grid when a turn starts (the last one stopped within the tolerance, not
+// on the mark), and a nominal 90 would add that error to this turn's.
+inline float sweepTo(float fromDeg, float targetDeg, float dir)
+{
+    float d = headingWrapDeg(targetDeg - fromDeg);
+    if (dir > 0.0f && d <= 0.0f) {
+        d += 360.0f;
+    } else if (dir < 0.0f && d >= 0.0f) {
+        d -= 360.0f;
+    }
+    return d;
+}
+
 // Heading the gyro reads when the robot is square to map direction `d`.
 inline float gridHeading(const Mission &ms, maze::Dir d)
 {
@@ -200,6 +215,7 @@ inline maze::Move plan(Mission &ms, const MissionParams &p)
 
 inline void startStep(Mission &ms, const MissionParams &p, const MotionFeedback &fb)
 {
+    motionControlClearIntegrals(ms.control);
     ms.fromX = ms.cx;
     ms.fromY = ms.cy;
     ms.tx = static_cast<int8_t>(ms.cx + maze::kDx[maze::dirIndex(ms.facing)]);
@@ -236,7 +252,9 @@ inline void startMove(Mission &ms, const MissionParams &p, const MotionFeedback 
         return;
     }
     const maze::Dir to = maze::dirRotate(ms.facing, quarter);
-    turnBegin(ms.turn, fb, gridHeading(ms, to), 90.0f * static_cast<float>(quarter));
+    motionControlClearIntegrals(ms.control);
+    turnBegin(ms.turn, fb, gridHeading(ms, to),
+              sweepTo(fb.headingDeg, gridHeading(ms, to), static_cast<float>(quarter)));
     ms.facing = to; // the turn ends square to it
     ms.sub = Mission::Sub::Turning;
 }
@@ -349,7 +367,10 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                 maze::mapObserve(ms.map, ms.cx, ms.cy, ms.facing, w.front, w.left, w.right);
                 if (ms.phase == Phase::SenseFront) {
                     const maze::Dir to = maze::dirOpposite(ms.facing);
-                    turnBegin(ms.turn, fb, gridHeading(ms, to), p.hand >= 0 ? 180.0f : -180.0f);
+                    motionControlClearIntegrals(ms.control);
+                    turnBegin(
+                        ms.turn, fb, gridHeading(ms, to),
+                        sweepTo(fb.headingDeg, gridHeading(ms, to), p.hand >= 0 ? 1.0f : -1.0f));
                     ms.facing = to;
                     ms.phase = Phase::TurnAround;
                 } else {

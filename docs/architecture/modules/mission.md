@@ -21,7 +21,7 @@ against a simulated arena, plus two glue files in `src/` that are not host-testa
   the end; then **Done** (driver enabled with zero duty - it holds the wheels). The full-arena test checks the
   axle stops past the line's end, not on it.
 - **Fault** - motors off and the error LED on. Codes: `NoImu`, `NoLineCal`, `MoveTimeout`, `Stall`, `LineLost`,
-  `NoRoute`.
+  `NoRoute`, `Aborted`.
 
 ## How the bridge is found
 
@@ -45,6 +45,13 @@ are skipped, no line calibration is needed, and when nothing is left to explore 
 (a stand-still) instead of the `NoRoute` fault. A step that never read its walls is still a `NoRoute` fault.
 With the button off the run begins on its own after the delay, so the robot must be placed at the start cell
 before then. With the DIPs off there is no line-calibration mode and the hand is `RUN_HAND`.
+
+## Supervision over serial
+
+`main.cpp` prints `mission: phase N fault M` on every phase change and `mission: cell x,y facing d` on every cell
+change (phases and faults are the enum values in `Mission.h`). Any byte received on the serial line stops the run
+(`Fault`, `Aborted`). `DRIVE_MAX_DUTY` caps every wheel command in `applyDrive`, and the stall latch
+(`STALL_*`) is on. The cap and the stall settings have not been exercised by a real stall.
 
 ## Operator controls
 

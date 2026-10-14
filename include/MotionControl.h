@@ -23,8 +23,15 @@ struct MotionControlParams {
     float kiDist = 0.0f;
     float kdDist = 0.0f; // acts on the speed error
     float kpTurn = 0.0f;
-    float kiTurn = 0.0f;
+    float kiTurn =
+        0.0f; // heading integral while turning in place: it has to break the wheels loose
     float kdTurn = 0.0f; // acts on the yaw-rate error
+    // Heading integral while driving (not pivoting). Negative = same as kiTurn. A turn-sized
+    // integral on a straight rings: it is what the zig-zag was.
+    float kiHold = -1.0f;
+    // The right wheel needs more duty than the left for the same speed on the floor (~20%): its
+    // whole command is multiplied by this, so the integral has nothing constant left to supply.
+    float ffScaleR = 1.0f;
     float ffPwmPerMmS = 0.0f;
     float ffPwmPerDps = 0.0f;
     uint16_t minPwmL = 0; // duty that just starts the wheel; 0 = none
@@ -56,6 +63,15 @@ constexpr float MOTION_INTEGRAL_MAX_DUTY = 200.0f;
 inline void motionControlReset(MotionControl &mc)
 {
     mc = MotionControl{};
+}
+
+// A new move starts from a clean slate: the heading integral wound up at the end of a turn (to
+// break the wheels loose) must not carry into the straight that follows, where it shows up as a
+// zig-zag. The stall latch is left alone.
+inline void motionControlClearIntegrals(MotionControl &mc)
+{
+    mc.distIntegral = 0.0f;
+    mc.turnIntegral = 0.0f;
 }
 
 namespace motion_detail
@@ -110,14 +126,15 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
                          p.kiDist * mc.distIntegral + p.kdDist * (target.speedRefMmS - fb.speedMmS);
 
     const float headErr = headingWrapDeg(target.headingRefDeg - fb.headingDeg);
-    accumulate(mc.turnIntegral, headErr, dtS, p.kiTurn);
+    const float kiTurnNow = (target.pivot || p.kiHold < 0.0f) ? p.kiTurn : p.kiHold;
+    accumulate(mc.turnIntegral, headErr, dtS, kiTurnNow);
     const float angular = p.ffPwmPerDps * target.yawRateRefDps + p.kpTurn * headErr +
-                          p.kiTurn * mc.turnIntegral +
+                          kiTurnNow * mc.turnIntegral +
                           p.kdTurn * (target.yawRateRefDps - fb.yawRateDps);
 
     MotionOutput out;
     out.left = toDuty(linear - angular, p.minPwmL, p.pwmTop);
-    out.right = toDuty(linear + angular, p.minPwmR, p.pwmTop);
+    out.right = toDuty((linear + angular) * p.ffScaleR, p.minPwmR, p.pwmTop);
 
     // Stall: the motors are being pushed hard and nothing moves.
     if (p.stallDuty > 0 && p.stallTimeMs > 0) {

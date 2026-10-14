@@ -24,9 +24,11 @@ inline MotionControlParams specMotionControl()
     p.kdDist = KD_DISTANCE;
     p.kpTurn = KP_TURN;
     p.kiTurn = KI_TURN;
+    p.kiHold = KI_TURN_HOLD;
     p.kdTurn = KD_TURN;
     p.ffPwmPerMmS = FEEDFORWARD_PWM_PER_MM_S;
     p.ffPwmPerDps = FEEDFORWARD_PWM_PER_DPS;
+    p.ffScaleR = FEEDFORWARD_RIGHT_SCALE;
     p.minPwmL = CONTROL_MIN_PWM_L;
     p.minPwmR = CONTROL_MIN_PWM_R;
     p.pwmTop = MOTOR_PWM_TOP;

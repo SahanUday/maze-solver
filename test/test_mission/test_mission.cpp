@@ -517,6 +517,30 @@ static void test_walls_only_with_nothing_to_explore_is_done_not_a_fault()
     TEST_ASSERT_EQUAL(static_cast<int>(FaultCode::None), static_cast<int>(o.fault));
 }
 
+// ---- Turn sweeps ------------------------------------------------------------------------------
+
+// A turn lands on the grid heading whatever the robot's heading error was at the start. A nominal
+// 90 would have added that error (seen on the robot: 5.8 deg off after the second turn).
+static void test_sweep_ends_exactly_on_the_grid_heading()
+{
+    using mission_detail::sweepTo;
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 86.9f,
+                             sweepTo(-176.9f, -90.0f, 1.0f)); // 3.1 deg short of south
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 87.0f, sweepTo(3.0f, 90.0f, 1.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, -87.0f, sweepTo(-3.0f, -90.0f, -1.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 93.0f, sweepTo(-3.0f, 90.0f, 1.0f));
+}
+
+// A half turn goes the way the hand says, even when the start error would make the short way round
+// the other one.
+static void test_half_turn_sweep_follows_the_requested_direction()
+{
+    using mission_detail::sweepTo;
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 178.0f, sweepTo(2.0f, -180.0f, 1.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, -182.0f, sweepTo(2.0f, -180.0f, -1.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 182.0f, sweepTo(-2.0f, -180.0f, 1.0f));
+}
+
 // ---- Faults and refusals ----------------------------------------------------------------------
 
 static void test_waits_for_the_start_button()
@@ -910,6 +934,8 @@ int main()
     RUN_TEST(test_walls_only_explores_and_stops_inside_the_maze_from_every_start);
     RUN_TEST(test_walls_only_never_follows_the_line);
     RUN_TEST(test_walls_only_with_nothing_to_explore_is_done_not_a_fault);
+    RUN_TEST(test_sweep_ends_exactly_on_the_grid_heading);
+    RUN_TEST(test_half_turn_sweep_follows_the_requested_direction);
     RUN_TEST(test_waits_for_the_start_button);
     RUN_TEST(test_a_missing_precondition_keeps_the_motors_off);
     RUN_TEST(test_a_boxed_in_start_is_no_route);

@@ -196,7 +196,14 @@ constexpr float KP_DISTANCE = 4.0f;
 constexpr float KI_DISTANCE = 2.0f;
 constexpr float KD_DISTANCE = 0.0f;
 constexpr float KP_TURN = 4.0f;
-constexpr float KI_TURN = 8.0f;
+// KI_TURN: the wheels stick below duty ~160, so near the end of a turn the integral is the only
+// thing that gets them moving. At 8 it crept up by 9 duty per 200 ms and a turn that stopped 7 deg
+// short timed out; at 60, 16 of 16 turns (90 and 180 deg, both ways) arrived in under 2.4 s, the
+// 90s to within 0.5 deg. The straights held the heading within ~3 deg with it.
+constexpr float KI_TURN = 60.0f;
+// While driving straight the same integral rang (the zig-zag); a separate, much lower one holds the
+// heading. Tuned in tools/probe/motion.cpp.
+constexpr float KI_TURN_HOLD = 8.0f;
 constexpr float KD_TURN = 0.5f;
 
 // ---- Run options ------------------------------------------ [FROM DESIGN] --
@@ -227,15 +234,22 @@ constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
 constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
 constexpr float FEEDFORWARD_PWM_PER_MM_S = 1.15f; // duty counts per mm/s of wheel speed
 constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of yaw rate
+// The right wheel runs ~20% slower than the left at the same duty on the floor (left 1417 vs right
+// 1134 encoder counts at duty 340, 2026-10-14), though the two matched on a stand. Its command is
+// scaled by this; 1.0 = no correction. Straight-line test, 240 mm, hold integral 8: wheel-duty
+// difference 23 at 1.0, 10 at 1.2, heading held within 0.9 deg either way; the 12 turns after it
+// all arrived (90 deg within 3 deg, 180 deg within 4.4 deg).
+constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 
 // ---- Steering gains ----------------------------------------- [PARTIAL] --
 // Wall centring turns a lateral error (mm) into a heading offset (deg); line following does the
 // same from the line centroid. Tune P first, add D if it oscillates.
-// Wall (2026-10-14, tools/probe/motion.cpp, 450-500 mm straights in a walled corridor, 6 deg
-// heading disturbance or 30 mm offset): KP_WALL 0.1 is too slow (a 22 mm error was still 14 mm
-// after 500 mm), 0.3 settles within ~400 mm, 0.7 is still stable but the +-4 mm ultrasonic noise
-// makes the commanded offset jitter by +-3 deg. 0.4 is in between; KD_WALL is not needed.
-constexpr float KP_WALL = 0.4f;
+// Wall (2026-10-14, tools/probe/motion.cpp). Measured twice. With KI_TURN 8, KP_WALL 0.3-0.7 looked
+// stable over 450 mm. With KI_TURN 60 (needed to finish turns) and the ultrasonics' 60 ms refresh,
+// 0.2 and 0.4 swung the heading by 17-19 deg peak to peak (the zig-zag, and a wall hit in the
+// maze); 0.1 held it within 1.6 deg of its reference and the robot within about +-10 mm of the
+// centre of the corridor. KD_WALL is not used.
+constexpr float KP_WALL = 0.1f;
 constexpr float KD_WALL = 0.0f;
 constexpr float KP_LINE = 0.0f;
 constexpr float KD_LINE = 0.0f;
@@ -260,20 +274,33 @@ constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far bef
 constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
-// A turn that ends 2-3 deg short is left there: static friction stops the wheels below duty ~160,
-// so a tighter tolerance only waits for the integral to wind up. The next straight holds the
-// grid heading and takes the remainder out. The first 4 s timeout fits a 300 mm move (2.4 s).
-constexpr float STEP_TOLERANCE_MM = 3.0f;  // a stop this close to the target counts as arrived
-constexpr float TURN_TOLERANCE_DEG = 4.0f; // a turn this close to the target counts as done
+// A turn that ends up to ~5 deg short is left there: static friction stops the wheels below duty
+// ~160, so a tighter tolerance only waits for the integral to wind up. The next straight holds the
+// grid heading and takes the remainder out. The first 4 s timeout fits a 300 mm move (2.4 s). A
+// stop tolerance of 3 mm timed out in the mission: the target is anchored to the front sensor,
+// which jitters by +-4 mm, and the wheels stick, so the robot hunted at the wall. A centre needs
+// ~+-10 mm.
+constexpr float STEP_TOLERANCE_MM = 8.0f;  // a stop this close to the target counts as arrived
+constexpr float TURN_TOLERANCE_DEG = 6.0f; // a turn this close to the target counts as done
 constexpr uint16_t TURN_SETTLE_MS = 150;   // ...once it has stayed inside the tolerance this long
 constexpr uint16_t MOVE_TIMEOUT_MS = 4000; // a move longer than this is a fault; 0 = no limit
 
-// ---- Stall protection --------------------------------- <<TBD CALIBRATION>> --
+// ---- Stall protection --------------------------------- [FROM TESTS] --
 // Duty at or above STALL_DUTY with the robot not moving for STALL_TIME_MS cuts the motors.
-constexpr uint16_t STALL_DUTY = 0; // 0 = disabled
-constexpr uint16_t STALL_TIME_MS = 0;
-constexpr float STALL_MIN_SPEED_MM_S = 0.0f;
-constexpr float STALL_MIN_YAW_DPS = 0.0f;
+// The tuned moves peak at duty ~280 while moving, and sit below ~80 when stuck near a target, so
+// 250 for 0.6 s means "pushing hard and going nowhere". Not yet tested by actually stalling.
+constexpr uint16_t STALL_DUTY = 250; // 0 = disabled
+constexpr uint16_t STALL_TIME_MS = 600;
+constexpr float STALL_MIN_SPEED_MM_S = 5.0f;
+constexpr float STALL_MIN_YAW_DPS = 5.0f;
+
+// Hard cap on any wheel's duty in main.cpp, whatever the controller asks for (the timer's TOP is
+// 799). The tuned moves stay below ~300.
+constexpr int16_t DRIVE_MAX_DUTY = 450;
+
+// A status line over serial this often while the mission runs (phase, odometer, speed, heading,
+// duty, the three ultrasonics, the step target). 0 = off.
+constexpr uint16_t RUN_LOG_EVERY_MS = 200;
 
 // ---- Line zone ---------------------------------------- <<TBD CALIBRATION>> --
 // The approach marker is a 90 mm white square, so a short run of non-black floor; a line tile

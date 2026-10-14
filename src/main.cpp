@@ -33,6 +33,7 @@ static Perception g_perception;
 static PerceiveParams g_perceiveParams;
 static Mission g_mission;
 static MissionParams g_missionParams;
+static DriveCommand g_lastCmd; // what the last tick asked of the motors, for the status line
 
 // The IMU is the one driver that can be absent (an unplugged I2C device answers
 // nothing), so the loop has to cope with it never coming up.
@@ -191,7 +192,14 @@ static void readSensors(RobotState &state)
 static DriveCommand runAlgorithm(const RobotState &state)
 {
     perceive(g_perceiver, state, g_perceiveParams, g_perception);
-    return missionStep(g_mission, g_missionParams, g_perception);
+    g_lastCmd = missionStep(g_mission, g_missionParams, g_perception);
+    return g_lastCmd;
+}
+
+// Whatever the controller asks for, no wheel gets more than DRIVE_MAX_DUTY.
+static int16_t clampDuty(int16_t d)
+{
+    return d > DRIVE_MAX_DUTY ? DRIVE_MAX_DUTY : (d < -DRIVE_MAX_DUTY ? -DRIVE_MAX_DUTY : d);
 }
 
 // The only place the algorithm layer's answer touches the motors.
@@ -203,8 +211,73 @@ static void applyDrive(const DriveCommand &cmd)
         enabled = cmd.enable;
     }
     if (enabled) {
-        motorSet(Motor::Left, cmd.left);
-        motorSet(Motor::Right, cmd.right);
+        motorSet(Motor::Left, clampDuty(cmd.left));
+        motorSet(Motor::Right, clampDuty(cmd.right));
+    }
+}
+
+// Any byte on the serial line stops the mission (the motors cut and the phase goes to Fault), and
+// phase and cell changes are printed, so a run can be watched and stopped from the PC.
+static void serialSupervise()
+{
+    static Phase lastPhase = Phase::WaitStart;
+    static int8_t lastCx = -99;
+    static int8_t lastCy = -99;
+
+    if (Serial.available() > 0) {
+        while (Serial.available() > 0) {
+            Serial.read();
+        }
+        if (g_mission.phase != Phase::Fault) {
+            missionFail(g_mission, FaultCode::Aborted);
+        }
+    }
+    if (g_mission.phase != lastPhase) {
+        lastPhase = g_mission.phase;
+        Serial.print(F("mission: phase "));
+        Serial.print(static_cast<uint8_t>(lastPhase));
+        Serial.print(F(" fault "));
+        Serial.println(static_cast<uint8_t>(g_mission.fault));
+    }
+    static uint32_t lastLogMs = 0;
+    if (RUN_LOG_EVERY_MS > 0 && g_mission.phase != Phase::WaitStart &&
+        g_state.timestampMs - lastLogMs >= RUN_LOG_EVERY_MS) {
+        lastLogMs = g_state.timestampMs;
+        const MotionFeedback &m = g_perception.motion;
+        Serial.print(F("  t="));
+        Serial.print(g_state.timestampMs);
+        Serial.print(F(" ph="));
+        Serial.print(static_cast<uint8_t>(g_mission.phase));
+        Serial.print(F(" sub="));
+        Serial.print(static_cast<uint8_t>(g_mission.sub));
+        Serial.print(F(" d="));
+        Serial.print(m.distMm, 0);
+        Serial.print(F(" tgt="));
+        Serial.print(g_mission.step.straight.targetMm, 0);
+        Serial.print(F(" v="));
+        Serial.print(m.speedMmS, 0);
+        Serial.print(F(" h="));
+        Serial.print(m.headingDeg, 1);
+        Serial.print(F(" duty="));
+        Serial.print(g_lastCmd.left);
+        Serial.print('/');
+        Serial.print(g_lastCmd.right);
+        Serial.print(F(" us="));
+        Serial.print(g_state.distFrontMm);
+        Serial.print('/');
+        Serial.print(g_state.distLeftMm);
+        Serial.print('/');
+        Serial.println(g_state.distRightMm);
+    }
+    if (g_mission.cx != lastCx || g_mission.cy != lastCy) {
+        lastCx = g_mission.cx;
+        lastCy = g_mission.cy;
+        Serial.print(F("mission: cell "));
+        Serial.print(lastCx);
+        Serial.print(',');
+        Serial.print(lastCy);
+        Serial.print(F(" facing "));
+        Serial.println(static_cast<uint8_t>(g_mission.facing));
     }
 }
 
@@ -221,6 +294,7 @@ void loop()
     readSensors(g_state);
     applyDrive(runAlgorithm(g_state));
     digitalWrite(PIN_LED_ERROR, g_mission.phase == Phase::Fault);
+    serialSupervise();
 
     // Heartbeat LED - proves the loop is alive.
     static uint32_t lastToggleMs = 0;

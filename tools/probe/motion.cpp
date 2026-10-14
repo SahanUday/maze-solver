@@ -102,6 +102,8 @@ const Name g_names[] = {
     {"kpt", &g_tune.ctl.kpTurn},
     {"kit", &g_tune.ctl.kiTurn},
     {"kdt", &g_tune.ctl.kdTurn},
+    {"kih", &g_tune.ctl.kiHold},
+    {"ffr", &g_tune.ctl.ffScaleR},
     {"ffv", &g_tune.ctl.ffPwmPerMmS},
     {"ffd", &g_tune.ctl.ffPwmPerDps},
     {"v", &g_tune.vMax},
@@ -132,7 +134,9 @@ void tuneDefaults()
     g_tune.ctl.kpDist = 4.0f;
     g_tune.ctl.kiDist = 2.0f;
     g_tune.ctl.kpTurn = 4.0f;
-    g_tune.ctl.kiTurn = 8.0f;
+    g_tune.ctl.kiTurn = 60.0f;
+    g_tune.ctl.kiHold = 8.0f;
+    g_tune.ctl.ffScaleR = 1.0f;
     g_tune.ctl.kdTurn = 0.5f;
     g_tune.plan.accelMmS2 = 500.0f;
     g_tune.plan.turnRateMaxDps = 120.0f;
@@ -370,8 +374,8 @@ const char *hardLimit(int16_t dutyL, int16_t dutyR)
     if (travelled > DIST_CAP_MM || travelled < -DIST_CAP_MM) {
         return "dist-cap";
     }
-    if ((g_state.usValid & 1u) != 0 && g_state.distFrontMm <= FRONT_CUT_MM &&
-        g_per.motion.speedMmS > 20.0f) {
+    if (g_mode == Mode::Straight && (g_state.usValid & 1u) != 0 &&
+        g_state.distFrontMm <= FRONT_CUT_MM && g_per.motion.speedMmS > 20.0f) {
         return "front-wall";
     }
     const int16_t peak = absDuty(dutyL) > absDuty(dutyR) ? absDuty(dutyL) : absDuty(dutyR);

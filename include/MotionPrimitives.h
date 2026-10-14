@@ -66,6 +66,7 @@ inline void straightExtend(Straight &s, float addMm, float vEndMmS)
 {
     s.targetMm += addMm;
     s.vEndMmS = vEndMmS;
+    s.elapsedMs = 0; // the timeout is per leg: a chain of cells must not add up to one
 }
 
 // Replace the finish line (a wall ahead told us where the cell centre really is).
@@ -91,6 +92,7 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
     out.speedRefMmS = s.refSpeedMmS;
     out.headingRefDeg = headingWrapDeg(s.headingRefDeg + trimDeg);
     out.yawRateRefDps = 0.0f;
+    out.pivot = false;
 
     float err = s.targetMm - fb.distMm;
     err = err < 0.0f ? -err : err;
@@ -153,6 +155,7 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
     out.headingRefDeg =
         profileDone ? t.targetHeadingDeg : headingWrapDeg(t.startHeadingDeg + t.refAngleDeg);
     out.yawRateRefDps = t.refRateDps;
+    out.pivot = true;
 
     float err = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
     err = err < 0.0f ? -err : err;
