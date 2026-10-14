@@ -142,3 +142,81 @@ constexpr float KD_DISTANCE = 0.0f;
 constexpr float KP_TURN = 0.0f;
 constexpr float KI_TURN = 0.0f;
 constexpr float KD_TURN = 0.0f;
+
+// ---- Navigation geometry ----------------------------- <<TBD HARDWARE>> --
+// Measured along the robot's forward axis / across it, from the mount drawing or a ruler.
+constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 0.0f; // wheel axle to the IR array's sensing line
+constexpr float IR_SENSOR_PITCH_MM = 0.0f;         // centre to centre of adjacent IR channels
+
+// ---- Motion limits and feedforward -------------------- <<TBD CALIBRATION>> --
+// Fit from logged step responses at stepped duty: speed against duty gives the feedforward,
+// the fastest slip-free ramp gives the accelerations.
+constexpr float SEARCH_SPEED_MM_S = 0.0f;        // cruise speed while exploring
+constexpr float LINE_SPEED_MM_S = 0.0f;          // cruise speed on the line
+constexpr float ACCEL_MM_S2 = 0.0f;              // linear acceleration and deceleration
+constexpr float TURN_RATE_MAX_DPS = 0.0f;        // in-place turn peak rate
+constexpr float TURN_ACCEL_DPS2 = 0.0f;          // in-place turn ramp
+constexpr float FEEDFORWARD_PWM_PER_MM_S = 0.0f; // duty counts per mm/s of wheel speed
+constexpr float FEEDFORWARD_PWM_PER_DPS = 0.0f;  // duty counts per deg/s of yaw rate
+
+// ---- Steering gains ----------------------------------- <<TBD CALIBRATION>> --
+// Wall centring turns a lateral error (mm) into a heading offset (deg); line following does the
+// same from the line centroid. Tune P first, add D if it oscillates.
+constexpr float KP_WALL = 0.0f;
+constexpr float KD_WALL = 0.0f;
+constexpr float KP_LINE = 0.0f;
+constexpr float KD_LINE = 0.0f;
+constexpr float STEER_MAX_DEG = 0.0f; // clamp on the offset either loop may command
+
+// ---- Wall sensing ------------------------------------- <<TBD CALIBRATION>> --
+// Distances are the offset-corrected readings in RobotState, so the reference point of each is
+// whatever US_OFFSET_* made it. Log open and walled readings on real tiles to set these.
+constexpr uint16_t WALL_PRESENT_SIDE_MM = 0; // side reading below this = wall
+constexpr uint16_t WALL_PRESENT_FRONT_MM =
+    0;                                      // front reading below this = wall (at the sample point)
+constexpr uint16_t WALL_CENTER_DIST_MM = 0; // side reading when centred, used with one wall only
+constexpr uint16_t FRONT_STOP_MM = 0;       // front reading when stopped at a cell centre
+constexpr uint16_t WALL_SAMPLE_LEAD_MM = 0; // walls are sampled this far before the cell centre
+constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 0; // ...over this much travel
+
+// ---- Moves -------------------------------------------- <<TBD CALIBRATION>> --
+constexpr float STEP_TOLERANCE_MM = 0.0f;  // a stop this close to the target counts as arrived
+constexpr float TURN_TOLERANCE_DEG = 0.0f; // a turn this close to the target counts as done
+constexpr uint16_t TURN_SETTLE_MS = 0;     // ...once it has stayed inside the tolerance this long
+constexpr uint16_t MOVE_TIMEOUT_MS = 0;    // a move longer than this is a fault; 0 = no limit
+
+// ---- Stall protection --------------------------------- <<TBD CALIBRATION>> --
+// Duty at or above STALL_DUTY with the robot not moving for STALL_TIME_MS cuts the motors.
+constexpr uint16_t STALL_DUTY = 0; // 0 = disabled
+constexpr uint16_t STALL_TIME_MS = 0;
+constexpr float STALL_MIN_SPEED_MM_S = 0.0f;
+constexpr float STALL_MIN_YAW_DPS = 0.0f;
+
+// ---- Line zone ---------------------------------------- <<TBD CALIBRATION>> --
+// The approach marker is a 90 mm white square, so a short run of non-black floor; a line tile
+// is a long one.
+constexpr float MARKER_RUN_MIN_MM = 0.0f;
+constexpr float MARKER_RUN_MAX_MM = 0.0f;     // a longer run is a line tile, not the marker
+constexpr float LINE_LEAVE_MARGIN_MM = 40.0f; // leaving a white tile, the array this far past its
+                                              // edge still on white = going out along the line
+constexpr float LINE_ENTER_RUN_MM = 0.0f;     // non-black this far = the line zone has been entered
+// Bare floor this long under the array = the line zone has ended. Must exceed the 30 mm line,
+// which can cross the array inside a zone.
+constexpr float LINE_END_ZONE_MM = 0.0f;
+// After the line's end the AXLE drives on this far, into Section B, and stops. The end is measured
+// under the array, which is IR_ARRAY_FORWARD_OFFSET_MM ahead of the axle, so without this the robot
+// would stop with its wheels still on the line.
+constexpr float LINE_EXIT_MM = 0.0f;
+// Bare floor must last this far to end a run of white. Wider than the 30 mm line, so a line
+// crossing a white tile does not split it in two; narrower than the 80 mm of floor between the
+// approach marker and the bridge tile, so those stay two runs.
+constexpr float FLOOR_RUN_GAP_MM = 45.0f;
+constexpr uint16_t LINE_LOST_TIMEOUT_MS = 0; // no line this long while searching = fault; 0 = none
+constexpr float LINE_SEARCH_RATE_DPS = 0.0f; // spin rate when the line is lost
+constexpr uint8_t LINE_SLOWDOWN_PCT = 50;    // speed kept at the largest line error (0..100)
+constexpr float LINE_SLOWDOWN_ERR_MM = 0.0f; // line error at which that slowdown is reached
+
+// ---- Ramp --------------------------------------------- <<TBD CALIBRATION>> --
+// Tilt of the gravity vector from the board's Z axis. Above this the IR array may be lifted off
+// the floor, so "all black" no longer means the line zone ended.
+constexpr float RAMP_TILT_DEG = 0.0f;
