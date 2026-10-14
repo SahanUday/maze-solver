@@ -1,11 +1,9 @@
 // ============================================================================
-//  Perception.h  --  RobotState in, what the control layer acts on out. No
-//  hardware, no Arduino.h - testable under env:native.
+//  Perception.h  --  RobotState in, one derived Perception out per tick. No hardware, no
+//  Arduino.h - testable under env:native.
 //
-//  RobotState is raw: counts, deg, mm, ADC counts. The control layer wants
-//  distance travelled, a yaw RATE, which walls exist and where the line is, so
-//  this derives them once per tick and hands over one struct. RobotState itself is
-//  never written here - drivers own it.
+//  RobotState is raw (counts, deg, mm); this derives distance, a yaw RATE, walls, the line and
+//  tilt. It never writes RobotState.
 //  docs/architecture/modules/perception.md
 // ============================================================================
 
@@ -48,8 +46,7 @@ struct Perceiver {
     uint8_t norm[IR_CHANNEL_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
 };
 
-// Weight of the newest yaw-rate sample; the gyro is integrated into a heading at 100 Hz, so its
-// difference is noisy at the resolution of one tick.
+// Weight of the newest yaw-rate sample.
 constexpr float YAW_RATE_FILTER = 0.5f;
 
 inline void perceiverReset(Perceiver &pc)
@@ -57,7 +54,7 @@ inline void perceiverReset(Perceiver &pc)
     pc = Perceiver{};
 }
 
-// Install a calibration (from the store, or just taken) and work out which channels it accepts.
+// Install a calibration and work out which channels it accepts.
 inline void perceiverSetCalibration(Perceiver &pc, const LineCalibration &cal)
 {
     pc.cal = cal;

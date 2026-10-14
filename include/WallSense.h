@@ -1,12 +1,9 @@
 // ============================================================================
-//  WallSense.h  --  ultrasonic readings to "is there a wall" and a centring
-//  trim. No hardware, no Arduino.h - testable under env:native.
+//  WallSense.h  --  ultrasonic readings to "is there a wall" and a centring trim. No hardware,
+//  no Arduino.h - testable under env:native.
 //
-//  Readings carry their US_OFFSET_* correction, so left and right are measured
-//  from the same reference line and (left - right) / 2 is the robot's offset from
-//  the corridor's centre. Each sensor only refreshes every
-//  US_SENSOR_COUNT * US_SLOT_MS, so a reading can be that stale; the filter and
-//  the clamps below exist because of that.
+//  Readings carry their US_OFFSET_*, so (left - right) / 2 is the offset from the corridor centre.
+//  Each sensor refreshes every US_SENSOR_COUNT * US_SLOT_MS, so a reading can be that old.
 //  docs/architecture/modules/wall_sense.md
 // ============================================================================
 
@@ -57,7 +54,7 @@ inline WallView wallView(const RobotState &state, const WallParams &p)
 }
 
 // Lateral error in mm, positive when the robot sits right of centre (steer CCW to fix it).
-// False when neither side wall is in view, so there is nothing to centre on.
+// False when neither side wall is in view.
 inline bool wallCenterError(const WallView &v, const WallParams &p, float &errMm)
 {
     const float center = static_cast<float>(p.centerDistMm);
@@ -76,8 +73,8 @@ inline bool wallCenterError(const WallView &v, const WallParams &p, float &errMm
     return false;
 }
 
-// Centring state. `mode` records which walls the last error came from, so the filter restarts
-// instead of spiking when a wall appears or ends.
+// Centring state. `mode` is which walls the last error came from; the filter restarts when it
+// changes.
 struct WallSteer {
     float filtMm = 0.0f;
     uint8_t mode = 0; // 0 none, 1 both, 2 left only, 3 right only
@@ -91,7 +88,7 @@ inline void wallSteerReset(WallSteer &w)
     w = WallSteer{};
 }
 
-// Heading offset (deg, CCW positive) that steers back toward the centre line; 0 with no wall.
+// Heading offset (deg, CCW positive) toward the centre line; 0 with no wall.
 inline float wallSteerTrim(WallSteer &w, const WallView &v, const WallParams &p, uint16_t dtMs)
 {
     float err = 0.0f;
