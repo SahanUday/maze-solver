@@ -181,7 +181,7 @@ happen to read.
 
 ## Control layer
 
-Motion control and perception are the first pieces of the control layer: pure headers in `include/`,
+Motion control, perception and the cell step are the first pieces of the control layer: pure headers in `include/`,
 no `Arduino.h`, tested on the host (the motion headers against a simulated robot, `test/*/sim.h`).
 Nothing calls them from `main.cpp` yet.
 
@@ -193,6 +193,7 @@ Nothing calls them from `main.cpp` yet.
 | Moves | `include/MotionPrimitives.h` | a straight run along a held heading, and an in-place turn |
 | Output | `include/DriveCommand.h` | the `{left, right, enable}` a caller hands to the motors |
 | Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, tilt, the wall view and the line view |
+| Cell step | `include/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, and anchors its stop on a wall ahead |
 | Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
 | Tilt | `include/Tilt.h` | angle between gravity and the board's Z axis |
 | Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
@@ -201,7 +202,7 @@ The controller and the moves work on a reference, not on the measurement, and th
 is closed on the gyro, so a turn does not depend on the measured track width. Per-module detail is in
 [`modules/`](modules/). The robot-measured values they use (wheel geometry, gains, speeds, tolerances,
 stall settings, the wall thresholds and the wall-steering gain) are in `include/RobotSpec.h`; the gains,
-speeds and wall values were tuned or measured on the floor, the stall latch has not been exercised by a real
+speeds, wall values and the stop anchor were tuned or measured on the floor, the stall latch has not been exercised by a real
 stall, and the line view has not been run on the robot (the IR array is not calibrated).
 
 ## Dual build target
