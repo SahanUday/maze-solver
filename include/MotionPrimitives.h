@@ -79,6 +79,7 @@ inline bool progressStep(ProgressWatch &w, float err, float tolerance, float min
 
 struct Straight {
     float targetMm = 0.0f; // absolute odometer position to reach
+    bool forward = true;   // direction of travel, fixed at begin
     float refMm = 0.0f;    // where the profile says the robot is
     float refSpeedMmS = 0.0f;
     float vMaxMmS = 0.0f;
@@ -92,6 +93,7 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
                           float vEndMmS, float headingRefDeg)
 {
     s.targetMm = fb.distMm + distMm;
+    s.forward = distMm >= 0.0f;
     s.refMm = fb.distMm;
     s.refSpeedMmS = fb.speedMmS;
     s.vMaxMmS = vMaxMmS;
@@ -100,7 +102,7 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
     progressBegin(s.watch, distMm < 0.0f ? -distMm : distMm);
 }
 
-// Move the finish line `addMm` on and change the arrival speed.
+// Move the finish line `addMm` on (signed like `distMm`) and change the arrival speed.
 inline void straightExtend(Straight &s, float addMm, float vEndMmS)
 {
     s.targetMm += addMm;
@@ -112,6 +114,12 @@ inline void straightRetarget(Straight &s, float targetMm, float vEndMmS)
 {
     s.targetMm = targetMm;
     s.vEndMmS = vEndMmS;
+}
+
+// The reference has reached or passed the finish line in the direction of travel.
+inline bool straightPassed(const Straight &s)
+{
+    return s.forward ? s.refMm >= s.targetMm : s.refMm <= s.targetMm;
 }
 
 // One tick. `trimDeg` is added to the held heading (wall centring). Done: stopped within
@@ -136,7 +144,7 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
         if (s.refSpeedMmS == 0.0f && err <= plan.stepToleranceMm) {
             return MoveStatus::Done;
         }
-    } else if (s.refMm >= s.targetMm) {
+    } else if (straightPassed(s)) {
         return MoveStatus::Done;
     }
     if (progressStep(s.watch, err, plan.stepToleranceMm, plan.progressMinMm, plan.patienceMs,

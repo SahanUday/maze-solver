@@ -105,6 +105,60 @@ static void test_extend_chains_a_second_cell_without_stopping()
     TEST_ASSERT_TRUE(minSpeedMid > 200.0f);
 }
 
+static void test_reverse_pass_through_is_done_at_speed()
+{
+    Rig r;
+    Straight s;
+    straightBegin(s, r.sim.feedback(), -250.0f, 300.0f, 300.0f, 0.0f);
+    MoveStatus st = MoveStatus::Running;
+    int ticks = 0;
+    for (; ticks < 400 && st == MoveStatus::Running; ++ticks) {
+        MotionTarget t;
+        st = straightStep(s, r.plan, r.sim.feedback(), 0.0f, DT_MS, t);
+        r.drive(t);
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Done), static_cast<int>(st));
+    TEST_ASSERT_TRUE(ticks > 20); // not "already there" on the first tick
+    TEST_ASSERT_FLOAT_WITHIN(10.0f, -250.0f, r.sim.distMm);
+    TEST_ASSERT_TRUE(r.sim.speedMmS < -200.0f); // still rolling backward
+}
+
+static void test_reverse_chain_does_not_stop_between_cells()
+{
+    Rig r;
+    Straight s;
+    straightBegin(s, r.sim.feedback(), -250.0f, 300.0f, 300.0f, 0.0f);
+    float maxSpeedMid = -1e9f;
+    bool extended = false;
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 800 && st == MoveStatus::Running; ++i) {
+        if (!extended && r.sim.distMm < -150.0f) {
+            straightExtend(s, -250.0f, 0.0f); // carry on one more cell, then stop
+            extended = true;
+        }
+        MotionTarget t;
+        st = straightStep(s, r.plan, r.sim.feedback(), 0.0f, DT_MS, t);
+        r.drive(t);
+        if (r.sim.distMm < -200.0f && r.sim.distMm > -300.0f) {
+            maxSpeedMid = r.sim.speedMmS > maxSpeedMid ? r.sim.speedMmS : maxSpeedMid;
+        }
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Done), static_cast<int>(st));
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, -500.0f, r.sim.distMm);
+    TEST_ASSERT_TRUE(maxSpeedMid < -200.0f);
+}
+
+static void test_forward_pass_through_begun_while_rolling_backward_is_not_done_at_once()
+{
+    Rig r;
+    r.sim.vL = r.sim.vR = r.sim.speedMmS = -50.0f;
+    Straight s;
+    straightBegin(s, r.sim.feedback(), 250.0f, 300.0f, 300.0f, 0.0f);
+    MotionTarget t;
+    TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Running),
+                      static_cast<int>(straightStep(s, r.plan, r.sim.feedback(), 0.0f, DT_MS, t)));
+}
+
 static void test_retarget_moves_the_stop()
 {
     Rig r;
@@ -369,6 +423,9 @@ int main()
     RUN_TEST(test_straight_trim_steers_the_heading);
     RUN_TEST(test_pass_through_is_done_at_speed);
     RUN_TEST(test_extend_chains_a_second_cell_without_stopping);
+    RUN_TEST(test_reverse_pass_through_is_done_at_speed);
+    RUN_TEST(test_reverse_chain_does_not_stop_between_cells);
+    RUN_TEST(test_forward_pass_through_begun_while_rolling_backward_is_not_done_at_once);
     RUN_TEST(test_retarget_moves_the_stop);
     RUN_TEST(test_straight_that_cannot_move_is_stuck);
     RUN_TEST(test_hunting_short_of_the_target_is_stuck);

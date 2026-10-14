@@ -24,8 +24,8 @@ Both profile a reference (`refMm`, `refAngleDeg`) with [motion_profile](motion_p
 hand [motion_control](motion_control.md) the reference, not the measurement.
 
 - **Straight:** begins at the measured speed. `Done` when the profile has stopped and the robot
-  is within `stepToleranceMm` (`vEnd == 0`), or when the reference passes the target
-  (`vEnd > 0`).
+  is within `stepToleranceMm` (`vEnd == 0`), or when the reference passes the target in the
+  direction of travel (`vEnd > 0`). Distances are signed, so a move can run in reverse.
 - **Turn:** once the profile has stopped within a degree of its sweep, aims at the absolute grid
   heading. `Done` after staying within `turnToleranceDeg` for `turnSettleMs`. Holds the odometer
   position while pivoting.
