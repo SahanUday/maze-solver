@@ -5,72 +5,55 @@ Drive from one cell centre to the next, reading its walls on the way. Pure logic
 
 ## Interface
 
-- `StepCellParams` - `PlanParams`, `WallParams`, pitch, cruise speed, `sampleLeadMm`,
-  `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`. All but the two plan structs
-  default to `RobotSpec.h` (`TILE_PITCH_MM`, `SEARCH_SPEED_MM_S`, `WALL_SAMPLE_LEAD_MM`,
-  `WALL_SAMPLE_WINDOW_MM`, `FRONT_STOP_MM`, `FRONT_AGREE_MM`, `FRONT_ANCHOR_FILTER`).
-- `stepCellBegin(sc, params, fb, headingRef)` - start a move to the centre of the next cell.
+- `StepCellParams` - `PlanParams`, `WallParams`, and pitch, cruise speed, `sampleLeadMm`,
+  `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, which default to `RobotSpec.h`.
+- `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
-- `stepCellContinue(sc, params)` - the next cell is straight on: carry on through this centre
-  without stopping.
-- `sc.wallsReady` / `sc.walls` (`CellWalls`: front, left, right, `unreliable`); `sc.walls` is
-  cleared by `stepCellBegin()` and `stepCellContinue()`.
-- `sc.blocked` - the move ended short of the cell because a wall stood inside the stop distance
-  (see below). `Done` with `blocked` is not an arrival: the map must not advance.
+- `stepCellContinue(sc, params)` - the next cell is straight on: roll through this centre.
+- `sc.wallsReady`, `sc.walls` (`CellWalls`: front, left, right, `unreliable`).
+- `sc.blocked` - the move ended short of its cell. `Done` with `blocked` is not an arrival: the
+  map must not advance.
 
 ## How it works
 
-Shortly before the target centre (`sampleLeadMm` away) the step has voted on that cell's three
-walls over the preceding `sampleWindowMm` and raised `wallsReady` once. The caller decides what
-comes next. Answering with `stepCellContinue()` extends the target one pitch and the robot rolls
-through the centre; **no answer means it stops on the centre by itself**, so a caller that never
-answers is merely slow. This is what lets straight cells run without stopping and only turns stop.
+`sampleLeadMm` before the target centre, the step has voted on the cell's three walls over the
+preceding `sampleWindowMm` and raised `wallsReady`. `stepCellContinue()` extends the target one
+pitch and the robot rolls through; **no answer stops it on the centre**, so a caller that never
+answers is merely slow. Straight cells run without stopping and only turns stop.
 
-Votes are present / open / no-echo per sensor; a wall is present when seen at least as often as
-open, and a sensor that never heard an echo counts as present and sets `unreliable`.
+A vote is present / open / no-echo per sensor. A wall is present when seen at least as often as
+open; a sensor with no echo counts as present and sets `unreliable`.
 
-A wall ahead moves the stop, in two roles:
+A wall ahead moves the stop in two roles:
 
-- **Drift correction.** The cell's own vote confirmed the wall: the centre is `frontStopMm` short
-  of it, which cancels the odometer drift built up over the run. Only small corrections are
-  believed (under half a pitch); a big one means the reading is something else.
-- **Safety stop.** The reading is already at or inside `frontStopMm`: the robot is past where it
-  should brake, whatever the odometer says, so the stop is pulled in by any amount. A pull of
-  half a pitch or more sets `blocked`. Stopping is always the safe answer, so this role has no
-  size limit; it only ever shortens the move.
+- **Drift correction.** The cell's vote confirmed the wall: the centre is `frontStopMm` short of
+  it, which cancels odometer drift. Believed only under half a pitch.
+- **Safety stop.** The reading is at or inside `frontStopMm`: the robot is already past where it
+  should brake, so the stop is pulled in by any amount (never out). Half a pitch or more sets
+  `blocked`.
 
-Each echo is placed on the odometer (the position it was taken at plus the reading's excess over
-`frontStopMm`) and compared with the echo before it. It moves the stop only if the two agree
-within `frontAgreeMm`, so one stray echo, near or far, cannot. The cost is one extra echo (9 mm of
-travel at 150 mm/s) before a real wall is believed. The echo is paired with the odometer position
-**at the time it changed**, not the current one: a sensor refreshes every few ticks, and combining
-an old reading with the current position made the target chase the robot and hunt back and forth
-(found by the mission simulation, not by the unit tests).
-
-The accepted position is then **smoothed** (`anchorFilter`, once per accepted echo, on the position
-and not on the reading, so it adds no lag while the robot approaches). On the robot the front
-reading alternated 110 and 119 mm at a dead end; retargeting to each one restarted the profile
-every few readings and the move never settled inside the stop tolerance.
-
-The stop never comes closer than the reference's braking distance (`straightRetarget`), so a
-late correction brakes hard instead of reversing.
+Each echo is placed on the odometer and compared with the one before; it moves the stop only if
+they agree within `frontAgreeMm`, so one stray echo cannot. A real wall is believed one echo later
+(9 mm at 150 mm/s). An echo is paired with the position **at the time it changed**, not the
+current one: pairing it with the current position made the target chase the robot and hunt (found
+by the mission simulation). The accepted position is smoothed by `anchorFilter`, since the front
+alternated 110 and 119 mm at a dead end and retargeting to each restarted the profile.
 
 ## Invariants
 
-- `wallsReady` rises once per cell and is cleared by `stepCellContinue()`.
-- Steering is by trim on the gyro-held heading, so with no wall in view it just holds heading. The
-  `WallSteer` keeps what it learned across `stepCellBegin()` and drops it by itself when the heading
-  moves 20 degrees (a turn); a caller that snaps the heading to the grid calls `wallSteerReset()`.
-- `frontStopMm == 0` disables anchoring, safety stop included.
+- `wallsReady` rises once per cell; begin and continue clear the cell's votes, walls and `blocked`.
+- With no wall in view the move holds the gyro heading. The `WallSteer` keeps its bias across
+  `stepCellBegin()` and drops it when the heading moves 20 degrees; a caller that snaps the
+  heading to the grid calls `wallSteerReset()`.
+- `frontStopMm == 0` disables anchoring and the safety stop.
+- The stop is never closer than the braking distance (`straightRetarget`).
 
 ## Status
 
-Host tests, 100% line coverage. `RobotSpec.h` asserts the sampling lead is at least the stopping
-distance (`v^2 / 2a`, 22 mm against the 50 mm lead).
+Host tests, 100% line coverage; `RobotSpec.h` asserts the sampling lead covers the braking
+distance. The simulated sensors are ideal apart from alternating jitter and single stray echoes.
 
-The simulation has ideal ultrasonics apart from the alternating-jitter test and single stray
-echoes. Run on the robot through the mission (2026-10-14), before the wall integral of #30 and the
-echo-agreement gate: from several start cells, steps through cells, stops at dead ends and reads
-the walls correctly; the stop is within the 8 mm step tolerance. The gate, the safety stop and
-`blocked` have not been run on the robot, and `FRONT_AGREE_MM` is from the measured jitter, not a
-log of stray echoes.
+Run on the robot through the mission (2026-10-14), before #30's wall integral and the echo
+gate: steps through cells, stops at dead ends and reads the walls correctly, within the 8 mm
+step tolerance. The gate, the safety stop and `blocked` are not run on the robot, and
+`FRONT_AGREE_MM` comes from the measured jitter, not from logged stray echoes.

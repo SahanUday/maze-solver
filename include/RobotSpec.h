@@ -277,18 +277,16 @@ constexpr uint16_t WALL_PAIR_TOL_MM = 30;
 // (the real reading scatters by ~3 mm), so its valid bit is dropped.
 constexpr uint16_t WALL_FROZEN_MS = 400;
 constexpr uint16_t FRONT_STOP_MM = 117; // front reading when stopped at a cell centre
-// Braking from SEARCH_SPEED_MM_S at ACCEL_MM_S2 takes v^2 / 2a = 22 mm, so the decision point is
-// 50 mm out; at 150 mm/s each sensor updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
-constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the cell centre
+// Braking from SEARCH_SPEED_MM_S at ACCEL_MM_S2 takes v^2 / 2a = 22 mm; at 150 mm/s a sensor
+// updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
+constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the centre
 constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
 static_assert(WALL_SAMPLE_LEAD_MM >= SEARCH_SPEED_MM_S * SEARCH_SPEED_MM_S / (2.0f * ACCEL_MM_S2),
               "the decision point must be at least a braking distance from the centre");
-// A front echo moves the stop only once the next one puts the wall in the same place, within this
-// (two echoes of one wall differ by the +-4 mm jitter each, plus a tick of travel): a single stray
-// echo cannot.
+// A front echo moves the stop only if it puts the wall within this of the echo before (two echoes
+// jitter +-4 mm each, plus a tick of travel). Not yet checked against logged stray echoes.
 constexpr float FRONT_AGREE_MM = 15.0f;
-// Weight of each accepted front echo in the stop position; the front jitters 9 mm between echoes
-// at a dead end and an unfiltered stop never settled.
+// Weight of each accepted front echo in the stop; the front alternated 110/119 mm at a dead end.
 constexpr float FRONT_ANCHOR_FILTER = 0.3f;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --

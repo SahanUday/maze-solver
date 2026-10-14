@@ -37,11 +37,9 @@ hand [motion_control](motion_control.md) the reference, not the measurement.
 
 ## Invariants
 
-- `straightRetarget` cannot pull the finish line in closer than the reference's braking distance
-  (`(v^2 - vEnd^2) / 2a`, ahead in the direction it is moving): the move brakes as hard as the plan
-  allows and stops there, it does not run through the line and come back. A line already nearer than
-  that is left where it is, not pushed out.
-
+- `straightRetarget` never puts the finish line inside the reference's braking distance
+  (`(v^2 - vEnd^2) / 2a`): the move brakes as hard as the plan allows rather than run through the
+  line and come back. A line already nearer is left where it is.
 - A move's length and speed cannot make it `Stuck`; a slow robot that keeps closing the gap runs
   on. The run limit (`RUN_LIMIT_MS`) is the only overall bound.
 - `patienceMs == 0` turns the detector off.

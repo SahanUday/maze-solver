@@ -1,8 +1,7 @@
 // ============================================================================
 //  test_step_cell.cpp  --  StepCell in a simulated corridor. No hardware needed.
 //
-//  The corridor runs along +x. Walls, if present, sit at +-HALF mm from the centre line; the
-//  front wall, if present, at wallX. Sensors read distances to them from the robot.
+//  Corridor along +x: side walls at +-HALF mm of the centre line, a front wall at wallX.
 // ============================================================================
 
 #include <initializer_list>
@@ -18,10 +17,10 @@ constexpr float HALF = 120.0f;
 struct World {
     bool leftWall = true;
     bool rightWall = true;
-    float wallX = -1.0f;        // front wall position along the track; < 0 = none (open ahead)
-    bool echo = true;           // false: nothing hears anything
-    float frontJitterMm = 0.0f; // the front reading alternates +- this, a new value every 60 ms
-    int glitchTick = -1;        // the front reads glitchMm for this one tick
+    float wallX = -1.0f;        // front wall along the track; < 0 = open ahead
+    bool echo = true;           // false: no sensor hears anything
+    float frontJitterMm = 0.0f; // the front alternates +- this, a new value every 60 ms
+    int glitchTick = -1;        // the front reads glitchMm on this one tick
     uint16_t glitchMm = 40;
 };
 
@@ -70,7 +69,6 @@ struct Rig {
         stepCellBegin(sc, p, sim.feedback(), headingRef);
     }
 
-    // One tick; returns the move status.
     MoveStatus tick()
     {
         MotionTarget t;
@@ -183,8 +181,7 @@ static void test_continue_samples_the_next_cell_again()
 static void test_front_wall_anchors_the_stop_and_cancels_drift()
 {
     Rig r;
-    // The odometer is 10 mm short: the real wall is 10 mm further than the model thinks, so
-    // the centre by the wall is at 260, not 250.
+    // The odometer reads 10 mm short: the centre by the wall is at 260, not 250.
     r.world.wallX = 260.0f + 125.0f;
     r.begin();
     MoveStatus st = MoveStatus::Running;
@@ -195,9 +192,7 @@ static void test_front_wall_anchors_the_stop_and_cancels_drift()
     TEST_ASSERT_FLOAT_WITHIN(3.0f, 260.0f, r.sim.distMm);
 }
 
-// The front sensor jitters (110 and 119 mm alternated at a dead end on the robot, 9 mm apart).
-// Retargeting to each reading kept the profile restarting, so the move never settled. With the
-// robot standing at the wall the stop target must hold still.
+// 110 and 119 mm alternated at a dead end on the robot: the stop target must hold still.
 static void test_the_stop_target_does_not_follow_a_jittery_front_reading()
 {
     Rig r;
@@ -222,7 +217,7 @@ static void test_the_stop_target_does_not_follow_a_jittery_front_reading()
 static void test_absurd_front_correction_is_ignored()
 {
     Rig r;
-    // A wall 200 mm "too far": a reading like that is not a correction, it is something else.
+    // 200 mm "too far" is not a correction.
     r.world.wallX = 250.0f + 125.0f + 200.0f;
     r.begin();
     MoveStatus st = MoveStatus::Running;
@@ -236,7 +231,7 @@ static void test_absurd_front_correction_is_ignored()
 static void test_front_wall_closer_than_the_stop_distance_stops_now()
 {
     Rig r;
-    // A wall appears only 140 mm ahead of the start, well before the centre: do not drive into it.
+    // A wall 140 mm ahead, well before the centre: stop short of it.
     r.world.wallX = 140.0f + 125.0f; // front reads 265 at the start; the stop point is 125 away
     r.p.sampleLeadMm = 0.0f;
     r.p.sampleWindowMm = 0.0f;
@@ -330,8 +325,7 @@ static void test_vote_counters_saturate()
 
 static void test_the_wall_bias_survives_into_the_next_cell()
 {
-    // Stop-and-go through a straight corridor: what the steer learned in one cell still holds in
-    // the next, because the heading reference has not changed.
+    // The heading reference has not changed, so the next cell keeps the bias.
     Rig r;
     r.sc.steer.biasDeg = 2.0f;
     r.sc.steer.anchored = true;
@@ -353,8 +347,7 @@ static void test_a_turn_before_the_cell_drops_the_wall_bias()
     TEST_ASSERT_FLOAT_WITHIN(0.1f, 0.0f, r.sc.steer.biasDeg);
 }
 
-// An echo that disagrees with its neighbours is not a wall: one near reading in an open cell must
-// neither shorten the stop nor reverse the robot.
+// One stray near echo in an open cell neither shortens the stop nor reverses the robot.
 static void test_one_stray_near_echo_does_not_move_the_stop()
 {
     for (int glitch : {40, 55, 70, 85, 100}) {
