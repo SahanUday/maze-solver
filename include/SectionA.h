@@ -28,12 +28,13 @@ enum class SectionAPhase : uint8_t { WaitStart, Sense, Turn, Step, Done, Fault }
 
 enum class SectionAFault : uint8_t {
     None,
-    NoImu,       // set by the caller: no gyro, no heading, no turns
-    NoRoute,     // nothing left to explore, the rescans used, the white tile not found
-    StuckTurn,   // a turn made no progress, retried
-    StuckStep,   // a step made no progress
-    Stall,       // motors pushed hard and nothing moved
-    TooManyStops // blocked steps over the limit: something keeps stopping the robot
+    NoImu,        // set by the caller: no gyro, no heading, no turns
+    NoRoute,      // nothing left to explore, the rescans used, the white tile not found
+    StuckTurn,    // a turn made no progress, retried
+    StuckStep,    // a step made no progress
+    Stall,        // motors pushed hard and nothing moved
+    TooManyStops, // blocked steps over the limit: something keeps stopping the robot
+    TimeUp        // set by the caller: the run limit passed before the run ended
 };
 
 struct SectionAParams {

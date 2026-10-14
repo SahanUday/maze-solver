@@ -69,6 +69,6 @@ centre, with no wall contact and the map position right; also with 30 % dropped 
 stray echoes, a gyro scale 2 % off with 9 deg/min of drift, a wall in the front sensor's dead zone
 and an obstacle held in front for a moment.
 
-Not run on the robot, and not wired into `main.cpp`: nothing calls `sectionAStep` yet. The IR array
-is not calibrated, so the finish test has not seen a real floor; the array's distance ahead of the
-axle (`ARRAY_AHEAD_MM`) and the nose position in the test world are assumptions.
+Not run on the robot. `main.cpp` calls it through [run_loop](run_loop.md). The IR array is not
+calibrated, so the finish test has not seen a real floor; the array's distance ahead of the axle
+(`ARRAY_AHEAD_MM`) and the nose position in the test world are assumptions.

@@ -313,6 +313,8 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
+// The start button must read pressed this many ticks in a row (a bounce is shorter).
+constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;
 // White under the array this long (past the tile edge, before the centre is decided) is the tile.
 constexpr uint16_t SECTION_A_FINISH_WHITE_MS = 100;
 

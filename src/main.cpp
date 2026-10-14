@@ -2,6 +2,8 @@
 //  main.cpp  --  fixed-period control loop scheduler.
 //  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
 //  Hardware is reached only through src/hal/* drivers - see RobotState.h.
+//  The algorithm is the Section A run (include/RunLoop.h): press START, and the robot explores
+//  from where it stands until the white tile, or every reachable tile without a line calibration.
 // ============================================================================
 
 #include <Arduino.h>
@@ -10,6 +12,7 @@
 #include "RobotConfig.h"
 #include "RobotSpec.h"
 #include "RobotState.h"
+#include "RunLoop.h"
 #include "Scheduler.h"
 #include "hal/encoders.h"
 #include "hal/imu.h"
@@ -18,6 +21,8 @@
 #include "hal/ultrasonic.h"
 
 static RobotState g_state;
+static RunLoop g_run;
+static bool g_motorsEnabled = false;
 
 // The IMU is the one driver that can be absent (an unplugged I2C device answers
 // nothing), so the loop has to cope with it never coming up.
@@ -81,6 +86,14 @@ void setup()
     }
 
     ultrasonicInit();
+
+    pinMode(PIN_BTN_START, INPUT_PULLUP);
+    pinMode(PIN_LED_ERROR, OUTPUT);
+    // No IR calibration is stored yet, so the run reads walls only: it explores every reachable
+    // tile and stops. A calibration passed here makes it stop on the white tile.
+    runLoopInit(g_run, g_imuPresent, nullptr);
+    Serial.println(g_imuPresent ? F("run: press START (walls only: no line calibration)")
+                                : F("run: no gyro, will not start"));
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -105,11 +118,41 @@ static void readSensors(RobotState &state)
     state.usValid = ultrasonicValidMask();
 }
 
-// Algorithms read g_state and decide what to do next. Empty until real
-// algorithms exist.
+// The Section A run: perception, mission, then the motors.
 static void runAlgorithm(const RobotState &state)
 {
-    (void)state;
+    const bool button = digitalRead(PIN_BTN_START) == LOW;
+    float headingFixDeg = 0.0f;
+    const DriveCommand cmd = runLoopTick(g_run, state, state.timestampMs, button, headingFixDeg);
+
+    // The corridor's measured direction, handed back to the gyro (StepCell.h).
+    if (headingFixDeg != 0.0f) {
+        headingSet(g_heading, g_heading.deg - headingFixDeg);
+    }
+
+    if (cmd.enable != g_motorsEnabled) {
+        motorsEnable(cmd.enable);
+        g_motorsEnabled = cmd.enable;
+    }
+    if (cmd.enable) {
+        motorSet(Motor::Left, cmd.left);
+        motorSet(Motor::Right, cmd.right);
+    }
+
+    static SectionAPhase loggedPhase = SectionAPhase::WaitStart;
+    const SectionAPhase phase = g_run.mission.phase;
+    if (phase != loggedPhase) {
+        loggedPhase = phase;
+        Serial.print(F("run: phase "));
+        Serial.print(static_cast<uint8_t>(phase));
+        Serial.print(F(" fault "));
+        Serial.print(static_cast<uint8_t>(g_run.mission.fault));
+        Serial.print(F(" moves "));
+        Serial.print(g_run.mission.moves);
+        Serial.print(F(" turns "));
+        Serial.println(g_run.mission.turns);
+        digitalWrite(PIN_LED_ERROR, phase == SectionAPhase::Fault);
+    }
 }
 
 void loop()
