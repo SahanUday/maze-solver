@@ -257,9 +257,22 @@ on the real hardware. For hardware-facing code:
   `architecture/modules/encoders.md`).
 
 The simulations have no wheel slip, no sensor noise and an ideal motor response, so a pass
-there says the logic is right, not that the tuning is. Gains, thresholds, speeds and the
-marker/line lengths are `<<TBD CALIBRATION>>` placeholders in `RobotSpec.h`; none of the
-control layer has run on the robot.
+there says the logic is right, not that the tuning is. The motion gains, speeds, accelerations
+and move tolerances were tuned on the robot (2026-10-14, through the bench probes below). The
+wall thresholds, the wall-centring gains and the marker/line lengths are still
+`<<TBD CALIBRATION>>` placeholders in `RobotSpec.h`, and the mission has not yet run on the robot.
+
+### Bench probes (`tools/probe/`)
+Throwaway firmware for measuring `RobotSpec.h` values on the robot. They are not part of the
+mission build and CI does not run them (it only compiles `env:mega`).
+
+| Environment | What it does |
+|---|---|
+| `env:probe_sensors` | streams every sensor as CSV at 10 Hz; the motors stay off |
+| `env:probe_motion` | serial-driven motion tests on the real controller code; the motors stay off until a command starts a move, and any byte received aborts it. Duty, time, distance, front-wall and pushed-but-still limits apply whatever the controller does |
+
+Build and upload with `pio run -e probe_motion -t upload`, then talk to it over serial at
+250000 baud (`h` lists the commands).
 
 ## When a check fails
 
