@@ -63,7 +63,7 @@ constexpr uint16_t ENCODER_COUNTS_PER_REV = 898; // 10 hand turns: left 8978, ri
 constexpr float MM_PER_ENCODER_COUNT =
     3.14159265f * WHEEL_DIAMETER_MM / ENCODER_COUNTS_PER_REV; // ~0.2274
 
-// ---- Motor limits ------------------------------------ <<TBD HARDWARE>> --
+// ---- Motor limits ---------------------------------------------- [MEASURED] --
 constexpr uint16_t MOTOR_MIN_PWM_L = 160; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
 constexpr uint16_t MOTOR_MIN_PWM_R = 250; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
 // Both are forward, on the floor, from single 150 ms pulses starting at rest. The left moved at
@@ -161,7 +161,7 @@ constexpr uint16_t US_MAX_RANGE_MM = 4000;
 // Exceeds the 2250mm longest sightline a 9x9 arena can present.
 constexpr uint16_t US_RANGE_CAP_MM = 2500;
 
-// ---- Ultrasonic offsets --------------------------- <<TBD CALIBRATION>> --
+// ---- Ultrasonic offsets --------------------------------------- [MEASURED] --
 // Added to the raw face-to-target reading, per sensor.
 // offset = true distance from the reference point to the wall - raw reading. A sensor that sits
 // ahead of its reference point therefore needs a positive offset.
@@ -228,25 +228,36 @@ constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
 constexpr float FEEDFORWARD_PWM_PER_MM_S = 1.15f; // duty counts per mm/s of wheel speed
 constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of yaw rate
 
-// ---- Steering gains ----------------------------------- <<TBD CALIBRATION>> --
+// ---- Steering gains ----------------------------------------- [PARTIAL] --
 // Wall centring turns a lateral error (mm) into a heading offset (deg); line following does the
 // same from the line centroid. Tune P first, add D if it oscillates.
-constexpr float KP_WALL = 0.0f;
+// Wall (2026-10-14, tools/probe/motion.cpp, 450-500 mm straights in a walled corridor, 6 deg
+// heading disturbance or 30 mm offset): KP_WALL 0.1 is too slow (a 22 mm error was still 14 mm
+// after 500 mm), 0.3 settles within ~400 mm, 0.7 is still stable but the +-4 mm ultrasonic noise
+// makes the commanded offset jitter by +-3 deg. 0.4 is in between; KD_WALL is not needed.
+constexpr float KP_WALL = 0.4f;
 constexpr float KD_WALL = 0.0f;
 constexpr float KP_LINE = 0.0f;
 constexpr float KD_LINE = 0.0f;
-constexpr float STEER_MAX_DEG = 0.0f; // clamp on the offset either loop may command
+constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset either loop may command
 
-// ---- Wall sensing ------------------------------------- <<TBD CALIBRATION>> --
+// ---- Wall sensing ------------------------------------------- [MEASURED] --
 // Distances are the offset-corrected readings in RobotState, so the reference point of each is
-// whatever US_OFFSET_* made it. Log open and walled readings on real tiles to set these.
-constexpr uint16_t WALL_PRESENT_SIDE_MM = 0; // side reading below this = wall
-constexpr uint16_t WALL_PRESENT_FRONT_MM =
-    0;                                      // front reading below this = wall (at the sample point)
-constexpr uint16_t WALL_CENTER_DIST_MM = 0; // side reading when centred, used with one wall only
-constexpr uint16_t FRONT_STOP_MM = 0;       // front reading when stopped at a cell centre
-constexpr uint16_t WALL_SAMPLE_LEAD_MM = 0; // walls are sampled this far before the cell centre
-constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 0; // ...over this much travel
+// whatever US_OFFSET_* made it: the axle for the front, the centreline for the sides.
+// Side: a wall reads 117 +-30 mm; through a gap in the wall it read 396-418 mm (a few echoes
+// 763-784), never "no echo". 250 sits between them. Front: the wall that ends the cell is 117 mm
+// ahead of the axle at the centre, 167-197 mm at the sample point, and the next wall is 350+ mm;
+// the reading is good to ~3 mm up to 300 mm and falls up to 6% short beyond that (the beam is wider
+// than the corridor), so 260 is well inside the accurate range. The corridor measured 231-235 mm
+// (left + right readings of a centred robot).
+constexpr uint16_t WALL_PRESENT_SIDE_MM = 250;  // side reading below this = wall
+constexpr uint16_t WALL_PRESENT_FRONT_MM = 260; // front reading below this = wall (at the sample)
+constexpr uint16_t WALL_CENTER_DIST_MM = 117; // side reading when centred, used with one wall only
+constexpr uint16_t FRONT_STOP_MM = 117;       // front reading when stopped at a cell centre
+// Braking from SEARCH_SPEED_MM_S at ACCEL_MM_S2 takes v^2 / 2a = 22 mm, so the decision point is
+// 50 mm out; at 150 mm/s each sensor updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
+constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the cell centre
+constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // A turn that ends 2-3 deg short is left there: static friction stops the wheels below duty ~160,
