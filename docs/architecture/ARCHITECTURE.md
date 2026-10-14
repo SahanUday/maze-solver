@@ -182,7 +182,7 @@ happen to read.
 ## Control layer
 
 Motion control, perception and the cell step are pure headers in `include/`, no `Arduino.h`, tested on
-the host (the motion headers against a simulated plant, `test/test_motion_primitives/sim.h`). Nothing
+the host (the motion headers against a simulated plant, `test/support/sim.h`). Nothing
 calls them from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measured values are
 in `include/RobotSpec.h`. The line view has not been run on the robot (the IR array is not calibrated).
 

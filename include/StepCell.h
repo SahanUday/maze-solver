@@ -18,16 +18,20 @@
 #include <stdint.h>
 
 #include "MotionPrimitives.h"
+#include "RobotSpec.h"
 #include "WallSense.h"
 
 struct StepCellParams {
     PlanParams plan;
     WallParams wall;
-    float pitchMm = 0.0f; // centre to centre
-    float cruiseMmS = 0.0f;
-    float sampleLeadMm = 0.0f;   // sampling ends this far before the target centre
-    float sampleWindowMm = 0.0f; // ...and starts this much earlier
-    float frontStopMm = 0.0f;    // front reading when stopped on a centre; 0 disables anchoring
+    float pitchMm = TILE_PITCH_MM; // centre to centre
+    float cruiseMmS = SEARCH_SPEED_MM_S;
+    float sampleLeadMm = WALL_SAMPLE_LEAD_MM;     // sampling ends this far before the target centre
+    float sampleWindowMm = WALL_SAMPLE_WINDOW_MM; // ...and starts this much earlier
+    float frontStopMm =
+        FRONT_STOP_MM; // front reading when stopped on a centre; 0 disables anchoring
+    float frontAgreeMm = FRONT_AGREE_MM;      // echoes this close, in one frame, count as agreeing
+    float anchorFilter = FRONT_ANCHOR_FILTER; // weight of each accepted echo in the stop position
 };
 
 struct CellWalls {
@@ -46,24 +50,27 @@ struct StepCell {
     uint8_t votes[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
     bool sampling = false;
     bool wallsReady = false; // raised once per cell; cleared by stepCellContinue()
-    CellWalls walls;
-    // The front reading and the odometer position when it last changed. A sensor only refreshes
-    // every few ticks, so a reading is older than the tick it is read on; pairing it with the
-    // position it was TAKEN at (not the current one) keeps the anchor from drifting with the robot.
+    CellWalls walls;         // valid while wallsReady
+    // A wall stood inside the stop distance, further than a drift correction is believed: the
+    // move ended short of the cell and the map must not advance.
+    bool blocked = false;
+    // The front reading, and the odometer position where the robot would stand with that reading at
+    // frontStopMm, taken at the position the reading CHANGED at. A sensor only refreshes every few
+    // ticks, so a reading is older than the tick it is read on; pairing it with the position it
+    // was taken at (not the current one) keeps the stop from drifting with the robot.
     uint16_t lastFrontMm = 0;
-    float lastFrontDistMm = 0.0f;
+    float candidateMm = 0.0f;
     bool haveFront = false;
-    // The anchored stop position, smoothed over the readings. The front reading jitters by +-4 mm
-    // (110 and 119 alternated at a dead end on the robot); retargeting to each one kept the
-    // profile restarting, so the move never settled.
+    bool frontAgreed = false; // the latest echo put the wall where the one before did
+    // The stop position, smoothed over the agreeing echoes. The front jitters by +-4 mm (110 and
+    // 119 alternated at a dead end on the robot); retargeting to each one kept the profile
+    // restarting, so the move never settled.
     float anchorMm = 0.0f;
     bool haveAnchor = false;
 };
 
-// Weight of each new front reading in the smoothed stop position.
-constexpr float STEP_ANCHOR_FILTER = 0.3f;
-
-inline void stepCellClearVotes(StepCell &sc)
+// What stepCellBegin() and stepCellContinue() both clear: the votes and the verdict of a cell.
+inline void stepCellClearCell(StepCell &sc)
 {
     for (auto &row : sc.votes) {
         for (auto &v : row) {
@@ -72,6 +79,8 @@ inline void stepCellClearVotes(StepCell &sc)
     }
     sc.sampling = false;
     sc.wallsReady = false;
+    sc.walls = CellWalls{};
+    sc.blocked = false;
     sc.haveAnchor = false;
 }
 
@@ -81,8 +90,7 @@ inline void stepCellBegin(StepCell &sc, const StepCellParams &p, const MotionFee
                           float headingRefDeg)
 {
     straightBegin(sc.straight, fb, p.pitchMm, p.cruiseMmS, 0.0f, headingRefDeg);
-    stepCellClearVotes(sc); // the wall steer keeps what it learned: a turn drops it by itself
-    sc.walls = CellWalls{};
+    stepCellClearCell(sc); // the wall steer keeps what it learned: a turn drops it by itself
     sc.haveFront = false;
 }
 
@@ -91,7 +99,7 @@ inline void stepCellBegin(StepCell &sc, const StepCellParams &p, const MotionFee
 inline void stepCellContinue(StepCell &sc, const StepCellParams &p)
 {
     straightExtend(sc.straight, p.pitchMm, 0.0f);
-    stepCellClearVotes(sc);
+    stepCellClearCell(sc);
 }
 
 namespace step_detail
@@ -113,6 +121,56 @@ inline bool verdict(const uint8_t (&v)[3], bool &unreliable)
         unreliable = true;
     }
     return v[0] > 0 ? v[0] >= v[1] : v[1] == 0;
+}
+
+inline float absf(float x)
+{
+    return x < 0.0f ? -x : x;
+}
+
+// Take in the front reading. A new echo is placed on the odometer and compared with the one before:
+// only an echo that agrees with its predecessor is believed, so one stray reading never moves the
+// stop. The stop then follows the smoothed accepted position.
+//
+// A wall inside the stop distance is a safety stop: the robot is already past where it should be
+// braking, whatever the odometer says, so the stop is pulled in by any amount. A wall that cell's
+// vote confirmed is a drift correction, believed only while small (a big one means the reading is
+// something else).
+inline void frontAnchor(StepCell &sc, const StepCellParams &p, const MotionFeedback &fb,
+                        const WallView &wv)
+{
+    const bool fresh = !sc.haveFront || wv.frontMm != sc.lastFrontMm;
+    const float front = static_cast<float>(wv.frontMm);
+    if (fresh) {
+        const float candidate = fb.distMm + (front - p.frontStopMm);
+        sc.frontAgreed = sc.haveFront && absf(candidate - sc.candidateMm) <= p.frontAgreeMm;
+        sc.candidateMm = candidate;
+        sc.lastFrontMm = wv.frontMm;
+        sc.haveFront = true;
+    }
+
+    const bool inside = front <= p.frontStopMm;
+    const bool confirmed = sc.wallsReady && sc.walls.front && wv.front;
+    if (!inside && !confirmed) {
+        return;
+    }
+    // Only a new echo moves the smoothed position; between echoes it holds.
+    if (sc.frontAgreed && (fresh || !sc.haveAnchor)) {
+        sc.anchorMm = sc.haveAnchor ? sc.anchorMm + p.anchorFilter * (sc.candidateMm - sc.anchorMm)
+                                    : sc.candidateMm;
+        sc.haveAnchor = true;
+    }
+    if (!sc.haveAnchor) {
+        return;
+    }
+    const float shift = sc.anchorMm - sc.straight.targetMm;
+    const float believed = p.pitchMm * 0.5f;
+    if (inside && shift < 0.0f) {
+        sc.blocked = sc.blocked || shift <= -believed;
+        straightRetarget(sc.straight, sc.anchorMm, 0.0f, p.plan.accelMmS2);
+    } else if (confirmed && shift > -believed && shift < believed) {
+        straightRetarget(sc.straight, sc.anchorMm, 0.0f, p.plan.accelMmS2);
+    }
 }
 
 } // namespace step_detail
@@ -141,33 +199,8 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
         }
     }
 
-    // Anchor the stop on a wall ahead: the centre is frontStopMm short of it. Trusted when this
-    // cell's own vote confirmed the wall, or when the reading is already at or inside the stop
-    // distance (so a wall that was never voted on still cannot be driven into). Only a small
-    // correction is believed: a big one means the reading is something else.
     if (p.frontStopMm > 0.0f && wv.frontValid) {
-        const bool fresh = !sc.haveFront || wv.frontMm != sc.lastFrontMm;
-        if (fresh) {
-            sc.lastFrontMm = wv.frontMm;
-            sc.lastFrontDistMm = fb.distMm;
-            sc.haveFront = true;
-        }
-        const float front = static_cast<float>(wv.frontMm);
-        const bool confirmed = sc.wallsReady && sc.walls.front && wv.front;
-        if (confirmed || front <= p.frontStopMm) {
-            const float anchored = sc.lastFrontDistMm + (front - p.frontStopMm);
-            // Only a new reading moves the smoothed position; between readings it holds.
-            if (fresh || !sc.haveAnchor) {
-                sc.anchorMm = sc.haveAnchor
-                                  ? sc.anchorMm + STEP_ANCHOR_FILTER * (anchored - sc.anchorMm)
-                                  : anchored;
-                sc.haveAnchor = true;
-            }
-            const float shift = sc.anchorMm - sc.straight.targetMm;
-            if (shift > -p.pitchMm * 0.5f && shift < p.pitchMm * 0.5f) {
-                straightRetarget(sc.straight, sc.anchorMm, 0.0f);
-            }
-        }
+        frontAnchor(sc, p, fb, wv);
     }
 
     const float trim = wallSteerTrim(sc.steer, wv, p.wall, fb.headingDeg, dtMs);

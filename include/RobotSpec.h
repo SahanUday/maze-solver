@@ -281,6 +281,15 @@ constexpr uint16_t FRONT_STOP_MM = 117; // front reading when stopped at a cell 
 // 50 mm out; at 150 mm/s each sensor updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
 constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the cell centre
 constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
+static_assert(WALL_SAMPLE_LEAD_MM >= SEARCH_SPEED_MM_S * SEARCH_SPEED_MM_S / (2.0f * ACCEL_MM_S2),
+              "the decision point must be at least a braking distance from the centre");
+// A front echo moves the stop only once the next one puts the wall in the same place, within this
+// (two echoes of one wall differ by the +-4 mm jitter each, plus a tick of travel): a single stray
+// echo cannot.
+constexpr float FRONT_AGREE_MM = 15.0f;
+// Weight of each accepted front echo in the stop position; the front jitters 9 mm between echoes
+// at a dead end and an unfiltered stop never settled.
+constexpr float FRONT_ANCHOR_FILTER = 0.3f;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.

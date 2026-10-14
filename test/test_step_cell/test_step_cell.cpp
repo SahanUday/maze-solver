@@ -5,10 +5,11 @@
 //  front wall, if present, at wallX. Sensors read distances to them from the robot.
 // ============================================================================
 
+#include <initializer_list>
 #include <unity.h>
 
 #include "StepCell.h"
-#include "sim.h"
+#include "../support/sim.h"
 
 constexpr uint16_t DT_MS = 10;
 constexpr float DT_S = 0.01f;
@@ -20,6 +21,8 @@ struct World {
     float wallX = -1.0f;        // front wall position along the track; < 0 = none (open ahead)
     bool echo = true;           // false: nothing hears anything
     float frontJitterMm = 0.0f; // the front reading alternates +- this, a new value every 60 ms
+    int glitchTick = -1;        // the front reads glitchMm for this one tick
+    uint16_t glitchMm = 40;
 };
 
 struct Rig {
@@ -54,6 +57,9 @@ struct Rig {
         const float jitter = ((ticks / 6) % 2 != 0) ? world.frontJitterMm : -world.frontJitterMm;
         s.distFrontMm = static_cast<uint16_t>(
             world.wallX >= 0.0f ? world.wallX - sim.distMm + jitter : 2000.0f);
+        if (ticks == world.glitchTick) {
+            s.distFrontMm = world.glitchMm;
+        }
         s.distLeftMm = static_cast<uint16_t>(world.leftWall ? HALF - sim.yMm : 400.0f);
         s.distRightMm = static_cast<uint16_t>(world.rightWall ? HALF + sim.yMm : 400.0f);
         return wallView(s, p.wall);
@@ -83,9 +89,7 @@ static int asInt(MoveStatus s)
 static void test_stops_on_the_next_centre_when_nobody_answers()
 {
     Rig r;
-    r.world.wallX = 375.0f; // wall ahead of the NEXT cell too: nothing to anchor on this one
-    r.world.wallX = -1.0f;
-    r.begin();
+    r.begin(); // open ahead: nothing to anchor on, the profile ends on the pitch
     MoveStatus st = MoveStatus::Running;
     for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
         st = r.tick();
@@ -241,7 +245,8 @@ static void test_front_wall_closer_than_the_stop_distance_stops_now()
     for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
         st = r.tick();
     }
-    TEST_ASSERT_TRUE(r.sim.distMm < 250.0f);
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_FLOAT_WITHIN(4.0f, 140.0f, r.sim.distMm);
 }
 
 static void test_centres_between_two_walls()
@@ -260,7 +265,7 @@ static void test_follows_a_single_wall()
 {
     Rig r;
     r.world.rightWall = false;
-    r.sim.yMm = -20.0f; // too close to... no: left wall reads 120 + 20 = 140, steer left
+    r.sim.yMm = -20.0f; // right of centre: the left wall reads 140, steer left
     r.p.pitchMm = 1000.0f;
     r.begin();
     for (int i = 0; i < 400; ++i) {
@@ -348,6 +353,97 @@ static void test_a_turn_before_the_cell_drops_the_wall_bias()
     TEST_ASSERT_FLOAT_WITHIN(0.1f, 0.0f, r.sc.steer.biasDeg);
 }
 
+// An echo that disagrees with its neighbours is not a wall: one near reading in an open cell must
+// neither shorten the stop nor reverse the robot.
+static void test_one_stray_near_echo_does_not_move_the_stop()
+{
+    for (int glitch : {40, 55, 70, 85, 100}) {
+        Rig r;
+        r.world.glitchTick = glitch;
+        r.begin();
+        MoveStatus st = MoveStatus::Running;
+        float last = 0.0f;
+        float backtrack = 0.0f;
+        for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+            st = r.tick();
+            backtrack = last - r.sim.distMm > backtrack ? last - r.sim.distMm : backtrack;
+            last = r.sim.distMm;
+        }
+        TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+        TEST_ASSERT_FLOAT_WITHIN(3.0f, 250.0f, r.sim.distMm);
+        TEST_ASSERT_TRUE(backtrack < 1.0f);
+        TEST_ASSERT_FALSE(r.sc.blocked);
+    }
+}
+
+static void test_a_wall_that_stays_is_believed_after_the_second_echo()
+{
+    Rig r;
+    r.world.wallX = 180.0f; // appears inside the stop distance well before the centre
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_TRUE(r.sc.blocked);
+    TEST_ASSERT_TRUE(180.0f - r.sim.distMm > 40.0f); // short of the wall, nowhere near the centre
+    TEST_ASSERT_TRUE(r.sim.distMm < 125.0f);
+}
+
+static void test_a_wall_inside_the_stop_distance_at_the_start_is_not_driven_into()
+{
+    Rig r;
+    r.world.wallX = 100.0f; // already nearer than the stop point
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_TRUE(r.sc.blocked);
+    TEST_ASSERT_TRUE(r.sim.distMm < 5.0f);
+}
+
+static void test_a_small_correction_is_not_a_blocked_move()
+{
+    Rig r;
+    r.world.wallX = 260.0f + 125.0f;
+    r.begin();
+    for (int i = 0; i < 600 && r.tick() == MoveStatus::Running;) {
+        ++i;
+    }
+    TEST_ASSERT_FALSE(r.sc.blocked);
+}
+
+static void test_continue_clears_the_cell_it_leaves()
+{
+    Rig r;
+    r.world.rightWall = false;
+    r.begin();
+    for (int i = 0; i < 600 && !r.sc.wallsReady; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.sc.wallsReady);
+    TEST_ASSERT_TRUE(r.sc.walls.left);
+    stepCellContinue(r.sc, r.p);
+    TEST_ASSERT_FALSE(r.sc.wallsReady);
+    TEST_ASSERT_FALSE(r.sc.walls.left);
+    TEST_ASSERT_FALSE(r.sc.blocked);
+}
+
+static void test_the_params_default_to_the_spec()
+{
+    const StepCellParams d;
+    TEST_ASSERT_EQUAL_FLOAT(TILE_PITCH_MM, d.pitchMm);
+    TEST_ASSERT_EQUAL_FLOAT(SEARCH_SPEED_MM_S, d.cruiseMmS);
+    TEST_ASSERT_EQUAL_FLOAT(WALL_SAMPLE_LEAD_MM, d.sampleLeadMm);
+    TEST_ASSERT_EQUAL_FLOAT(WALL_SAMPLE_WINDOW_MM, d.sampleWindowMm);
+    TEST_ASSERT_EQUAL_FLOAT(FRONT_STOP_MM, d.frontStopMm);
+    TEST_ASSERT_EQUAL_FLOAT(FRONT_AGREE_MM, d.frontAgreeMm);
+    TEST_ASSERT_EQUAL_FLOAT(FRONT_ANCHOR_FILTER, d.anchorFilter);
+}
+
 static void test_a_move_that_cannot_start_is_stuck()
 {
     Rig r;
@@ -381,6 +477,12 @@ int main()
     RUN_TEST(test_vote_counters_saturate);
     RUN_TEST(test_the_wall_bias_survives_into_the_next_cell);
     RUN_TEST(test_a_turn_before_the_cell_drops_the_wall_bias);
+    RUN_TEST(test_one_stray_near_echo_does_not_move_the_stop);
+    RUN_TEST(test_a_wall_that_stays_is_believed_after_the_second_echo);
+    RUN_TEST(test_a_wall_inside_the_stop_distance_at_the_start_is_not_driven_into);
+    RUN_TEST(test_a_small_correction_is_not_a_blocked_move);
+    RUN_TEST(test_continue_clears_the_cell_it_leaves);
+    RUN_TEST(test_the_params_default_to_the_spec);
     RUN_TEST(test_a_move_that_cannot_start_is_stuck);
     return UNITY_END();
 }

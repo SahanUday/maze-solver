@@ -115,10 +115,23 @@ inline void straightExtend(Straight &s, float addMm, float vEndMmS)
     progressRestart(s.watch);
 }
 
-// Replace the finish line.
-inline void straightRetarget(Straight &s, float targetMm, float vEndMmS)
+// Replace the finish line. The reference cannot stop short of its braking distance: a nearer line
+// would be run through and come back, so it is taken as that point instead. A line already nearer
+// than that (the profile is late on it) is never pushed out by it.
+inline void straightRetarget(Straight &s, float targetMm, float vEndMmS, float accelMmS2)
 {
-    s.targetMm = targetMm;
+    const float v = s.refSpeedMmS;
+    const float dir = v > 0.0f ? 1.0f : (v < 0.0f ? -1.0f : (s.forward ? 1.0f : -1.0f));
+    const float excess = v * v - vEndMmS * vEndMmS;
+    const float brakeMm = excess > 0.0f && accelMmS2 > 0.0f ? excess / (2.0f * accelMmS2) : 0.0f;
+    float nearestMm = s.refMm + dir * brakeMm;
+    if (dir > 0.0f) {
+        nearestMm = nearestMm < s.targetMm ? nearestMm : s.targetMm;
+        s.targetMm = targetMm > nearestMm ? targetMm : nearestMm;
+    } else {
+        nearestMm = nearestMm > s.targetMm ? nearestMm : s.targetMm;
+        s.targetMm = targetMm < nearestMm ? targetMm : nearestMm;
+    }
     s.vEndMmS = vEndMmS;
 }
 

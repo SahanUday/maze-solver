@@ -5,7 +5,7 @@
 
 #include <unity.h>
 
-#include "sim.h"
+#include "../support/sim.h"
 
 constexpr uint16_t DT_MS = 10;
 constexpr float DT_S = 0.01f;
@@ -167,7 +167,8 @@ static void test_retarget_moves_the_stop()
     bool done = false;
     for (int i = 0; i < 400 && !done; ++i) {
         if (i == 30) {
-            straightRetarget(s, 220.0f, 0.0f); // a wall said the centre is 30 mm nearer
+            straightRetarget(s, 220.0f, 0.0f,
+                             r.plan.accelMmS2); // a wall said the centre is 30 mm nearer
         }
         MotionTarget t;
         done = straightStep(s, r.plan, r.sim.feedback(), 0.0f, DT_MS, t) == MoveStatus::Done;
@@ -175,6 +176,92 @@ static void test_retarget_moves_the_stop()
     }
     TEST_ASSERT_TRUE(done);
     TEST_ASSERT_FLOAT_WITHIN(3.0f, 220.0f, r.sim.distMm);
+}
+
+// A finish line pulled in nearer than the profile can stop is taken as the braking point: the robot
+// brakes as hard as the plan allows and stops there, it does not run through and come back.
+static void test_retarget_inside_the_braking_distance_does_not_reverse()
+{
+    Rig r;
+    Straight s;
+    straightBegin(s, r.sim.feedback(), 250.0f, 300.0f, 0.0f, 0.0f);
+    float atRetarget = 0.0f;
+    float backtrack = 0.0f;
+    float last = 0.0f;
+    bool done = false;
+    for (int i = 0; i < 400 && !done; ++i) {
+        if (i == 40) {
+            atRetarget = s.refMm;
+            straightRetarget(s, s.refMm - 60.0f, 0.0f, r.plan.accelMmS2); // 60 mm behind it
+        }
+        MotionTarget t;
+        done = straightStep(s, r.plan, r.sim.feedback(), 0.0f, DT_MS, t) == MoveStatus::Done;
+        r.drive(t);
+        backtrack = r.sim.distMm < last - backtrack ? last - r.sim.distMm : backtrack;
+        last = r.sim.distMm;
+    }
+    const float brakeMm = 300.0f * 300.0f / (2.0f * r.plan.accelMmS2);
+    TEST_ASSERT_TRUE(done);
+    TEST_ASSERT_TRUE(backtrack < 1.0f);
+    TEST_ASSERT_FLOAT_WITHIN(5.0f, atRetarget + brakeMm, r.sim.distMm);
+}
+
+static void test_retarget_beyond_the_braking_distance_is_taken_as_given()
+{
+    Straight s;
+    MotionFeedback fb;
+    fb.speedMmS = 150.0f;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    straightRetarget(s, 100.0f, 0.0f, 500.0f); // braking from 150 mm/s at 500 takes 22.5 mm
+    TEST_ASSERT_EQUAL_FLOAT(100.0f, s.targetMm);
+    straightRetarget(s, 10.0f, 0.0f, 500.0f);
+    TEST_ASSERT_EQUAL_FLOAT(22.5f, s.targetMm);
+}
+
+static void test_retarget_never_pushes_a_line_out_that_is_already_inside_the_braking_distance()
+{
+    Straight s;
+    MotionFeedback fb;
+    fb.speedMmS = 150.0f;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    s.targetMm = 10.0f; // the profile is late on this line: braking from 150 needs 22.5 mm
+    straightRetarget(s, 8.0f, 0.0f, 500.0f);
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, s.targetMm);
+    straightRetarget(s, 60.0f, 0.0f, 500.0f); // moving it further out is still allowed
+    TEST_ASSERT_EQUAL_FLOAT(60.0f, s.targetMm);
+}
+
+static void test_retarget_brakes_only_down_to_the_arrival_speed()
+{
+    Straight s;
+    MotionFeedback fb;
+    fb.speedMmS = 200.0f;
+    straightBegin(s, fb, 250.0f, 200.0f, 100.0f, 0.0f);
+    straightRetarget(s, 0.0f, 100.0f, 500.0f); // (200^2 - 100^2) / (2 * 500)
+    TEST_ASSERT_EQUAL_FLOAT(30.0f, s.targetMm);
+}
+
+static void test_retarget_of_a_reverse_move_clamps_the_other_way()
+{
+    Straight s;
+    MotionFeedback fb;
+    fb.speedMmS = -150.0f;
+    straightBegin(s, fb, -250.0f, 150.0f, 0.0f, 0.0f);
+    straightRetarget(s, 40.0f, 0.0f, 500.0f); // behind the robot's direction of travel
+    TEST_ASSERT_EQUAL_FLOAT(-22.5f, s.targetMm);
+}
+
+static void test_retarget_at_rest_follows_the_direction_of_the_move()
+{
+    Straight fwd;
+    Straight rev;
+    MotionFeedback fb;
+    straightBegin(fwd, fb, 100.0f, 150.0f, 0.0f, 0.0f);
+    straightBegin(rev, fb, -100.0f, 150.0f, 0.0f, 0.0f);
+    straightRetarget(fwd, -30.0f, 0.0f, 500.0f);
+    straightRetarget(rev, 30.0f, 0.0f, 500.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, fwd.targetMm);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, rev.targetMm);
 }
 
 static void test_straight_that_cannot_move_is_stuck()
@@ -463,7 +550,7 @@ static void test_only_the_first_step_of_a_move_is_flagged_as_new()
     straightExtend(s, 250.0f, 0.0f); // a chain of cells keeps its momentum
     straightStep(s, plan, fb, 0.0f, 10, t);
     TEST_ASSERT_FALSE(t.newMove);
-    straightRetarget(s, 400.0f, 0.0f);
+    straightRetarget(s, 400.0f, 0.0f, plan.accelMmS2);
     straightStep(s, plan, fb, 0.0f, 10, t);
     TEST_ASSERT_FALSE(t.newMove);
     straightBegin(s, fb, 100.0f, 150.0f, 0.0f, 0.0f);
@@ -517,6 +604,12 @@ int main()
     RUN_TEST(test_reverse_chain_does_not_stop_between_cells);
     RUN_TEST(test_forward_pass_through_begun_while_rolling_backward_is_not_done_at_once);
     RUN_TEST(test_retarget_moves_the_stop);
+    RUN_TEST(test_retarget_inside_the_braking_distance_does_not_reverse);
+    RUN_TEST(test_retarget_beyond_the_braking_distance_is_taken_as_given);
+    RUN_TEST(test_retarget_never_pushes_a_line_out_that_is_already_inside_the_braking_distance);
+    RUN_TEST(test_retarget_brakes_only_down_to_the_arrival_speed);
+    RUN_TEST(test_retarget_of_a_reverse_move_clamps_the_other_way);
+    RUN_TEST(test_retarget_at_rest_follows_the_direction_of_the_move);
     RUN_TEST(test_straight_that_cannot_move_is_stuck);
     RUN_TEST(test_hunting_short_of_the_target_is_stuck);
     RUN_TEST(test_moving_the_wrong_way_is_stuck);

@@ -2,7 +2,7 @@
 
 Two basic moves: a straight run along a held heading, and an in-place turn. Pure logic in
 `include/MotionPrimitives.h`, tested by `test/test_motion_primitives/` against the simulated
-plant in `sim.h`.
+plant in `test/support/sim.h`.
 
 ## Interface
 
@@ -10,7 +10,7 @@ A primitive is begun, then stepped once per tick; the step writes the `MotionTar
 a `MoveStatus` (`Running`, `Done`, `Stuck`). It never touches the motors.
 
 - `Straight` - `straightBegin(s, fb, distMm, vMax, vEnd, headingRef)`,
-  `straightExtend(s, addMm, vEnd)`, `straightRetarget(s, targetMm, vEnd)`,
+  `straightExtend(s, addMm, vEnd)`, `straightRetarget(s, targetMm, vEnd, accel)`,
   `straightStep(s, plan, fb, trimDeg, dtMs, out)`. `trimDeg` is added to the held heading.
 - `Turn` - `turnBegin(t, fb, targetHeadingDeg, deltaDeg)`, `turnStep(...)`. A 180 is ambiguous
   from the headings alone, so both are given.
@@ -36,6 +36,11 @@ hand [motion_control](motion_control.md) the reference, not the measurement.
   be back within `patienceMs`.
 
 ## Invariants
+
+- `straightRetarget` cannot pull the finish line in closer than the reference's braking distance
+  (`(v^2 - vEnd^2) / 2a`, ahead in the direction it is moving): the move brakes as hard as the plan
+  allows and stops there, it does not run through the line and come back. A line already nearer than
+  that is left where it is, not pushed out.
 
 - A move's length and speed cannot make it `Stuck`; a slow robot that keeps closing the gap runs
   on. The run limit (`RUN_LIMIT_MS`) is the only overall bound.
