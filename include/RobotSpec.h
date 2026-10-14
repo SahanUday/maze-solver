@@ -304,6 +304,18 @@ constexpr uint16_t FRONT_BLIND_MS = 300;
 // changes by the distance covered. Not applied at rest, where it repeats (sd 0.0 at 300 mm).
 constexpr float FRONT_FROZEN_MM = 60.0f;
 
+// ---- Section A mission --------------------------------------- [FROM TESTS] --
+// How long the robot stands and reads a cell's walls before it decides (a few refreshes of each
+// sensor: 4 at 60 ms), and how often a doubtful reading is tried again before it is acted on.
+constexpr uint16_t SECTION_A_SENSE_MS = 250;
+constexpr uint8_t SECTION_A_FRONT_TRIES = 4; // senses of an unheard front: then it is a wall
+constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again (Maze.h)
+constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
+constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
+constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
+// White under the array this long (past the tile edge, before the centre is decided) is the tile.
+constexpr uint16_t SECTION_A_FINISH_WHITE_MS = 100;
+
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.
 // STEP_TOLERANCE_MM: the front sensor jitters +-4 mm and a centre needs ~+-10 mm.
