@@ -2,8 +2,8 @@
 //  Perception.h  --  RobotState in, one derived Perception out per tick. No hardware, no
 //  Arduino.h - testable under env:native.
 //
-//  RobotState is raw (counts, deg, mm); this derives distance, a yaw RATE, walls, the line and
-//  the incline. It never writes RobotState.
+//  RobotState is raw (counts, deg, mm); this derives distance, walls, the line and the incline,
+//  and passes the yaw rate through. It never writes RobotState.
 //  docs/architecture/modules/perception.md
 // ============================================================================
 
@@ -11,7 +11,6 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
 #include "LineSense.h"
 #include "LineView.h"
 #include "MotionTypes.h"
@@ -29,27 +28,22 @@ struct Perception {
     bool startPressed = false;
 };
 
+// The defaults are the values in RobotSpec.h.
 struct PerceiveParams {
-    float mmPerCount = 0.0f;
-    uint16_t dtMs = 10;
+    float mmPerCount = MM_PER_ENCODER_COUNT;
+    uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
     WallParams wall;
-    float irPitchMm = 0.0f;
+    float irPitchMm = IR_SENSOR_PITCH_MM;
 };
 
 struct Perceiver {
     Odometry odo;
-    float lastHeadingDeg = 0.0f;
-    bool headingPrimed = false;
-    float yawRateDps = 0.0f;
     int16_t levelCounts = IMU_ACCEL_FORWARD_LEVEL_COUNTS; // forward-axis reading on level ground
     LineCalibration cal{};
     uint8_t usable = 0; // channels the calibration accepted
     uint8_t mask = 0;   // black channels, with hysteresis
     uint8_t norm[IR_CHANNEL_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
 };
-
-// Weight of the newest yaw-rate sample.
-constexpr float YAW_RATE_FILTER = 0.5f;
 
 inline void perceiverReset(Perceiver &pc)
 {
@@ -66,12 +60,7 @@ inline void perceiverSetLevel(Perceiver &pc, int16_t levelCounts)
 inline void perceiverSetCalibration(Perceiver &pc, const LineCalibration &cal)
 {
     pc.cal = cal;
-    pc.usable = 0;
-    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-        if (cal.scale[ch] != 0) {
-            pc.usable = static_cast<uint8_t>(pc.usable | (1u << ch));
-        }
-    }
+    pc.usable = lineCalibrationUsable(cal);
     pc.mask = 0;
 }
 
@@ -80,18 +69,10 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
 {
     odometryUpdate(pc.odo, state.encoderCountL, state.encoderCountR, p.mmPerCount, p.dtMs);
 
-    if (pc.headingPrimed && p.dtMs > 0) {
-        const float raw = headingWrapDeg(state.headingDeg - pc.lastHeadingDeg) * 1000.0f /
-                          static_cast<float>(p.dtMs);
-        pc.yawRateDps += YAW_RATE_FILTER * (raw - pc.yawRateDps);
-    }
-    pc.lastHeadingDeg = state.headingDeg;
-    pc.headingPrimed = true;
-
     out.motion.distMm = pc.odo.distMm;
     out.motion.speedMmS = pc.odo.speedMmS;
     out.motion.headingDeg = state.headingDeg;
-    out.motion.yawRateDps = pc.yawRateDps;
+    out.motion.yawRateDps = state.yawRateDps;
     out.inclineCounts = inclineCounts(state.imu, pc.levelCounts);
     out.walls = wallView(state, p.wall);
 

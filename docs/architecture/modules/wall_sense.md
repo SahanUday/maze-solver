@@ -6,22 +6,23 @@ tested by `test/test_wall_sense/`. The readings come from [ultrasonic](ultrasoni
 
 ## Interface
 
-- `WallParams` - presence thresholds, the single-wall centre distance, `kp`, `kd`, `steerMaxDeg`.
-  From `RobotSpec.h`: `WALL_PRESENT_SIDE_MM`, `WALL_PRESENT_FRONT_MM`, `WALL_CENTER_DIST_MM`,
-  `KP_WALL`, `KD_WALL`, `STEER_MAX_DEG`.
+- `WallParams` - presence thresholds, the single-wall centre distance, `kp`, `steerMaxDeg`. The
+  defaults are the `RobotSpec.h` values: `WALL_PRESENT_SIDE_MM`, `WALL_PRESENT_FRONT_MM`,
+  `WALL_CENTER_DIST_MM`, `KP_WALL`, `STEER_MAX_DEG`.
 - `wallView(state, params)` - one tick's `WallView`: per sensor `valid`, `mm`, and
   `front/left/right` (valid and under the threshold).
 - `wallCenterError(view, params, errMm)` - lateral error, positive when the robot sits right of
   centre; false with no side wall in view.
-- `wallSteerTrim(steer, view, params, dtMs)` - heading offset in degrees (CCW positive) toward the
-  centre line.
+- `wallSteerTrim(steer, view, params)` - heading offset in degrees (CCW positive) toward the centre
+  line.
 
 ## How it works
 
 With both walls the error is `(left - right) / 2`; with one it is that wall's distance against
 `WALL_CENTER_DIST_MM`. The error is low-passed (`WALL_ERR_FILTER`), and the filter restarts when the
-set of walls changes (both, left only, right only). The trim is `kp * error + kd * rate`, clamped
-to `steerMaxDeg`.
+set of walls changes (`WallMode`: both, left only, right only). The trim is `kp * error`, clamped to
+`steerMaxDeg`. There is no derivative term: a sensor refreshes every 60 ms but is read every tick,
+so a derivative only spikes at each refresh.
 
 A sensor with no echo is neither wall nor open: its distance is stale and never used. A caller that
 has to decide treats it as a wall.

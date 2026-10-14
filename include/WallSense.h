@@ -11,15 +11,16 @@
 
 #include <stdint.h>
 
+#include "RobotSpec.h"
 #include "RobotState.h"
 
+// The defaults are the measured values in RobotSpec.h.
 struct WallParams {
-    uint16_t sideMm = 0;       // side reading below this = wall
-    uint16_t frontMm = 0;      // front reading below this = wall
-    uint16_t centerDistMm = 0; // side reading when centred; used when only one wall is seen
-    float kp = 0.0f;           // deg of heading offset per mm of lateral error
-    float kd = 0.0f;           // ... per mm/s of lateral error rate
-    float steerMaxDeg = 0.0f;
+    uint16_t sideMm = WALL_PRESENT_SIDE_MM;      // side reading below this = wall
+    uint16_t frontMm = WALL_PRESENT_FRONT_MM;    // front reading below this = wall
+    uint16_t centerDistMm = WALL_CENTER_DIST_MM; // side reading when centred; one wall only
+    float kp = KP_WALL;                          // deg of heading offset per mm of lateral error
+    float steerMaxDeg = STEER_MAX_DEG;
 };
 
 // One tick's view of the three sensors.
@@ -72,14 +73,16 @@ inline bool wallCenterError(const WallView &v, const WallParams &p, float &errMm
     return false;
 }
 
-// Centring state. `mode` is which walls the last error came from; the filter restarts when it
-// changes.
+// Which walls the last error came from; the filter restarts when it changes.
+enum class WallMode : uint8_t { None, Both, LeftOnly, RightOnly };
+
 struct WallSteer {
     float filtMm = 0.0f;
-    uint8_t mode = 0; // 0 none, 1 both, 2 left only, 3 right only
+    WallMode mode = WallMode::None;
 };
 
-// Weight of the newest error in the filter.
+// Weight of the newest error in the filter. There is no derivative term: a sensor refreshes every
+// 60 ms but is read every tick, so a derivative only spikes at each refresh.
 constexpr float WALL_ERR_FILTER = 0.5f;
 
 inline void wallSteerReset(WallSteer &w)
@@ -88,22 +91,21 @@ inline void wallSteerReset(WallSteer &w)
 }
 
 // Heading offset (deg, CCW positive) toward the centre line; 0 with no wall.
-inline float wallSteerTrim(WallSteer &w, const WallView &v, const WallParams &p, uint16_t dtMs)
+inline float wallSteerTrim(WallSteer &w, const WallView &v, const WallParams &p)
 {
     float err = 0.0f;
     if (!wallCenterError(v, p, err)) {
-        w.mode = 0;
+        w.mode = WallMode::None;
         return 0.0f;
     }
-    const uint8_t mode = (v.left && v.right) ? 1 : (v.left ? 2 : 3);
+    const WallMode mode =
+        (v.left && v.right) ? WallMode::Both : (v.left ? WallMode::LeftOnly : WallMode::RightOnly);
     if (mode != w.mode) {
         w.mode = mode;
         w.filtMm = err;
     }
-    const float prev = w.filtMm;
     w.filtMm += WALL_ERR_FILTER * (err - w.filtMm);
-    const float rate = dtMs > 0 ? (w.filtMm - prev) * 1000.0f / static_cast<float>(dtMs) : 0.0f;
 
-    const float trim = p.kp * w.filtMm + p.kd * rate;
+    const float trim = p.kp * w.filtMm;
     return trim > p.steerMaxDeg ? p.steerMaxDeg : (trim < -p.steerMaxDeg ? -p.steerMaxDeg : trim);
 }

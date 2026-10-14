@@ -28,6 +28,7 @@ struct RobotState {
 
     // ---- Orientation (from the gyro driver) ---------------------------
     float headingDeg = 0.0f; // fused/integrated yaw, 0 = start heading
+    float yawRateDps = 0.0f; // bias-corrected yaw rate, deg/s, + = CCW; the rate headingDeg used
 
     // ---- Inertial sensing (from the IMU driver) -----------------------
     // A straight mirror of the MPU-6050's 0x3B..0x48 block, raw counts, no

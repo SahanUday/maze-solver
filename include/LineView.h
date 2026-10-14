@@ -14,6 +14,7 @@
 #include "RobotSpec.h"
 
 struct LineView {
+    bool valid = false;    // at least one usable channel; otherwise the three below are all false
     bool allBlack = false; // every usable channel black: bare floor, or the array lifted
     bool allWhite = false; // no usable channel black: off the line, or a white tile
     bool onLine = false;   // some black, some white
@@ -28,9 +29,10 @@ inline LineView lineView(const uint8_t (&norm)[IR_CHANNEL_COUNT], uint8_t mask, 
 {
     LineView v;
     const uint8_t black = static_cast<uint8_t>(mask & usable);
-    v.allBlack = usable != 0 && black == usable;
-    v.allWhite = black == 0;
-    v.onLine = !v.allBlack && !v.allWhite;
+    v.valid = usable != 0;
+    v.allBlack = v.valid && black == usable;
+    v.allWhite = v.valid && black == 0;
+    v.onLine = v.valid && !v.allBlack && !v.allWhite;
 
     float weight = 0.0f;
     float moment = 0.0f;

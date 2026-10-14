@@ -70,28 +70,36 @@ static void test_speed_settles_at_the_true_speed()
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 100.0f, r.out.motion.speedMmS);
 }
 
-static void test_yaw_rate_comes_from_the_heading_change()
+static void test_heading_and_yaw_rate_are_passed_through()
 {
     Rig r;
+    r.s.headingDeg = 42.0f;
+    r.s.yawRateDps = -17.5f;
     r.tick();
-    for (int i = 1; i <= 60; ++i) {
-        r.s.headingDeg = 0.1f * static_cast<float>(i); // 0.1 deg per 10 ms = 10 deg/s
-        r.tick();
-    }
-    TEST_ASSERT_FLOAT_WITHIN(0.2f, 10.0f, r.out.motion.yawRateDps);
-    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 6.0f, r.out.motion.headingDeg);
+    TEST_ASSERT_EQUAL_FLOAT(42.0f, r.out.motion.headingDeg);
+    TEST_ASSERT_EQUAL_FLOAT(-17.5f, r.out.motion.yawRateDps);
 }
 
-static void test_yaw_rate_is_not_fooled_by_the_wrap_at_180()
+static void test_a_heading_snap_is_not_a_yaw_rate()
 {
+    // The mission snaps the heading to the grid; the robot is not turning.
     Rig r;
-    r.s.headingDeg = 179.95f;
+    r.s.headingDeg = 0.0f;
+    r.s.yawRateDps = 0.0f;
     r.tick();
-    for (int i = 0; i < 60; ++i) {
-        r.s.headingDeg = (i % 2 == 0) ? -179.95f : 179.95f; // +-0.1 deg across the wrap, in turn
-        r.tick();
-    }
-    TEST_ASSERT_TRUE(r.out.motion.yawRateDps < 12.0f && r.out.motion.yawRateDps > -12.0f);
+    r.s.headingDeg = 3.0f;
+    r.tick();
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, r.out.motion.yawRateDps);
+    TEST_ASSERT_EQUAL_FLOAT(3.0f, r.out.motion.headingDeg);
+}
+
+static void test_the_defaults_are_the_spec_values()
+{
+    const PerceiveParams d;
+    TEST_ASSERT_EQUAL_FLOAT(MM_PER_ENCODER_COUNT, d.mmPerCount);
+    TEST_ASSERT_EQUAL_UINT16(CONTROL_LOOP_PERIOD_MS, d.dtMs);
+    TEST_ASSERT_EQUAL_FLOAT(IR_SENSOR_PITCH_MM, d.irPitchMm);
+    TEST_ASSERT_EQUAL_UINT16(WALL_PRESENT_SIDE_MM, d.wall.sideMm);
 }
 
 static void test_the_wall_view_uses_the_thresholds()
@@ -151,14 +159,17 @@ static void test_a_calibration_marks_its_usable_channels()
     TEST_ASSERT_EQUAL_HEX8(0b10001001, r.pc.usable);
 }
 
-static void test_without_a_calibration_the_floor_is_never_reported()
+static void test_without_a_calibration_the_line_view_reports_nothing()
 {
     Rig r;
     for (auto &c : r.s.irRaw) {
         c = 900;
     }
     r.tick();
+    TEST_ASSERT_FALSE(r.out.line.valid);
     TEST_ASSERT_FALSE(r.out.line.allBlack);
+    TEST_ASSERT_FALSE(r.out.line.allWhite);
+    TEST_ASSERT_FALSE(r.out.line.onLine);
 }
 
 static void test_the_start_button_is_passed_through()
@@ -190,14 +201,15 @@ int main()
     RUN_TEST(test_the_first_tick_only_records_the_counts);
     RUN_TEST(test_distance_is_the_mean_of_both_wheels_in_mm);
     RUN_TEST(test_speed_settles_at_the_true_speed);
-    RUN_TEST(test_yaw_rate_comes_from_the_heading_change);
-    RUN_TEST(test_yaw_rate_is_not_fooled_by_the_wrap_at_180);
+    RUN_TEST(test_heading_and_yaw_rate_are_passed_through);
+    RUN_TEST(test_a_heading_snap_is_not_a_yaw_rate);
+    RUN_TEST(test_the_defaults_are_the_spec_values);
     RUN_TEST(test_the_wall_view_uses_the_thresholds);
     RUN_TEST(test_a_silent_sensor_is_neither_wall_nor_open);
     RUN_TEST(test_the_incline_is_the_forward_axis_above_level);
     RUN_TEST(test_a_captured_level_replaces_the_bench_value);
     RUN_TEST(test_a_calibration_marks_its_usable_channels);
-    RUN_TEST(test_without_a_calibration_the_floor_is_never_reported);
+    RUN_TEST(test_without_a_calibration_the_line_view_reports_nothing);
     RUN_TEST(test_the_start_button_is_passed_through);
     RUN_TEST(test_reset_forgets_the_run);
     return UNITY_END();

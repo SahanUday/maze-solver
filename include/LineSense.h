@@ -44,23 +44,33 @@ inline void lineCalibrationAccumulate(LineCalibration &cal,
     }
 }
 
-// End the run. This is the only division; lineNormalize() multiplies. Returns the usable
-// channels, bit ch set = usable. A range under LINE_CAL_MIN_SPAN_COUNTS is not.
-inline uint8_t lineCalibrationFinish(LineCalibration &cal)
+// Usable channels, bit ch set = usable: the ones whose calibration has a scale.
+inline uint8_t lineCalibrationUsable(const LineCalibration &cal)
 {
     uint8_t usable = 0;
+    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+        if (cal.scale[ch] != 0) {
+            usable = static_cast<uint8_t>(usable | (1u << ch));
+        }
+    }
+    return usable;
+}
+
+// End the run. This is the only division; lineNormalize() multiplies. Returns the usable
+// channels. A range under LINE_CAL_MIN_SPAN_COUNTS is not.
+inline uint8_t lineCalibrationFinish(LineCalibration &cal)
+{
     for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
         const uint16_t range = cal.black[ch] > cal.white[ch]
                                    ? static_cast<uint16_t>(cal.black[ch] - cal.white[ch])
                                    : static_cast<uint16_t>(0);
         if (range >= LINE_CAL_MIN_SPAN_COUNTS) {
             cal.scale[ch] = (255UL << 16) / range;
-            usable = static_cast<uint8_t>(usable | (1u << ch));
         } else {
             cal.scale[ch] = 0;
         }
     }
-    return usable;
+    return lineCalibrationUsable(cal);
 }
 
 // counts -> 0 (white) .. 255 (black), clamped to the calibrated range. An unusable channel

@@ -28,6 +28,16 @@ static RobotState state(uint16_t f, uint16_t l, uint16_t r, uint8_t valid = 0x07
     return s;
 }
 
+static void test_the_defaults_are_the_spec_values()
+{
+    const WallParams p;
+    TEST_ASSERT_EQUAL_UINT16(WALL_PRESENT_SIDE_MM, p.sideMm);
+    TEST_ASSERT_EQUAL_UINT16(WALL_PRESENT_FRONT_MM, p.frontMm);
+    TEST_ASSERT_EQUAL_UINT16(WALL_CENTER_DIST_MM, p.centerDistMm);
+    TEST_ASSERT_EQUAL_FLOAT(KP_WALL, p.kp);
+    TEST_ASSERT_EQUAL_FLOAT(STEER_MAX_DEG, p.steerMaxDeg);
+}
+
 static void test_view_applies_thresholds()
 {
     const WallView v = wallView(state(200, 100, 300), params());
@@ -94,7 +104,7 @@ static void test_trim_steers_away_from_the_near_wall()
     const WallParams p = params();
     float trim = 0.0f;
     for (int i = 0; i < 20; ++i) {
-        trim = wallSteerTrim(w, wallView(state(400, 60, 100), p), p, 10);
+        trim = wallSteerTrim(w, wallView(state(400, 60, 100), p), p);
     }
     TEST_ASSERT_FLOAT_WITHIN(0.1f, -10.0f, trim); // 0.5 * -20 = -10, clamped at the same value
 }
@@ -105,11 +115,11 @@ static void test_trim_is_clamped()
     const WallParams p = params();
     float trim = 0.0f;
     for (int i = 0; i < 20; ++i) {
-        trim = wallSteerTrim(w, wallView(state(400, 20, 140), p), p, 10); // err -60
+        trim = wallSteerTrim(w, wallView(state(400, 20, 140), p), p); // err -60
     }
     TEST_ASSERT_EQUAL_FLOAT(-10.0f, trim);
     for (int i = 0; i < 20; ++i) {
-        trim = wallSteerTrim(w, wallView(state(400, 140, 20), p), p, 10);
+        trim = wallSteerTrim(w, wallView(state(400, 140, 20), p), p);
     }
     TEST_ASSERT_EQUAL_FLOAT(10.0f, trim);
 }
@@ -118,9 +128,17 @@ static void test_no_wall_means_no_trim_and_resets()
 {
     WallSteer w;
     const WallParams p = params();
-    wallSteerTrim(w, wallView(state(400, 60, 100), p), p, 10);
-    TEST_ASSERT_EQUAL_FLOAT(0.0f, wallSteerTrim(w, wallView(state(400, 400, 400), p), p, 10));
-    TEST_ASSERT_EQUAL_UINT8(0, w.mode);
+    wallSteerTrim(w, wallView(state(400, 60, 100), p), p);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, wallSteerTrim(w, wallView(state(400, 400, 400), p), p));
+    TEST_ASSERT_TRUE(w.mode == WallMode::None);
+}
+
+static void test_both_walls_mode()
+{
+    WallSteer w;
+    const WallParams p = params();
+    wallSteerTrim(w, wallView(state(400, 60, 100), p), p);
+    TEST_ASSERT_TRUE(w.mode == WallMode::Both);
 }
 
 static void test_filter_restarts_when_the_wall_set_changes()
@@ -130,56 +148,36 @@ static void test_filter_restarts_when_the_wall_set_changes()
     p.kp = 1.0f;
     p.steerMaxDeg = 100.0f;
     for (int i = 0; i < 20; ++i) {
-        wallSteerTrim(w, wallView(state(400, 60, 100), p), p, 10); // both walls, err -20
+        wallSteerTrim(w, wallView(state(400, 60, 100), p), p); // both walls, err -20
     }
     // The right wall ends: error now comes from the left wall alone. No half-way blend.
-    const float trim = wallSteerTrim(w, wallView(state(400, 130, 400), p), p, 10);
+    const float trim = wallSteerTrim(w, wallView(state(400, 130, 400), p), p);
     TEST_ASSERT_EQUAL_FLOAT(30.0f, trim);
-    TEST_ASSERT_EQUAL_UINT8(2, w.mode);
+    TEST_ASSERT_TRUE(w.mode == WallMode::LeftOnly);
 }
 
 static void test_right_only_mode()
 {
     WallSteer w;
     const WallParams p = params();
-    wallSteerTrim(w, wallView(state(400, 400, 80), p), p, 10);
-    TEST_ASSERT_EQUAL_UINT8(3, w.mode);
-}
-
-static void test_derivative_term_reacts_to_a_changing_error()
-{
-    WallSteer w;
-    WallParams p = params();
-    p.kp = 0.0f;
-    p.kd = 0.01f;
-    wallSteerTrim(w, wallView(state(400, 100, 100), p), p, 10);                   // err 0, mode set
-    const float trim = wallSteerTrim(w, wallView(state(400, 100, 60), p), p, 10); // err +20
-    TEST_ASSERT_TRUE(trim > 0.0f);
-}
-
-static void test_zero_dt_has_no_derivative()
-{
-    WallSteer w;
-    WallParams p = params();
-    p.kp = 0.0f;
-    p.kd = 1.0f;
-    wallSteerTrim(w, wallView(state(400, 100, 100), p), p, 10);
-    TEST_ASSERT_EQUAL_FLOAT(0.0f, wallSteerTrim(w, wallView(state(400, 100, 60), p), p, 0));
+    wallSteerTrim(w, wallView(state(400, 400, 80), p), p);
+    TEST_ASSERT_TRUE(w.mode == WallMode::RightOnly);
 }
 
 static void test_reset()
 {
     WallSteer w;
-    w.mode = 2;
+    w.mode = WallMode::LeftOnly;
     w.filtMm = 5.0f;
     wallSteerReset(w);
-    TEST_ASSERT_EQUAL_UINT8(0, w.mode);
+    TEST_ASSERT_TRUE(w.mode == WallMode::None);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, w.filtMm);
 }
 
 int main()
 {
     UNITY_BEGIN();
+    RUN_TEST(test_the_defaults_are_the_spec_values);
     RUN_TEST(test_view_applies_thresholds);
     RUN_TEST(test_view_threshold_is_exclusive);
     RUN_TEST(test_no_echo_is_neither_wall_nor_open);
@@ -190,10 +188,9 @@ int main()
     RUN_TEST(test_trim_steers_away_from_the_near_wall);
     RUN_TEST(test_trim_is_clamped);
     RUN_TEST(test_no_wall_means_no_trim_and_resets);
+    RUN_TEST(test_both_walls_mode);
     RUN_TEST(test_filter_restarts_when_the_wall_set_changes);
     RUN_TEST(test_right_only_mode);
-    RUN_TEST(test_derivative_term_reacts_to_a_changing_error);
-    RUN_TEST(test_zero_dt_has_no_derivative);
     RUN_TEST(test_reset);
     return UNITY_END();
 }

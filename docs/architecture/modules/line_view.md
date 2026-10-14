@@ -8,6 +8,7 @@ and the `usable` bit mask of channels the calibration accepted.
 
 `lineView(norm, mask, usable, pitchMm)` returns a `LineView`:
 
+- `valid` - at least one usable channel. When false, the three states below are all false.
 - `allBlack` - every usable channel is black: bare maze floor, or the array lifted off it.
 - `allWhite` - no usable channel is black: off the line, or a white tile.
 - `onLine` - some black and some white.
@@ -21,10 +22,12 @@ channel by its darkness (`norm`); channel 0 (D1) is leftmost, the most positive 
 
 ## Invariants
 
-- With no usable channel, `allBlack` is false and `allWhite` is true.
+- With no usable channel (no calibration loaded) the view is not `valid`: it is neither the floor
+  nor a white tile, and `errMm` is 0.
 - The maze floor is black, so `allBlack` is the normal state in the maze, not a fault.
+- `pitchMm` comes from `IR_SENSOR_PITCH_MM`, which is 0 until measured; `errMm` is then 0.
 
 ## Status
 
-Host tests only. Not run on the robot: the array is not calibrated and `irPitchMm` has no measured
-value yet.
+Host tests only. Not run on the robot: the array is not calibrated and `IR_SENSOR_PITCH_MM` has no
+measured value yet.

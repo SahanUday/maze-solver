@@ -117,14 +117,15 @@ inline float gyroYawRateDps(const GyroBias &bias, int16_t yawRateCounts)
     return dps;
 }
 
-// Integrate one tick. Does nothing until the bias is ready: integrating an
-// unknown offset is what this module exists to prevent.
-inline void headingUpdate(Heading &heading, const GyroBias &bias, int16_t yawRateCounts,
-                          uint16_t dtMs)
+// Integrate one tick and return the yaw rate used (deg/s, CCW positive). Does nothing and returns 0
+// until the bias is ready: integrating an unknown offset is what this module exists to prevent.
+inline float headingUpdate(Heading &heading, const GyroBias &bias, int16_t yawRateCounts,
+                           uint16_t dtMs)
 {
     if (!bias.ready) {
-        return;
+        return 0.0f;
     }
     const float dps = gyroYawRateDps(bias, yawRateCounts);
     heading.deg = headingWrapDeg(heading.deg + dps * (static_cast<float>(dtMs) / 1000.0f));
+    return dps;
 }

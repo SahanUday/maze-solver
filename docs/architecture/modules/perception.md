@@ -6,11 +6,13 @@
 
 ## Interface
 
-- `Perceiver` - the state `perceive()` carries between ticks: odometry, last heading, filtered yaw
-  rate, level reading, line calibration, mask.
+- `Perceiver` - the state `perceive()` carries between ticks: odometry, level reading, line
+  calibration, mask.
 - `perceiverReset(pc)`, `perceiverSetCalibration(pc, cal)` - the calibration comes from the EEPROM
-  store at boot; this also works out which channels it accepts.
+  store at boot; this also works out which channels it accepts (`lineCalibrationUsable`).
 - `perceiverSetLevel(pc, counts)` - the forward-axis reading on level ground, from `InclineLevel`.
+- `PerceiveParams` - `mmPerCount`, `dtMs`, `wall`, `irPitchMm`. Every default is the value in
+  `RobotSpec.h`, so a default-constructed one is the spec.
 - `perceive(pc, state, params, out)` - fills `Perception`: `motion` (distance, speed, heading, yaw
   rate), `inclineCounts`, `walls` ([wall_sense](wall_sense.md)), `line` ([line_view](line_view.md)),
   `startPressed`.
@@ -32,14 +34,16 @@ counts with a threshold and no trigonometry is needed
 
 ## How it works
 
-`RobotState` is raw (counts, ADC counts, mm) and is never written here. Yaw rate is the wrapped
-difference of successive headings, filtered. The IR counts go through `LineSense.h` (normalise,
-mask with hysteresis) and then `lineView()`.
+`RobotState` is raw (counts, ADC counts, mm) and is never written here. Heading and yaw rate come
+from the gyro driver through `RobotState` (`headingDeg`, `yawRateDps`), so a heading snap to the grid
+is not read as a rotation. The IR counts go through `LineSense.h` (normalise, mask with hysteresis)
+and then `lineView()`.
 
 ## Invariants
 
 - No hardware and no `millis()`: time comes from `CONTROL_LOOP_PERIOD_MS`.
 - `inclineCounts` saturates at +-32767 and uses no floating point.
+- With no usable IR channel the `LineView` is not `valid` and every state in it is false.
 
 ## Status
 

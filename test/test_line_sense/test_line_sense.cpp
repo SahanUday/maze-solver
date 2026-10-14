@@ -89,6 +89,16 @@ static void test_a_range_under_the_minimum_is_unusable_the_minimum_itself_is_not
     TEST_ASSERT_EQUAL_UINT32(0, cal.scale[2]);
 }
 
+static void test_usable_comes_from_the_scales_alone()
+{
+    // A calibration loaded from the store has no white/black history, only the scales.
+    LineCalibration cal{};
+    cal.scale[1] = 7;
+    cal.scale[6] = 1;
+    TEST_ASSERT_EQUAL_UINT8(0b01000010, lineCalibrationUsable(cal));
+    TEST_ASSERT_EQUAL_UINT8(0, lineCalibrationUsable(LineCalibration{}));
+}
+
 static void test_a_channel_never_sampled_is_unusable()
 {
     LineCalibration cal;
@@ -266,6 +276,7 @@ int main()
     RUN_TEST(test_accumulate_keeps_the_lowest_and_highest_count_per_channel);
     RUN_TEST(test_finish_marks_every_fixture_channel_usable);
     RUN_TEST(test_a_range_under_the_minimum_is_unusable_the_minimum_itself_is_not);
+    RUN_TEST(test_usable_comes_from_the_scales_alone);
     RUN_TEST(test_a_channel_never_sampled_is_unusable);
     RUN_TEST(test_white_normalizes_to_0_and_black_to_255_on_every_channel);
     RUN_TEST(test_the_endpoints_are_exact_for_any_range_from_the_minimum_to_full_scale);

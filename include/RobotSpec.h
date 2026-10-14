@@ -167,6 +167,7 @@ constexpr uint8_t LINE_MASK_OFF_PCT = 40;
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
 // Sensor face to floor at the final mount; the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
+constexpr float IR_SENSOR_PITCH_MM = 0.0f; // channel to channel; 0 = LineView::errMm reads 0
 
 // ---- Ultrasonic sensing ------------------------------------------------ --
 // HC-SR04 x3, round-robin. See decisions/0007-*.md.
@@ -241,7 +242,6 @@ constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 // ---- Steering gains ----------------------------------------- [PARTIAL] --
 // Wall centring: a lateral error (mm) to a heading offset (deg). Tuned on the floor, 2026-10-14.
 constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
-constexpr float KD_WALL = 0.0f;       // not used
 constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset
 
 // ---- Wall sensing ------------------------------------------- [MEASURED] --

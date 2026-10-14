@@ -90,12 +90,12 @@ static void readSensors(RobotState &state)
     encodersRead(state.encoderCountL, state.encoderCountR);
     lineSensorsRead(state.irRaw);
 
-    // A failed transfer leaves state.imu holding the previous sample, and skips the
-    // integration rather than integrating a stale rate twice. A dropped tick loses
+    // A failed transfer leaves state.imu and state.yawRateDps holding the previous sample, and
+    // skips the integration rather than integrating a stale rate twice. A dropped tick loses
     // whatever rotation happened during it; nothing counts it yet.
     if (g_imuPresent && imuRead(state.imu)) {
-        headingUpdate(g_heading, g_gyroBias, state.imu.gyro[IMU_GYRO_AXIS_YAW],
-                      CONTROL_LOOP_PERIOD_MS);
+        state.yawRateDps = headingUpdate(g_heading, g_gyroBias, state.imu.gyro[IMU_GYRO_AXIS_YAW],
+                                         CONTROL_LOOP_PERIOD_MS);
     }
     state.headingDeg = g_heading.deg;
     ultrasonicUpdate();

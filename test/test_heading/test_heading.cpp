@@ -220,6 +220,24 @@ static void test_rotating_back_returns_to_where_it_started()
     TEST_ASSERT_FLOAT_WITHIN(0.5f, 0.0f, heading.deg);
 }
 
+static void test_the_update_returns_the_rate_it_integrated()
+{
+    const GyroBias bias = calibrated(100, GYRO_BIAS_SAMPLES);
+    const int16_t counts = static_cast<int16_t>(100.0f + 90.0f * GYRO_COUNTS_PER_DPS);
+    Heading heading;
+    const float dps = headingUpdate(heading, bias, counts, CONTROL_LOOP_PERIOD_MS);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, GYRO_YAW_INVERT ? -90.0f : 90.0f, dps);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, dps * 0.01f, heading.deg);
+}
+
+static void test_the_rate_is_zero_before_the_bias_is_ready()
+{
+    GyroBias bias;
+    gyroBiasReset(bias);
+    Heading heading;
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, headingUpdate(heading, bias, 20000, CONTROL_LOOP_PERIOD_MS));
+}
+
 static void test_nothing_integrates_before_the_bias_is_ready()
 {
     GyroBias bias;
@@ -281,6 +299,8 @@ int main()
     RUN_TEST(test_a_constant_rate_integrates_to_rate_times_time);
     RUN_TEST(test_the_bias_is_subtracted_from_the_rate);
     RUN_TEST(test_rotating_back_returns_to_where_it_started);
+    RUN_TEST(test_the_update_returns_the_rate_it_integrated);
+    RUN_TEST(test_the_rate_is_zero_before_the_bias_is_ready);
     RUN_TEST(test_nothing_integrates_before_the_bias_is_ready);
     RUN_TEST(test_wrap_keeps_the_angle_in_minus_180_to_180);
     RUN_TEST(test_integrating_past_half_a_turn_wraps_rather_than_growing);
