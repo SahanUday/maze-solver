@@ -1,12 +1,17 @@
 // ============================================================================
 //  main.cpp  --  fixed-period control loop scheduler.
-//  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
+//  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors(), runAlgorithm(), then the
+//  DriveCommand it returns is applied to the motors.
 //  Hardware is reached only through src/hal/* drivers - see RobotState.h.
 // ============================================================================
 
 #include <Arduino.h>
 
+#include "DriveCommand.h"
 #include "Heading.h"
+#include "Mission.h"
+#include "NavParams.h"
+#include "Perception.h"
 #include "RobotConfig.h"
 #include "RobotSpec.h"
 #include "RobotState.h"
@@ -16,8 +21,18 @@
 #include "hal/line_sensors.h"
 #include "hal/motors.h"
 #include "hal/ultrasonic.h"
+#include "line_cal_store.h"
+#include "operator_io.h"
 
 static RobotState g_state;
+
+// Algorithm layer: derived perception and the run-phase state machine. Static, not locals - the
+// Mission holds the maze map and is far larger than the 128 B stack budget of a function.
+static Perceiver g_perceiver;
+static Perception g_perception;
+static PerceiveParams g_perceiveParams;
+static Mission g_mission;
+static MissionParams g_missionParams;
 
 // The IMU is the one driver that can be absent (an unplugged I2C device answers
 // nothing), so the loop has to cope with it never coming up.
@@ -48,13 +63,48 @@ static void calibrateGyroBias()
     }
 }
 
+// Line calibration mode (DIP_LINE_CAL at power-up): slide the robot by hand across white and
+// black until START is pressed, then keep the result in EEPROM and stop. Reset to run. The
+// lighting at the arena is not the lighting in the lab, and nothing can be re-flashed there.
+static void lineCalibrationMode()
+{
+    Serial.println(F("line cal: slide the array over white and black, then press START"));
+    LineCalibration cal;
+    lineCalibrationReset(cal);
+    while (!operatorStartPressed()) {
+        uint16_t counts[IR_CHANNEL_COUNT];
+        lineSensorsRead(counts);
+        lineCalibrationAccumulate(cal, counts);
+        digitalWrite(PIN_LED_STATUS, (millis() / 100) & 1);
+        delay(2);
+    }
+    const uint8_t usable = lineCalibrationFinish(cal);
+    if (usable == 0) {
+        Serial.println(F("line cal: no channel saw both white and black - nothing saved"));
+        digitalWrite(PIN_LED_ERROR, HIGH);
+    } else {
+        lineCalSave(cal);
+        Serial.print(F("line cal: saved, usable channels 0x"));
+        Serial.println(usable, HEX);
+        digitalWrite(PIN_LED_STATUS, HIGH);
+    }
+    for (;;) {
+    }
+}
+
 void setup()
 {
     Serial.begin(DEBUG_SERIAL_BAUD);
-    pinMode(PIN_LED_STATUS, OUTPUT);
+    operatorInit();
     motorsInit(); // EN stays low (coast) until the control layer enables it
     encodersInit();
     lineSensorsInit();
+
+    const uint8_t dip = operatorReadDip();
+    g_state.dipSwitches = dip;
+    if ((dip & DIP_LINE_CAL) != 0) {
+        lineCalibrationMode(); // does not return
+    }
 
     g_imuPresent = imuInit();
     if (g_imuPresent) {
@@ -64,6 +114,23 @@ void setup()
     }
 
     ultrasonicInit();
+
+    // The run: the mission refuses to start (motors stay off, error LED on) if a precondition
+    // is missing.
+    g_perceiveParams = specPerceive();
+    g_missionParams = specMission((dip & DIP_HAND_RIGHT) != 0 ? -1 : 1);
+    missionReset(g_mission);
+    perceiverReset(g_perceiver);
+    LineCalibration cal;
+    if (lineCalLoad(cal)) {
+        perceiverSetCalibration(g_perceiver, cal);
+    } else {
+        Serial.println(F("line cal: none stored - set DIP 4, calibrate, reset"));
+        missionFail(g_mission, FaultCode::NoLineCal);
+    }
+    if (!g_imuPresent) {
+        missionFail(g_mission, FaultCode::NoImu);
+    }
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -86,13 +153,30 @@ static void readSensors(RobotState &state)
     state.distLeftMm = ultrasonicDistanceMm(Ultrasonic::Left);
     state.distRightMm = ultrasonicDistanceMm(Ultrasonic::Right);
     state.usValid = ultrasonicValidMask();
+
+    // Operator controls: START is polled every tick, the DIPs were read once at power-up.
+    state.startButtonPressed = operatorStartPressed();
 }
 
-// Algorithms read g_state and decide what to do next. Empty until real
-// algorithms exist.
-static void runAlgorithm(const RobotState &state)
+// Algorithms read g_state and decide what to do next: derive perception, step the mission.
+static DriveCommand runAlgorithm(const RobotState &state)
 {
-    (void)state;
+    perceive(g_perceiver, state, g_perceiveParams, g_perception);
+    return missionStep(g_mission, g_missionParams, g_perception);
+}
+
+// The only place the algorithm layer's answer touches the motors.
+static void applyDrive(const DriveCommand &cmd)
+{
+    static bool enabled = false;
+    if (cmd.enable != enabled) {
+        motorsEnable(cmd.enable);
+        enabled = cmd.enable;
+    }
+    if (enabled) {
+        motorSet(Motor::Left, cmd.left);
+        motorSet(Motor::Right, cmd.right);
+    }
 }
 
 void loop()
@@ -106,7 +190,8 @@ void loop()
 
     g_state.timestampMs = nowMs;
     readSensors(g_state);
-    runAlgorithm(g_state);
+    applyDrive(runAlgorithm(g_state));
+    digitalWrite(PIN_LED_ERROR, g_mission.phase == Phase::Fault);
 
     // Heartbeat LED - proves the loop is alive.
     static uint32_t lastToggleMs = 0;
