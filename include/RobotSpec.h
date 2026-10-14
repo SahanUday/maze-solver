@@ -52,15 +52,25 @@ constexpr bool ENC_R_INVERT = false;
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
 
-// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
-constexpr uint16_t WHEEL_DIAMETER_MM = 0;      // rolled circumference / pi
-constexpr uint16_t TRACK_WIDTH_MM = 0;         // measured, not nominal
-constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // one full wheel turn
-constexpr float MM_PER_ENCODER_COUNT = 0.0f;   // derived from the two rows above
+// ---- Wheel / drivetrain geometry --------------------------- [MEASURED] --
+constexpr uint16_t WHEEL_DIAMETER_MM = 65; // ruler, rolled circumference / pi
+// Effective track: a 109 deg gyro pivot against the encoder difference. Tyre-centre spacing is
+// ~155 mm; the rest is tyre scrub.
+constexpr uint16_t TRACK_WIDTH_MM = 170;
+constexpr uint16_t ENCODER_COUNTS_PER_REV = 898; // 10 hand turns: left 8978, right 8971
+constexpr float MM_PER_ENCODER_COUNT =
+    3.14159265f * WHEEL_DIAMETER_MM / ENCODER_COUNTS_PER_REV; // ~0.2274
 
-// ---- Motor limits ------------------------------------ <<TBD HARDWARE>> --
-constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
-constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
+// ---- Motor limits ---------------------------------------------- [MEASURED] --
+// Start-from-rest duty (0..MOTOR_PWM_TOP), forward, on the floor, from single 150 ms pulses.
+// A wheel already turning keeps going down to ~100-120. Measure at MOTOR_PWM_FREQ_HZ.
+constexpr uint16_t MOTOR_MIN_PWM_L = 160; // the lowest duty tried
+constexpr uint16_t MOTOR_MIN_PWM_R = 250;
+
+// What the controller lifts non-zero commands to; 0 = no lift. The start values above make a
+// turn chatter around its target.
+constexpr uint16_t CONTROL_MIN_PWM_L = 0;
+constexpr uint16_t CONTROL_MIN_PWM_R = 0;
 
 // ---- IR array ---------------------------------------------------------- --
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
@@ -197,10 +207,51 @@ constexpr int16_t US_OFFSET_RIGHT_MM = 47;
 constexpr uint16_t US_ECHO_TIMEOUT_TICKS =
     static_cast<uint16_t>((static_cast<uint32_t>(US_RANGE_CAP_MM) * 4000u) / SPEED_OF_SOUND_M_S);
 
-// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
-constexpr float KP_DISTANCE = 0.0f;
-constexpr float KI_DISTANCE = 0.0f;
+// ---- Motion PID gains ---------------------------------------- [MEASURED] --
+// Tuned on the floor, 2026-10-14. Duty counts per mm and per deg; KD_TURN per deg/s.
+constexpr float KP_DISTANCE = 4.0f;
+constexpr float KI_DISTANCE = 2.0f;
 constexpr float KD_DISTANCE = 0.0f;
-constexpr float KP_TURN = 0.0f;
-constexpr float KI_TURN = 0.0f;
-constexpr float KD_TURN = 0.0f;
+constexpr float KP_TURN = 4.0f;
+constexpr float KI_TURN = 60.0f; // pivoting: must break the wheels loose (they stick below ~160)
+constexpr float KI_TURN_HOLD = 8.0f; // driving: a turn-sized integral rings on a straight
+constexpr float KD_TURN = 0.5f;
+
+// ---- Motion limits and feedforward --------------------------- [MEASURED] --
+// Feedforward fit from logged step responses at stepped duty; accelerations are the fastest
+// slip-free ramps.
+constexpr float SEARCH_SPEED_MM_S = 150.0f;       // cruise speed while exploring
+constexpr float LINE_SPEED_MM_S = 0.0f;           // cruise speed on the line; not set
+constexpr float ACCEL_MM_S2 = 500.0f;             // linear acceleration and deceleration
+constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
+constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
+constexpr float FEEDFORWARD_PWM_PER_MM_S = 1.15f; // duty counts per mm/s of wheel speed
+constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of yaw rate
+// On the floor the right wheel runs ~20% slower than the left at equal duty (1134 vs 1417
+// encoder counts at duty 340); on a stand they match. Multiplies the whole right command.
+constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
+
+// ---- Moves ---------------------------------------------------- [MEASURED] --
+// 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.
+// STEP_TOLERANCE_MM: the front sensor jitters +-4 mm and a centre needs ~+-10 mm.
+constexpr float STEP_TOLERANCE_MM = 8.0f;  // a stop this close to the target counts as arrived
+constexpr float TURN_TOLERANCE_DEG = 2.0f; // a turn this close to the target counts as done
+constexpr uint16_t TURN_SETTLE_MS = 150;   // ...for this long
+
+// ---- Stuck detection ---------------------------------- [FROM TESTS] --
+// A move is stuck when its error sets no new low (by the minimum step) for PATIENCE_MS of time
+// outside tolerance + one step. Move length and speed never trip it. PATIENCE_MS must outlast the
+// wheels' break-away at a small residual error (0.8-1.4 s in the host model). Not yet checked on
+// the robot: log the longest idle stretch over the 40 turns and some starts from rest, and keep
+// PATIENCE_MS well above it.
+constexpr float PROGRESS_MIN_MM = 2.0f;
+constexpr float PROGRESS_MIN_DEG = 1.0f;
+constexpr uint16_t PATIENCE_MS = 2000; // 0 = off
+
+// ---- Stall protection --------------------------------- [FROM TESTS] --
+// Duty >= STALL_DUTY with no motion for STALL_TIME_MS cuts the motors. Tuned moves peak at ~280
+// while moving and sit below ~80 when stuck at a target. Not yet exercised by a real stall.
+constexpr uint16_t STALL_DUTY = 250; // 0 = disabled
+constexpr uint16_t STALL_TIME_MS = 600;
+constexpr float STALL_MIN_SPEED_MM_S = 5.0f;
+constexpr float STALL_MIN_YAW_DPS = 5.0f;

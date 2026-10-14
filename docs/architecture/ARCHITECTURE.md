@@ -84,7 +84,8 @@ library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers onl
 automatically; see the [testing guide](../testing.md).
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
-`Heading.h`) stays in `include/` so `env:native` can test it. A header there
+`Heading.h` and the motion headers listed under "Control layer" below) stays in
+`include/` so `env:native` can test it. A header there
 with function bodies in it must appear in the coverage report or declare
 `// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
 
@@ -177,6 +178,20 @@ Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
 (`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
 tracked via `scripts/list-tbds.sh` rather than a comment someone has to
 happen to read.
+
+## Control layer
+
+Motion control is pure headers in `include/`, no `Arduino.h`, tested on the host against a simulated
+plant (`test/test_motion_primitives/sim.h`). Nothing calls them from `main.cpp` yet. Per-module
+detail is in [`modules/`](modules/); the measured values are in `include/RobotSpec.h`.
+
+| Piece | File | Role |
+|---|---|---|
+| Odometry | `include/Odometry.h` | encoder counts to distance and speed |
+| Profile | `include/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
+| Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
+| Moves | `include/MotionPrimitives.h` | straight run along a held heading; in-place turn |
+| Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
 
 ## Dual build target
 
