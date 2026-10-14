@@ -53,7 +53,15 @@ struct StepCell {
     uint16_t lastFrontMm = 0;
     float lastFrontDistMm = 0.0f;
     bool haveFront = false;
+    // The anchored stop position, smoothed over the readings. The front reading jitters by +-4 mm
+    // (110 and 119 alternated at a dead end on the robot); retargeting to each one kept the
+    // profile restarting, so the move never settled and timed out.
+    float anchorMm = 0.0f;
+    bool haveAnchor = false;
 };
+
+// Weight of each new front reading in the smoothed stop position.
+constexpr float STEP_ANCHOR_FILTER = 0.3f;
 
 inline void stepCellClearVotes(StepCell &sc)
 {
@@ -64,6 +72,7 @@ inline void stepCellClearVotes(StepCell &sc)
     }
     sc.sampling = false;
     sc.wallsReady = false;
+    sc.haveAnchor = false;
 }
 
 // Begin a move to the centre of the next cell along `headingRefDeg`. `fb` is the robot at the
@@ -138,7 +147,8 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
     // distance (so a wall that was never voted on still cannot be driven into). Only a small
     // correction is believed: a big one means the reading is something else.
     if (p.frontStopMm > 0.0f && wv.frontValid) {
-        if (!sc.haveFront || wv.frontMm != sc.lastFrontMm) {
+        const bool fresh = !sc.haveFront || wv.frontMm != sc.lastFrontMm;
+        if (fresh) {
             sc.lastFrontMm = wv.frontMm;
             sc.lastFrontDistMm = fb.distMm;
             sc.haveFront = true;
@@ -147,9 +157,16 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
         const bool confirmed = sc.wallsReady && sc.walls.front && wv.front;
         if (confirmed || front <= p.frontStopMm) {
             const float anchored = sc.lastFrontDistMm + (front - p.frontStopMm);
-            const float shift = anchored - sc.straight.targetMm;
+            // Only a new reading moves the smoothed position; between readings it holds.
+            if (fresh || !sc.haveAnchor) {
+                sc.anchorMm = sc.haveAnchor
+                                  ? sc.anchorMm + STEP_ANCHOR_FILTER * (anchored - sc.anchorMm)
+                                  : anchored;
+                sc.haveAnchor = true;
+            }
+            const float shift = sc.anchorMm - sc.straight.targetMm;
             if (shift > -p.pitchMm * 0.5f && shift < p.pitchMm * 0.5f) {
-                straightRetarget(sc.straight, anchored, 0.0f);
+                straightRetarget(sc.straight, sc.anchorMm, 0.0f);
             }
         }
     }

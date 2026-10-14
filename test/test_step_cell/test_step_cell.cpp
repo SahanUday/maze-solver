@@ -17,8 +17,9 @@ constexpr float HALF = 120.0f;
 struct World {
     bool leftWall = true;
     bool rightWall = true;
-    float wallX = -1.0f; // front wall position along the track; < 0 = none (open ahead)
-    bool echo = true;    // false: nothing hears anything
+    float wallX = -1.0f;        // front wall position along the track; < 0 = none (open ahead)
+    bool echo = true;           // false: nothing hears anything
+    float frontJitterMm = 0.0f; // the front reading alternates +- this, a new value every 60 ms
 };
 
 struct Rig {
@@ -28,6 +29,7 @@ struct Rig {
     StepCellParams p;
     World world;
     StepCell sc;
+    int ticks = 0;
 
     Rig()
     {
@@ -49,8 +51,9 @@ struct Rig {
     {
         RobotState s;
         s.usValid = world.echo ? 0x07 : 0x00;
-        s.distFrontMm =
-            static_cast<uint16_t>(world.wallX >= 0.0f ? world.wallX - sim.distMm : 2000.0f);
+        const float jitter = ((ticks / 6) % 2 != 0) ? world.frontJitterMm : -world.frontJitterMm;
+        s.distFrontMm = static_cast<uint16_t>(
+            world.wallX >= 0.0f ? world.wallX - sim.distMm + jitter : 2000.0f);
         s.distLeftMm = static_cast<uint16_t>(world.leftWall ? HALF - sim.yMm : 400.0f);
         s.distRightMm = static_cast<uint16_t>(world.rightWall ? HALF + sim.yMm : 400.0f);
         return wallView(s, p.wall);
@@ -66,6 +69,7 @@ struct Rig {
     {
         MotionTarget t;
         const MoveStatus st = stepCellStep(sc, p, sim.feedback(), view(), DT_MS, t);
+        ++ticks;
         sim.step(motionControlStep(mc, cp, t, sim.feedback(), DT_MS), DT_S);
         return st;
     }
@@ -185,6 +189,30 @@ static void test_front_wall_anchors_the_stop_and_cancels_drift()
     }
     TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
     TEST_ASSERT_FLOAT_WITHIN(3.0f, 260.0f, r.sim.distMm);
+}
+
+// The front sensor jitters (110 and 119 mm alternated at a dead end on the robot, 9 mm apart).
+// Retargeting to each reading kept the profile restarting, so the move never settled. With the
+// robot standing at the wall the stop target must hold still.
+static void test_the_stop_target_does_not_follow_a_jittery_front_reading()
+{
+    Rig r;
+    r.world.wallX = 250.0f + 125.0f;
+    r.world.frontJitterMm = 4.5f;
+    r.begin();
+    r.sim.distMm = 247.0f; // standing at the wall
+    float lo = 1e9f;
+    float hi = -1e9f;
+    for (int i = 0; i < 300; ++i) {
+        MotionTarget t;
+        stepCellStep(r.sc, r.p, r.sim.feedback(), r.view(), DT_MS, t);
+        ++r.ticks;
+        if (i >= 60) { // after the first few readings
+            lo = r.sc.straight.targetMm < lo ? r.sc.straight.targetMm : lo;
+            hi = r.sc.straight.targetMm > hi ? r.sc.straight.targetMm : hi;
+        }
+    }
+    TEST_ASSERT_TRUE(hi - lo < 4.0f); // unfiltered it swings by 9 mm
 }
 
 static void test_absurd_front_correction_is_ignored()
@@ -317,6 +345,7 @@ int main()
     RUN_TEST(test_continue_drives_through_without_stopping);
     RUN_TEST(test_continue_samples_the_next_cell_again);
     RUN_TEST(test_front_wall_anchors_the_stop_and_cancels_drift);
+    RUN_TEST(test_the_stop_target_does_not_follow_a_jittery_front_reading);
     RUN_TEST(test_absurd_front_correction_is_ignored);
     RUN_TEST(test_front_wall_closer_than_the_stop_distance_stops_now);
     RUN_TEST(test_centres_between_two_walls);
