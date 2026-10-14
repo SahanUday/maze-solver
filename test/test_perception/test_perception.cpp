@@ -3,6 +3,7 @@
 //  incline / line view out. No hardware needed.
 // ============================================================================
 
+#include <initializer_list>
 #include <unity.h>
 
 #include "Perception.h"
@@ -155,6 +156,73 @@ static void test_a_reading_that_scatters_is_not_frozen()
     TEST_ASSERT_TRUE(r.out.walls.rightValid);
 }
 
+// One stray echo among agreeing neighbours is dropped; a real change comes through once two echoes
+// agree on it.
+static void test_a_stray_echo_is_not_passed_on()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distFrontMm = 400;
+    r.s.distRightMm = 120;
+    uint16_t seen = 0;
+    for (uint16_t mm : {117, 119, 118, 780, 117, 119, 118}) {
+        r.s.distLeftMm = mm;
+        r.tick();
+        seen = r.out.walls.leftMm > seen ? r.out.walls.leftMm : seen;
+        TEST_ASSERT_TRUE(r.out.walls.left);
+    }
+    TEST_ASSERT_TRUE(seen < 200);
+}
+
+static void test_a_real_change_passes_after_two_echoes()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distFrontMm = 400;
+    r.s.distRightMm = 120;
+    for (uint16_t mm : {117, 119, 118, 117}) {
+        r.s.distLeftMm = mm;
+        r.tick();
+    }
+    r.s.distLeftMm = 402; // the wall ends
+    r.tick();
+    TEST_ASSERT_TRUE(r.out.walls.left); // one echo is not yet believed
+    r.s.distLeftMm = 399;
+    r.tick();
+    TEST_ASSERT_FALSE(r.out.walls.left);
+    TEST_ASSERT_TRUE(r.out.walls.leftMm >= 399);
+}
+
+static void test_a_front_reading_that_does_not_change_while_moving_is_frozen()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distFrontMm = 300;
+    r.tick();
+    TEST_ASSERT_TRUE(r.out.walls.frontValid);
+    for (int i = 1; i <= 100; ++i) { // 0.5 mm a count: 1 mm a tick
+        r.s.encoderCountL = 2 * i;
+        r.s.encoderCountR = 2 * i;
+        r.tick();
+    }
+    TEST_ASSERT_FALSE(r.out.walls.frontValid);
+    TEST_ASSERT_FALSE(r.out.walls.front);
+    r.s.distFrontMm = 240; // the value moves: it is a sensor again
+    r.tick();
+    TEST_ASSERT_TRUE(r.out.walls.frontValid);
+}
+
+static void test_a_steady_front_reading_at_rest_is_not_frozen()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distFrontMm = 117;
+    for (int i = 0; i < 500; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.out.walls.frontValid);
+}
+
 static void test_a_frozen_sensor_comes_back_when_the_value_moves()
 {
     Rig r;
@@ -280,6 +348,10 @@ int main()
     RUN_TEST(test_a_silent_sensor_is_neither_wall_nor_open);
     RUN_TEST(test_a_side_sensor_that_never_changes_is_frozen);
     RUN_TEST(test_a_reading_that_scatters_is_not_frozen);
+    RUN_TEST(test_a_stray_echo_is_not_passed_on);
+    RUN_TEST(test_a_real_change_passes_after_two_echoes);
+    RUN_TEST(test_a_front_reading_that_does_not_change_while_moving_is_frozen);
+    RUN_TEST(test_a_steady_front_reading_at_rest_is_not_frozen);
     RUN_TEST(test_a_frozen_sensor_comes_back_when_the_value_moves);
     RUN_TEST(test_the_blind_time_counts_only_while_no_side_has_a_reading);
     RUN_TEST(test_an_open_side_is_not_blind);

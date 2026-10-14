@@ -122,6 +122,11 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
 
     const float headErr = headingWrapDeg(target.headingRefDeg - fb.headingDeg);
     const float kiTurnNow = (target.pivot || p.kiHold < 0.0f) ? p.kiTurn : p.kiHold;
+    // A pivot's integral only breaks the wheels loose. Once the error has flipped sign the wheels
+    // are moving and it points the wrong way: wound on, it overshoots and the turn hunts.
+    if (target.pivot && mc.turnIntegral * headErr < 0.0f) {
+        mc.turnIntegral = 0.0f;
+    }
     accumulate(mc.turnIntegral, headErr, dtS, kiTurnNow);
     const float angular = p.ffPwmPerDps * target.yawRateRefDps + p.kpTurn * headErr +
                           kiTurnNow * mc.turnIntegral +

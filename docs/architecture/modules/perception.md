@@ -11,7 +11,7 @@
 - `perceiverReset(pc)`, `perceiverSetCalibration(pc, cal)` - the calibration comes from the EEPROM
   store at boot; this also works out which channels it accepts (`lineCalibrationUsable`).
 - `perceiverSetLevel(pc, counts)` - the forward-axis reading on level ground, from `InclineLevel`.
-- `PerceiveParams` - `mmPerCount`, `dtMs`, `frozenMs`, `wall`, `irPitchMm`. Every default is the
+- `PerceiveParams` - `mmPerCount`, `dtMs`, `frozenMs`, `frontFrozenMm`, `wall`, `irPitchMm`. Every default is the
   value in `RobotSpec.h`, so a default-constructed one is the spec.
 - `perceive(pc, state, params, out)` - fills `Perception`: `motion` (distance, speed, heading, yaw
   rate), `inclineCounts`, `walls` ([wall_sense](wall_sense.md)), `sideBlindMs`, `line`
@@ -37,6 +37,13 @@ counts with a threshold and no trigonometry is needed
 - **Frozen side sensor:** a valid side reading that does not change at all for `frozenMs`
   (`WALL_FROZEN_MS`, 400 ms) is a stuck sensor, since a real one scatters by a few mm. Its valid bit
   is dropped, so it is neither wall nor open and cannot steer the robot.
+- **Frozen front sensor:** the front is judged by travel, not time (a still robot against a wall
+  reads the same value for ever): an unchanging valid reading over `FRONT_FROZEN_MM` (60 mm) of
+  odometer is frozen, since closing on a wall changes it by the distance covered.
+- **Stray side echoes:** each side reading is the median of its last three distinct echoes, so
+  one stray echo is dropped; a real change comes through one echo (60 ms) later. The front is not
+  filtered here: the step cell refuses its stray echoes (two must agree), and a median would lag a
+  ramp by an echo and hide the strays from that check.
 - **`sideBlindMs`:** how long neither side sensor has given a usable reading (no echo, or frozen).
   An open side reads far and is valid, so this is a sensor failure, not a gap in the walls; the
   mission decides what to do about it.
