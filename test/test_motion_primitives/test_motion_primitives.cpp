@@ -255,8 +255,7 @@ static void test_a_long_healthy_leg_is_never_stuck()
 
 static void test_a_robot_shoved_back_near_the_target_recovers()
 {
-    Rig r;
-    r.plan.patienceMs = 300;
+    Rig r; // patience 1000 ms: the 100 mm shove has to be made up inside it
     Straight s;
     straightBegin(s, r.sim.feedback(), 400.0f, 300.0f, 0.0f, 0.0f);
     bool shoved = false;
@@ -272,6 +271,42 @@ static void test_a_robot_shoved_back_near_the_target_recovers()
     }
     TEST_ASSERT_TRUE(shoved);
     TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Done), static_cast<int>(st));
+}
+
+static void test_a_limit_cycle_through_the_target_is_stuck()
+{
+    PlanParams plan = simPlanParams();
+    plan.patienceMs = 500;
+    // +-15 mm around the target, 200 ms period: every swing crosses the tolerance band, and the
+    // robot never settles.
+    const MoveStatus st = runAgainstOdometer(plan, 100.0f, 400, [](int i) {
+        return 100.0f + 15.0f * sinf(0.314159f * static_cast<float>(i));
+    });
+    TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Stuck), static_cast<int>(st));
+}
+
+static void test_extending_a_straight_restarts_the_stuck_count()
+{
+    PlanParams plan = simPlanParams();
+    plan.patienceMs = 100; // 10 ticks
+    Straight s;
+    MotionFeedback fb; // the robot does not move
+    straightBegin(s, fb, 250.0f, 150.0f, 150.0f, 0.0f);
+    MotionTarget t;
+    for (int i = 0; i < 8; ++i) {
+        TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Running),
+                          static_cast<int>(straightStep(s, plan, fb, 0.0f, DT_MS, t)));
+    }
+    straightExtend(s, 250.0f, 0.0f); // 8 ticks idle so far: the count starts again
+    for (int i = 0; i < 8; ++i) {
+        TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Running),
+                          static_cast<int>(straightStep(s, plan, fb, 0.0f, DT_MS, t)));
+    }
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 5 && st == MoveStatus::Running; ++i) {
+        st = straightStep(s, plan, fb, 0.0f, DT_MS, t);
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Stuck), static_cast<int>(st));
 }
 
 static void test_stuck_detection_off_never_gives_up()
@@ -488,6 +523,8 @@ int main()
     RUN_TEST(test_a_slow_creep_is_not_stuck);
     RUN_TEST(test_a_long_healthy_leg_is_never_stuck);
     RUN_TEST(test_a_robot_shoved_back_near_the_target_recovers);
+    RUN_TEST(test_a_limit_cycle_through_the_target_is_stuck);
+    RUN_TEST(test_extending_a_straight_restarts_the_stuck_count);
     RUN_TEST(test_stuck_detection_off_never_gives_up);
     RUN_TEST(test_straight_begins_at_the_measured_speed);
     RUN_TEST(test_turn_left_90);

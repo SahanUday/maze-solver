@@ -29,10 +29,11 @@ hand [motion_control](motion_control.md) the reference, not the measurement.
 - **Turn:** once the profile has stopped within a degree of its sweep, aims at the absolute grid
   heading. `Done` after staying within `turnToleranceDeg` for `turnSettleMs`. Holds the odometer
   position while pivoting.
-- **Stuck:** there is no time limit per move. A move is `Stuck` when its error sets no new low
-  (by `progressMin`) for `patienceMs`. An error that climbs more than 4 steps above its low
-  (pushed back, overshoot) restarts the low, so recovering from a shove is not stuck. Within
-  one `progressMin` of the tolerance the approach is slow by nature and is never stuck.
+- **Stuck:** there is no time limit per move. A move is `Stuck` when its error has set no new low
+  (by `progressMin`) for `patienceMs`. Time within one `progressMin` of the tolerance is not
+  counted and does not reset the count, so an oscillation that sweeps through the target still
+  runs out. `straightExtend` restarts the count: the finish line moved. A robot shoved back must
+  be back within `patienceMs`.
 
 ## Invariants
 

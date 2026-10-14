@@ -39,15 +39,15 @@ enum class MoveStatus : uint8_t {
 // ---- Progress ----------------------------------------------------------------
 
 // A move's length and speed never make it stuck; only a lack of progress does. Progress is a new
-// low in the error by at least `minStep`. An error that climbs more than this many steps above
-// its low (pushed back, overshoot) restarts the low from there. Within one step of the tolerance
-// the approach is slow by nature, so a robot there is never stuck.
-constexpr float PROGRESS_REBASE_STEPS = 4.0f;
-
+// low in the error by at least `minStep`; time without one is idle. Within one step of the
+// tolerance the approach is slow by nature, so idle time is held there, not counted and not reset:
+// an oscillation that sweeps through the target still runs out.
 struct ProgressWatch {
     float bestErr = 0.0f;
     uint16_t idleMs = 0;
 };
+
+constexpr float PROGRESS_NO_LOW = 3.0e38f; // no low yet: the next tick sets one
 
 inline void progressBegin(ProgressWatch &w, float err)
 {
@@ -55,21 +55,24 @@ inline void progressBegin(ProgressWatch &w, float err)
     w.idleMs = 0;
 }
 
-// Fold in one tick's error. True once `patienceMs` has passed without progress; 0 = never.
+// The finish line moved: forget the low and the idle time.
+inline void progressRestart(ProgressWatch &w)
+{
+    progressBegin(w, PROGRESS_NO_LOW);
+}
+
+// Fold in one tick's error. True once `patienceMs` of idle time has passed; 0 = never.
 inline bool progressStep(ProgressWatch &w, float err, float tolerance, float minStep,
                          uint16_t patienceMs, uint16_t dtMs)
 {
     if (err <= tolerance + minStep) {
-        progressBegin(w, err);
+        w.bestErr = err < w.bestErr ? err : w.bestErr;
         return false;
     }
     if (err < w.bestErr - minStep) {
         w.bestErr = err;
         w.idleMs = 0;
     } else {
-        if (err > w.bestErr + PROGRESS_REBASE_STEPS * minStep) {
-            w.bestErr = err;
-        }
         w.idleMs = static_cast<uint16_t>(w.idleMs + dtMs);
     }
     return patienceMs > 0 && w.idleMs >= patienceMs;
@@ -109,6 +112,7 @@ inline void straightExtend(Straight &s, float addMm, float vEndMmS)
 {
     s.targetMm += addMm;
     s.vEndMmS = vEndMmS;
+    progressRestart(s.watch);
 }
 
 // Replace the finish line.

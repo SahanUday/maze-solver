@@ -239,13 +239,14 @@ constexpr float TURN_TOLERANCE_DEG = 2.0f; // a turn this close to the target co
 constexpr uint16_t TURN_SETTLE_MS = 150;   // ...for this long
 
 // ---- Stuck detection ---------------------------------- [FROM TESTS] --
-// A move is stuck when its error sets no new low (by the minimum step) for PATIENCE_MS, outside
-// tolerance + one step. Move length and speed never trip it. Not yet checked on the robot: log the
-// longest idle stretch over the 40 turns and some starts from rest, and keep PATIENCE_MS well above
-// it.
+// A move is stuck when its error sets no new low (by the minimum step) for PATIENCE_MS of time
+// outside tolerance + one step. Move length and speed never trip it. PATIENCE_MS must outlast the
+// wheels' break-away at a small residual error (0.8-1.4 s in the host model). Not yet checked on
+// the robot: log the longest idle stretch over the 40 turns and some starts from rest, and keep
+// PATIENCE_MS well above it.
 constexpr float PROGRESS_MIN_MM = 2.0f;
 constexpr float PROGRESS_MIN_DEG = 1.0f;
-constexpr uint16_t PATIENCE_MS = 1000; // 0 = off
+constexpr uint16_t PATIENCE_MS = 2000; // 0 = off
 
 // ---- Stall protection --------------------------------- [FROM TESTS] --
 // Duty >= STALL_DUTY with no motion for STALL_TIME_MS cuts the motors. Tuned moves peak at ~280
