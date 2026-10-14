@@ -39,11 +39,17 @@ struct StepCellParams {
     float snapMaxDeg = WALL_BIAS_MAX_DEG; // a bigger one is not the gyro frame
 };
 
+// A sensor that heard no echo all window is reported as a wall (the safe answer) and is not
+// `heard`: its reading says nothing, so a caller that keeps "not heard" apart from "open" uses the
+// flags.
 struct CellWalls {
     bool front = false;
     bool left = false;
     bool right = false;
-    bool unreliable = false; // a sensor heard no echo all window; its wall is reported present
+    bool frontHeard = false;
+    bool leftHeard = false;
+    bool rightHeard = false;
+    bool unreliable = false; // some sensor was not heard
 };
 
 struct StepCell {
@@ -192,6 +198,12 @@ inline bool verdict(const uint8_t (&v)[3], bool &unreliable)
         unreliable = true;
     }
     return v[0] > 0 ? v[0] >= v[1] : v[1] == 0;
+}
+
+// Some present or open vote: an echo was heard.
+inline bool heard(const uint8_t (&v)[3])
+{
+    return v[0] > 0 || v[1] > 0;
 }
 
 inline float absf(float x)
@@ -347,6 +359,9 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
             sc.walls.front = verdict(sc.votes[0], sc.walls.unreliable);
             sc.walls.left = verdict(sc.votes[1], sc.walls.unreliable);
             sc.walls.right = verdict(sc.votes[2], sc.walls.unreliable);
+            sc.walls.frontHeard = heard(sc.votes[0]);
+            sc.walls.leftHeard = heard(sc.votes[1]);
+            sc.walls.rightHeard = heard(sc.votes[2]);
             sc.wallsReady = true;
         }
     }

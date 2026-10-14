@@ -277,6 +277,28 @@ static void test_rescan_forgets_the_walls_and_keeps_the_pose()
     TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(step));
 }
 
+static void test_retreat_undoes_an_advance()
+{
+    Explorer e;
+    explorerInit(e);
+    explorerObserve(e, false, false, false);
+    explorerFace(e, Dir::East);
+    TEST_ASSERT_TRUE(explorerAdvance(e));
+    TEST_ASSERT_TRUE(explorerRetreat(e));
+    TEST_ASSERT_EQUAL_UINT8(kStartCell, e.pos);
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(e.heading));
+}
+
+static void test_retreat_stops_at_the_map_edge()
+{
+    Explorer e;
+    explorerInit(e);
+    e.pos = 0;              // a corner
+    e.heading = Dir::South; // back is North, off the map
+    TEST_ASSERT_FALSE(explorerRetreat(e));
+    TEST_ASSERT_EQUAL_UINT8(0, e.pos);
+}
+
 static void test_advance_refuses_a_known_wall()
 {
     Explorer e;
@@ -446,6 +468,8 @@ int main()
     RUN_TEST(test_plan_crosses_the_start_tile_when_it_is_the_only_way);
     RUN_TEST(test_plan_reports_a_sealed_cell);
     RUN_TEST(test_rescan_forgets_the_walls_and_keeps_the_pose);
+    RUN_TEST(test_retreat_undoes_an_advance);
+    RUN_TEST(test_retreat_stops_at_the_map_edge);
     RUN_TEST(test_advance_refuses_a_known_wall);
     RUN_TEST(test_wall_detection_threshold);
     RUN_TEST(test_truth_maze_is_one_connected_region);
