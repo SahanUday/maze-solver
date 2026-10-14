@@ -181,8 +181,9 @@ happen to read.
 
 ## Control layer
 
-Motion control is the first piece of the control layer: pure headers in `include/`, no `Arduino.h`,
-tested on the host against a simulated robot (`test/*/sim.h`). Nothing calls them from `main.cpp` yet.
+Motion control and perception are the first pieces of the control layer: pure headers in `include/`,
+no `Arduino.h`, tested on the host (the motion headers against a simulated robot, `test/*/sim.h`).
+Nothing calls them from `main.cpp` yet.
 
 | Piece | File | Role |
 |---|---|---|
@@ -191,12 +192,17 @@ tested on the host against a simulated robot (`test/*/sim.h`). Nothing calls the
 | Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer plus angular PID on the **gyro**, mixed into left and right duty |
 | Moves | `include/MotionPrimitives.h` | a straight run along a held heading, and an in-place turn |
 | Output | `include/DriveCommand.h` | the `{left, right, enable}` a caller hands to the motors |
+| Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, tilt, the wall view and the line view |
+| Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
+| Tilt | `include/Tilt.h` | angle between gravity and the board's Z axis |
+| Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
 
 The controller and the moves work on a reference, not on the measurement, and the heading channel
 is closed on the gyro, so a turn does not depend on the measured track width. Per-module detail is in
 [`modules/`](modules/). The robot-measured values they use (wheel geometry, gains, speeds, tolerances,
-stall settings) are in `include/RobotSpec.h`; the gains and speeds were tuned on the floor, the stall latch
-has not been exercised by a real stall.
+stall settings, the wall thresholds and the wall-steering gain) are in `include/RobotSpec.h`; the gains,
+speeds and wall values were tuned or measured on the floor, the stall latch has not been exercised by a real
+stall, and the line view has not been run on the robot (the IR array is not calibrated).
 
 ## Dual build target
 
