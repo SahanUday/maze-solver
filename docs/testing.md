@@ -231,6 +231,11 @@ when you edit the title. **Run:** `scripts/check-pr-title.py "your title"`.
 
 Both appear in one comment that the bot edits on each push.
 
+## Calibration helper scripts (not run by CI)
+- `scripts/plot-motor-curve.py` draws the motor speed-curve figures in
+  `docs/calibration/` from `motor-speed-curve.csv`. It needs matplotlib, which
+  CI does not install; run it by hand after recording a new sweep.
+
 ## What is not tested automatically
 **The firmware itself running on the robot.** CI compiles it and checks its
 size, but no board or simulator executes it. So an interrupt-service routine, a
