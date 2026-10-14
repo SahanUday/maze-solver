@@ -84,7 +84,8 @@ library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers onl
 automatically; see the [testing guide](../testing.md).
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
-`Heading.h`) stays in `include/` so `env:native` can test it. A header there
+`Heading.h` and the motion headers listed under "Control layer" below) stays in
+`include/` so `env:native` can test it. A header there
 with function bodies in it must appear in the coverage report or declare
 `// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
 
@@ -177,6 +178,25 @@ Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
 (`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
 tracked via `scripts/list-tbds.sh` rather than a comment someone has to
 happen to read.
+
+## Control layer
+
+Motion control is the first piece of the control layer: pure headers in `include/`, no `Arduino.h`,
+tested on the host against a simulated robot (`test/*/sim.h`). Nothing calls them from `main.cpp` yet.
+
+| Piece | File | Role |
+|---|---|---|
+| Odometry | `include/Odometry.h` | encoder counts to distance and speed |
+| Reference | `include/MotionProfile.h` | trapezoidal speed profile stepped on a reference trajectory |
+| Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer plus angular PID on the **gyro**, mixed into left and right duty |
+| Moves | `include/MotionPrimitives.h` | a straight run along a held heading, and an in-place turn |
+| Output | `include/DriveCommand.h` | the `{left, right, enable}` a caller hands to the motors |
+
+The controller and the moves work on a reference, not on the measurement, and the heading channel
+is closed on the gyro, so a turn does not depend on the measured track width. Per-module detail is in
+[`modules/`](modules/). The robot-measured values they use (wheel geometry, gains, speeds, tolerances,
+stall settings) are in `include/RobotSpec.h`; the gains and speeds were tuned on the floor, the stall latch
+has not been exercised by a real stall.
 
 ## Dual build target
 
