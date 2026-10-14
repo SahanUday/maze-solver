@@ -58,8 +58,8 @@ inline void motionControlReset(MotionControl &mc)
     mc = MotionControl{};
 }
 
-// Forget both integrals, keep the stall latch. Call when a move starts, so a turn's wound-up
-// integral does not carry into the next straight.
+// Forget both integrals, keep the stall latch. motionControlStep() calls it on a new move, so one
+// move's wound-up integral does not carry into the next, under a different gain.
 inline void motionControlClearIntegrals(MotionControl &mc)
 {
     mc.distIntegral = 0.0f;
@@ -110,6 +110,9 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
                                       uint16_t dtMs)
 {
     using namespace motion_detail;
+    if (target.newMove) {
+        motionControlClearIntegrals(mc);
+    }
     const float dtS = static_cast<float>(dtMs) / 1000.0f;
 
     const float distErr = target.distRefMm - fb.distMm;

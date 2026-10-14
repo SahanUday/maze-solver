@@ -414,10 +414,65 @@ static void test_only_a_turn_asks_for_the_pivot_integral()
     TEST_ASSERT_TRUE(t.pivot);
 }
 
+static void test_only_the_first_step_of_a_move_is_flagged_as_new()
+{
+    const PlanParams plan = simPlanParams();
+    MotionFeedback fb;
+    MotionTarget t;
+    Straight s;
+    straightBegin(s, fb, 250.0f, 150.0f, 150.0f, 0.0f);
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_TRUE(t.newMove);
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_FALSE(t.newMove);
+    straightExtend(s, 250.0f, 0.0f); // a chain of cells keeps its momentum
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_FALSE(t.newMove);
+    straightRetarget(s, 400.0f, 0.0f);
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_FALSE(t.newMove);
+    straightBegin(s, fb, 100.0f, 150.0f, 0.0f, 0.0f);
+    straightStep(s, plan, fb, 0.0f, 10, t);
+    TEST_ASSERT_TRUE(t.newMove);
+
+    Turn turn;
+    turnBegin(turn, fb, 90.0f, 90.0f);
+    turnStep(turn, plan, fb, 10, t);
+    TEST_ASSERT_TRUE(t.newMove);
+    turnStep(turn, plan, fb, 10, t);
+    TEST_ASSERT_FALSE(t.newMove);
+}
+
+static void test_a_move_starts_without_the_previous_moves_integral()
+{
+    Rig r;
+    r.cp.kiTurn = 60.0f;
+    r.cp.kiHold = 8.0f;
+    MotionFeedback fb;
+    fb.headingDeg = -3.0f; // held 3 deg short, so the turn integral winds up
+    Turn turn;
+    turnBegin(turn, fb, 0.0f, 0.0f);
+    MotionTarget t;
+    for (int i = 0; i < 100; ++i) {
+        turnStep(turn, r.plan, fb, DT_MS, t);
+        motionControlStep(r.mc, r.cp, t, fb, DT_MS);
+    }
+    TEST_ASSERT_TRUE(r.mc.turnIntegral > 2.0f);
+
+    fb.headingDeg = 0.0f; // the straight starts on its heading
+    Straight s;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    straightStep(s, r.plan, fb, 0.0f, DT_MS, t);
+    motionControlStep(r.mc, r.cp, t, fb, DT_MS);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, r.mc.turnIntegral);
+}
+
 int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_only_a_turn_asks_for_the_pivot_integral);
+    RUN_TEST(test_only_the_first_step_of_a_move_is_flagged_as_new);
+    RUN_TEST(test_a_move_starts_without_the_previous_moves_integral);
     RUN_TEST(test_straight_stops_on_the_target);
     RUN_TEST(test_straight_holds_heading_against_a_disturbance);
     RUN_TEST(test_straight_trim_steers_the_heading);

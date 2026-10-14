@@ -85,6 +85,7 @@ struct Straight {
     float vMaxMmS = 0.0f;
     float vEndMmS = 0.0f; // arrival speed; 0 = stop
     float headingRefDeg = 0.0f;
+    bool fresh = true; // the next step is the first of the move
     ProgressWatch watch;
 };
 
@@ -99,6 +100,7 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
     s.vMaxMmS = vMaxMmS;
     s.vEndMmS = vEndMmS;
     s.headingRefDeg = headingRefDeg;
+    s.fresh = true;
     progressBegin(s.watch, distMm < 0.0f ? -distMm : distMm);
 }
 
@@ -137,6 +139,8 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
     out.headingRefDeg = headingWrapDeg(s.headingRefDeg + trimDeg);
     out.yawRateRefDps = 0.0f;
     out.pivot = false;
+    out.newMove = s.fresh;
+    s.fresh = false;
 
     float err = s.targetMm - fb.distMm;
     err = err < 0.0f ? -err : err;
@@ -164,6 +168,7 @@ struct Turn {
     float refRateDps = 0.0f;
     float holdMm = 0.0f; // odometer position held while pivoting
     uint16_t settledMs = 0;
+    bool fresh = true; // the next step is the first of the move
     ProgressWatch watch;
 };
 
@@ -178,6 +183,7 @@ inline void turnBegin(Turn &t, const MotionFeedback &fb, float targetHeadingDeg,
     t.refRateDps = 0.0f;
     t.holdMm = fb.distMm;
     t.settledMs = 0;
+    t.fresh = true;
     const float startErr = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
     progressBegin(t.watch, startErr < 0.0f ? -startErr : startErr);
 }
@@ -199,6 +205,8 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
         profileDone ? t.targetHeadingDeg : headingWrapDeg(t.startHeadingDeg + t.refAngleDeg);
     out.yawRateRefDps = t.refRateDps;
     out.pivot = true;
+    out.newMove = t.fresh;
+    t.fresh = false;
 
     float err = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
     err = err < 0.0f ? -err : err;

@@ -12,7 +12,8 @@ struct MotionTarget {
     float speedRefMmS = 0.0f;
     float headingRefDeg = 0.0f;
     float yawRateRefDps = 0.0f;
-    bool pivot = false; // turning in place: heading integral is kiTurn, else kiHold
+    bool pivot = false;   // turning in place: heading integral is kiTurn, else kiHold
+    bool newMove = false; // first tick of a move: the controller starts from zero integrals
 };
 
 // What the robot is doing: odometer and gyro.

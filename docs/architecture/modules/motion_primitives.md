@@ -40,6 +40,8 @@ hand [motion_control](motion_control.md) the reference, not the measurement.
   on. The run limit (`RUN_LIMIT_MS`) is the only overall bound.
 - `patienceMs == 0` turns the detector off.
 - Only a turn sets `MotionTarget::pivot`.
+- The first step after a begin sets `MotionTarget::newMove`; `straightExtend` and
+  `straightRetarget` do not.
 - A turn goes the way `deltaDeg` says, within +-180.
 
 ## Status

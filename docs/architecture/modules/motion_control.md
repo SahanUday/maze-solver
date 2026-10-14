@@ -8,8 +8,8 @@ Turns a `MotionTarget` and a `MotionFeedback` into left and right duty. Pure log
 
 - `motionControlStep(mc, params, target, feedback, dtMs)` - signed duty counts
   `MotionOutput {left, right}`. Call once per tick.
-- `motionControlClearIntegrals(mc)` - forget both integrals, keep the stall latch. Call when a
-  move starts.
+- `motionControlClearIntegrals(mc)` - forget both integrals, keep the stall latch. Called by
+  `motionControlStep` on `target.newMove`.
 - `motionControlReset(mc)` - clear everything, including the stall latch.
 - `MotionControlParams` - gains, feedforward, minimum PWM, stall settings. From `RobotSpec.h`.
 
@@ -23,6 +23,8 @@ wheel.
   yaw-rate error. The gyro closes this loop, so a turn does not depend on the track width.
 - **Heading integral:** `kiTurn` while the target is `pivot`, else `kiHold` (negative = `kiTurn`).
   Each integral is clamped to `MOTION_INTEGRAL_MAX_DUTY` of duty.
+- **New move:** `target.newMove` (the first tick of a begun move) clears both integrals before
+  the step. A chain of cells (`straightExtend`) does not set it.
 - **Right scale:** `ffScaleR` multiplies the whole right command.
 - **Minimum PWM:** non-zero commands are rescaled onto `[minPwm, pwmTop]`. `RobotSpec.h` sets
   `CONTROL_MIN_PWM_*` to 0.
