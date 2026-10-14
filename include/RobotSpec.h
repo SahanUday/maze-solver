@@ -52,15 +52,24 @@ constexpr bool ENC_R_INVERT = false;
 // ---- Debug serial ------------------------------------------------------ --
 constexpr uint32_t DEBUG_SERIAL_BAUD = 250000; // exact divisor of 16 MHz
 
-// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
-constexpr uint16_t WHEEL_DIAMETER_MM = 0;      // rolled circumference / pi
-constexpr uint16_t TRACK_WIDTH_MM = 0;         // measured, not nominal
-constexpr uint16_t ENCODER_COUNTS_PER_REV = 0; // one full wheel turn
-constexpr float MM_PER_ENCODER_COUNT = 0.0f;   // derived from the two rows above
+// ---- Wheel / drivetrain geometry --------------------------- [MEASURED] --
+constexpr uint16_t WHEEL_DIAMETER_MM = 65; // measured with a ruler, rolled circumference / pi
+// Effective track, from a recorded 109 degree pivot (gyro) against the encoder difference: 170 mm.
+// The two motors sit end to end between the tyres and the axle is 180 mm over the tyres, so tyre
+// centre to tyre centre is ~155 mm geometrically; the extra is tyre scrub. Re-measure geometrically
+// on the new chassis.
+constexpr uint16_t TRACK_WIDTH_MM = 170;
+constexpr uint16_t ENCODER_COUNTS_PER_REV = 898; // 10 hand turns: left 8978, right 8971 counts
+constexpr float MM_PER_ENCODER_COUNT =
+    3.14159265f * WHEEL_DIAMETER_MM / ENCODER_COUNTS_PER_REV; // ~0.2274
 
 // ---- Motor limits ------------------------------------ <<TBD HARDWARE>> --
-constexpr uint16_t MOTOR_MIN_PWM_L = 0; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
-constexpr uint16_t MOTOR_MIN_PWM_R = 0; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
+constexpr uint16_t MOTOR_MIN_PWM_L = 160; // duty counts (0..MOTOR_PWM_TOP) that start the wheel
+constexpr uint16_t MOTOR_MIN_PWM_R = 250; // measure at MOTOR_PWM_FREQ_HZ, not Arduino's default
+// Both are forward, on the floor, from single 150 ms pulses starting at rest. The left moved at
+// 160, the lowest tried. A wheel already turning on the stand keeps going down to duty ~100-120, so
+// these are start-from-rest values under load, not the floor of the speed curve
+// (docs/calibration/).
 
 // ---- IR array ---------------------------------------------------------- --
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
@@ -148,11 +157,24 @@ constexpr uint16_t US_RANGE_CAP_MM = 2500;
 
 // ---- Ultrasonic offsets --------------------------- <<TBD CALIBRATION>> --
 // Added to the raw face-to-target reading, per sensor.
-// Negative = sensor sits ahead of its reference point.
-// Each sensor may use a different reference point.
-constexpr int16_t US_OFFSET_FRONT_MM = 0;
-constexpr int16_t US_OFFSET_LEFT_MM = 0;
-constexpr int16_t US_OFFSET_RIGHT_MM = 0;
+// offset = true distance from the reference point to the wall - raw reading. A sensor that sits
+// ahead of its reference point therefore needs a positive offset.
+// Each sensor may use a different reference point: front = the wheel-axle line, left and right =
+// the robot's centreline.
+// Front: measured 2026-10-14, flat wall square to the robot, 5 s of readings per position, robot
+// still. Axle-to-wall 150 / 200 / 250 / 300 mm read 63.8 / 116.8 / 166.3 / 216.6 mm, so the offset
+// is +86 / +83 / +84 / +83 mm: the sensor face is about 84 mm ahead of the axle. (A first 200 mm
+// capture read 110.9; the robot was not in place, and a retake gave 116.8.)
+constexpr int16_t US_OFFSET_FRONT_MM = 84;
+// Left: measured 2026-10-14 the same way, from the robot's centreline. Centreline-to-wall
+// 100 / 150 / 200 / 250 / 296 mm read 61.5 / 115.4 / 170.6 / 220.8 / 255.5 mm, so the offset is
+// +38.5 / +35 / +29 / +29 / +40.5 mm. It scatters by more than the sensor's own noise (about 3
+// mm), so hand placement of the wall limits it; +35 is the middle of the spread.
+constexpr int16_t US_OFFSET_LEFT_MM = 35;
+// Right: measured 2026-10-14 the same way. Centreline-to-wall 100 / 150 / 200 / 250 mm read 51.2 /
+// 104.9 / 153.8 / 202.1 mm, so the offset is +48.8 / +45.1 / +46.2 / +47.9 mm (a first 250 mm
+// capture read 197.3; the wall had slipped, and a retake gave 202.1).
+constexpr int16_t US_OFFSET_RIGHT_MM = 47;
 
 // Echo deadline in 0.5us ticks: US_RANGE_CAP_MM * 4000 / 343.
 constexpr uint16_t US_ECHO_TIMEOUT_TICKS =
