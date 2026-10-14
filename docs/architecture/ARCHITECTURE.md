@@ -181,9 +181,10 @@ happen to read.
 
 ## Control layer
 
-Motion control is pure headers in `include/`, no `Arduino.h`, tested on the host against a simulated
-plant (`test/test_motion_primitives/sim.h`). Nothing calls them from `main.cpp` yet. Per-module
-detail is in [`modules/`](modules/); the measured values are in `include/RobotSpec.h`.
+Motion control and perception are pure headers in `include/`, no `Arduino.h`, tested on the host
+(the motion headers against a simulated plant, `test/test_motion_primitives/sim.h`). Nothing calls them
+from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measured values are in
+`include/RobotSpec.h`. The line view has not been run on the robot (the IR array is not calibrated).
 
 | Piece | File | Role |
 |---|---|---|
@@ -192,6 +193,10 @@ detail is in [`modules/`](modules/); the measured values are in `include/RobotSp
 | Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
 | Moves | `include/MotionPrimitives.h` | straight run along a held heading; in-place turn |
 | Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
+| Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
+| Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
+| Incline | `include/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
+| Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
 
 ## Dual build target
 

@@ -38,8 +38,11 @@ inline void odometryUpdate(Odometry &odo, int32_t countL, int32_t countR, float 
         odo.primed = true;
         return;
     }
-    const int32_t dL = countL - odo.lastL;
-    const int32_t dR = countR - odo.lastR;
+    // Unsigned subtraction: the counts wrap, and signed overflow is undefined.
+    const int32_t dL =
+        static_cast<int32_t>(static_cast<uint32_t>(countL) - static_cast<uint32_t>(odo.lastL));
+    const int32_t dR =
+        static_cast<int32_t>(static_cast<uint32_t>(countR) - static_cast<uint32_t>(odo.lastR));
     odo.lastL = countL;
     odo.lastR = countR;
 
