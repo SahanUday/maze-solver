@@ -233,12 +233,19 @@ constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.
-// MOVE_TIMEOUT_MS fits a 300 mm move (2.4 s) and the slowest turn (2.7 s). STEP_TOLERANCE_MM:
-// the front sensor jitters +-4 mm and a centre needs ~+-10 mm.
+// STEP_TOLERANCE_MM: the front sensor jitters +-4 mm and a centre needs ~+-10 mm.
 constexpr float STEP_TOLERANCE_MM = 8.0f;  // a stop this close to the target counts as arrived
 constexpr float TURN_TOLERANCE_DEG = 2.0f; // a turn this close to the target counts as done
 constexpr uint16_t TURN_SETTLE_MS = 150;   // ...for this long
-constexpr uint16_t MOVE_TIMEOUT_MS = 4000; // per leg; longer is a fault; 0 = no limit
+
+// ---- Stuck detection ---------------------------------- [FROM TESTS] --
+// A move is stuck when its error sets no new low (by the minimum step) for PATIENCE_MS, outside
+// tolerance + one step. Move length and speed never trip it. Not yet checked on the robot: log the
+// longest idle stretch over the 40 turns and some starts from rest, and keep PATIENCE_MS well above
+// it.
+constexpr float PROGRESS_MIN_MM = 2.0f;
+constexpr float PROGRESS_MIN_DEG = 1.0f;
+constexpr uint16_t PATIENCE_MS = 1000; // 0 = off
 
 // ---- Stall protection --------------------------------- [FROM TESTS] --
 // Duty >= STALL_DUTY with no motion for STALL_TIME_MS cuts the motors. Tuned moves peak at ~280

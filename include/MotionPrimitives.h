@@ -24,14 +24,56 @@ struct PlanParams {
     float stepToleranceMm = 0.0f;
     float turnToleranceDeg = 0.0f;
     uint16_t turnSettleMs = 0;
-    uint16_t moveTimeoutMs = 0; // per leg; 0 = no limit
+    // Stuck: no new low in the error, by at least progressMin, for patienceMs. 0 = off.
+    float progressMinMm = 0.0f;
+    float progressMinDeg = 0.0f;
+    uint16_t patienceMs = 0;
 };
 
 enum class MoveStatus : uint8_t {
     Running,
     Done,
-    Timeout, // ran longer than moveTimeoutMs
+    Stuck, // no progress for patienceMs
 };
+
+// ---- Progress ----------------------------------------------------------------
+
+// A move's length and speed never make it stuck; only a lack of progress does. Progress is a new
+// low in the error by at least `minStep`. An error that climbs more than this many steps above
+// its low (pushed back, overshoot) restarts the low from there. Within one step of the tolerance
+// the approach is slow by nature, so a robot there is never stuck.
+constexpr float PROGRESS_REBASE_STEPS = 4.0f;
+
+struct ProgressWatch {
+    float bestErr = 0.0f;
+    uint16_t idleMs = 0;
+};
+
+inline void progressBegin(ProgressWatch &w, float err)
+{
+    w.bestErr = err;
+    w.idleMs = 0;
+}
+
+// Fold in one tick's error. True once `patienceMs` has passed without progress; 0 = never.
+inline bool progressStep(ProgressWatch &w, float err, float tolerance, float minStep,
+                         uint16_t patienceMs, uint16_t dtMs)
+{
+    if (err <= tolerance + minStep) {
+        progressBegin(w, err);
+        return false;
+    }
+    if (err < w.bestErr - minStep) {
+        w.bestErr = err;
+        w.idleMs = 0;
+    } else {
+        if (err > w.bestErr + PROGRESS_REBASE_STEPS * minStep) {
+            w.bestErr = err;
+        }
+        w.idleMs = static_cast<uint16_t>(w.idleMs + dtMs);
+    }
+    return patienceMs > 0 && w.idleMs >= patienceMs;
+}
 
 // ---- Straight ----------------------------------------------------------------
 
@@ -42,7 +84,7 @@ struct Straight {
     float vMaxMmS = 0.0f;
     float vEndMmS = 0.0f; // arrival speed; 0 = stop
     float headingRefDeg = 0.0f;
-    uint16_t elapsedMs = 0;
+    ProgressWatch watch;
 };
 
 // Start a move of `distMm` (signed) from the current position, at the measured speed.
@@ -55,15 +97,14 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
     s.vMaxMmS = vMaxMmS;
     s.vEndMmS = vEndMmS;
     s.headingRefDeg = headingRefDeg;
-    s.elapsedMs = 0;
+    progressBegin(s.watch, distMm < 0.0f ? -distMm : distMm);
 }
 
-// Move the finish line `addMm` on and change the arrival speed. Restarts the timeout.
+// Move the finish line `addMm` on and change the arrival speed.
 inline void straightExtend(Straight &s, float addMm, float vEndMmS)
 {
     s.targetMm += addMm;
     s.vEndMmS = vEndMmS;
-    s.elapsedMs = 0;
 }
 
 // Replace the finish line.
@@ -82,7 +123,6 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
     s.refSpeedMmS =
         profileStep(s.refSpeedMmS, s.targetMm - s.refMm, s.vMaxMmS, plan.accelMmS2, s.vEndMmS, dtS);
     s.refMm += s.refSpeedMmS * dtS;
-    s.elapsedMs = static_cast<uint16_t>(s.elapsedMs + dtMs);
 
     out.distRefMm = s.refMm;
     out.speedRefMmS = s.refSpeedMmS;
@@ -99,8 +139,9 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
     } else if (s.refMm >= s.targetMm) {
         return MoveStatus::Done;
     }
-    if (plan.moveTimeoutMs > 0 && s.elapsedMs >= plan.moveTimeoutMs) {
-        return MoveStatus::Timeout;
+    if (progressStep(s.watch, err, plan.stepToleranceMm, plan.progressMinMm, plan.patienceMs,
+                     dtMs)) {
+        return MoveStatus::Stuck;
     }
     return MoveStatus::Running;
 }
@@ -115,11 +156,11 @@ struct Turn {
     float refRateDps = 0.0f;
     float holdMm = 0.0f; // odometer position held while pivoting
     uint16_t settledMs = 0;
-    uint16_t elapsedMs = 0;
+    ProgressWatch watch;
 };
 
-// Pivot by `deltaDeg` (CCW positive) to end on `targetHeadingDeg`. Both are given: a 180 is
-// ambiguous from the headings alone.
+// Pivot by `deltaDeg` (CCW positive, within +-180) to end on `targetHeadingDeg`. Both are given: a
+// 180 is ambiguous from the headings alone.
 inline void turnBegin(Turn &t, const MotionFeedback &fb, float targetHeadingDeg, float deltaDeg)
 {
     t.startHeadingDeg = fb.headingDeg;
@@ -129,7 +170,8 @@ inline void turnBegin(Turn &t, const MotionFeedback &fb, float targetHeadingDeg,
     t.refRateDps = 0.0f;
     t.holdMm = fb.distMm;
     t.settledMs = 0;
-    t.elapsedMs = 0;
+    const float startErr = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
+    progressBegin(t.watch, startErr < 0.0f ? -startErr : startErr);
 }
 
 inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback &fb, uint16_t dtMs,
@@ -139,7 +181,6 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
     t.refRateDps = profileStep(t.refRateDps, t.deltaDeg - t.refAngleDeg, plan.turnRateMaxDps,
                                plan.turnAccelDps2, 0.0f, dtS);
     t.refAngleDeg += t.refRateDps * dtS;
-    t.elapsedMs = static_cast<uint16_t>(t.elapsedMs + dtMs);
 
     // Profile stopped within a degree: aim at the grid heading, not start + sweep.
     const float left = t.deltaDeg - t.refAngleDeg;
@@ -161,8 +202,9 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
     } else {
         t.settledMs = 0;
     }
-    if (plan.moveTimeoutMs > 0 && t.elapsedMs >= plan.moveTimeoutMs) {
-        return MoveStatus::Timeout;
+    if (progressStep(t.watch, err, plan.turnToleranceDeg, plan.progressMinDeg, plan.patienceMs,
+                     dtMs)) {
+        return MoveStatus::Stuck;
     }
     return MoveStatus::Running;
 }
