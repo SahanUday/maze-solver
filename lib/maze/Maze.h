@@ -135,10 +135,12 @@ inline void explorerObserve(Explorer &e, bool frontWall, bool leftWall, bool rig
     e.cell[e.pos] = static_cast<uint8_t>(e.cell[e.pos] | kVisited);
 }
 
-// The first step of the shortest path to the nearest unvisited cell, over edges not known to be
-// walls. Equal paths keep going straight, then prefer a right turn, then left, then back.
-// False: nothing unvisited is reachable.
-inline bool explorerPlan(Explorer &e, Dir &step)
+namespace detail
+{
+
+// Breadth-first from the robot over edges not known to be walls. With `avoidStart` the start tile
+// is not entered (unless the robot is on it).
+inline bool plan(Explorer &e, Dir &step, bool avoidStart)
 {
     for (uint8_t i = 0; i < kCells; ++i) {
         e.seen[i] = kUnseen;
@@ -157,7 +159,7 @@ inline bool explorerPlan(Explorer &e, Dir &step)
             const Dir d = order[k];
             uint8_t next = 0;
             if ((e.cell[cur] & wallBit(d)) != 0 || !neighbour(cur, d, next) ||
-                e.seen[next] != kUnseen) {
+                e.seen[next] != kUnseen || (avoidStart && next == kStartCell)) {
                 continue;
             }
             const uint8_t first =
@@ -171,6 +173,17 @@ inline bool explorerPlan(Explorer &e, Dir &step)
         }
     }
     return false;
+}
+
+} // namespace detail
+
+// The first step of the shortest path to the nearest unvisited cell, over edges not known to be
+// walls. Equal paths keep going straight, then prefer a right turn, then left, then back. The
+// start tile is kept out of the path when there is another way: re-entering it before the finish
+// aborts the attempt. False: nothing unvisited is reachable.
+inline bool explorerPlan(Explorer &e, Dir &step)
+{
+    return detail::plan(e, step, true) || detail::plan(e, step, false);
 }
 
 // Forget every wall and visit but keep the position and heading, so the search starts again from

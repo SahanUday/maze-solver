@@ -6,7 +6,8 @@
 ## Context
 
 The first task is Section A (4x4): from any tile, in a single attempt, reach the
-white rectangle and stop on it. Two facts shape the design.
+white rectangle tile and stop on it (the corner tile that is the bridge-out tile in
+the competition; the photo of the arena is the reference). Two facts shape the design.
 
 1. **The start tile is not known.** There is no localisation: the robot has
    walls, odometry and a gyro, and nothing that tells it which of the 16 tiles it
@@ -16,7 +17,9 @@ white rectangle and stop on it. Two facts shape the design.
    around whatever it first touches, so wall following reaches the finish only
    from starts that happen to touch the outer wall first.
 
-There is one attempt: nothing learnt on a run can be used on a second.
+There is one attempt: nothing learnt on a run can be used on a second. Under the
+competition rules, coming back to the start tile before the finish aborts the
+attempt.
 
 ## Decision
 
@@ -31,8 +34,12 @@ white.
 - Walls are only ever added. A wall that was a bad reading can strand the search,
   which then reports it is out of tiles; the caller may clear the map and start
   again from the same pose once (`explorerRescan`).
+- The start tile is kept out of the path whenever another way exists; it is
+  crossed only when it is the sole way to the unvisited cells.
 - The finish is recognised by the floor sensor, not by a coordinate. Reaching it
-  ends the run; the search does not need to know where the robot started.
+  ends the run; the search does not need to know where the robot started. The
+  white tile has a black rectangle and a line in it, so a full-white tile (the
+  competition's start tile) must not be mistaken for it.
 
 ## Consequences
 
@@ -40,6 +47,8 @@ white.
 - The path is not the shortest. On the photo maze the worst start needs 31 tile
   moves; an informed run would need at most 7. Section A is not timed beyond the
   run limit, so this is accepted.
+- Starts behind a chokepoint at the start tile still cross it (10 of the 60
+  starts in the photo maze, down from 30).
 - It reads all three wall sensors at each tile and turns in place to look at
   edges the sensors have not seen, so it needs reliable stationary readings; the
   ultrasonics are the weakest sensor on the robot (module doc: angled walls read

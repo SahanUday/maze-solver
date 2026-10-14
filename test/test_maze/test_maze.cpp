@@ -14,9 +14,11 @@
 //      +   +   +   +   +
 //  r3  | . | . . . . . |
 //
-//  Read from the photo by eye: the edges are listed in kWallEdges, W1..W7 left to right.
+//  Read from the photo of the arena (checked against it again on 2026-10-15): the edges are
+//  listed in kWallEdges, W1..W7 left to right.
 // ============================================================================
 
+#include <initializer_list>
 #include <stdint.h>
 #include <unity.h>
 
@@ -83,6 +85,7 @@ struct SimResult {
     bool hitWall = false;
     uint16_t moves = 0;
     uint16_t turns = 0;
+    uint16_t startReentries = 0; // times it came back to the start tile before the finish
 };
 
 struct Sim {
@@ -160,6 +163,9 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
                 break;
         }
         ++out.moves;
+        if (s.row == startRow && s.col == startCol) {
+            ++out.startReentries;
+        }
     }
     return out;
 }
@@ -290,6 +296,49 @@ static void test_wall_detection_threshold()
     TEST_ASSERT_FALSE(wallDetected(false, 120)); // silence is not a wall
 }
 
+static void test_plan_keeps_out_of_the_start_tile_when_another_way_exists()
+{
+    // Start S with E1 east of it, NE north of E1, N north of S; the wall between S and N keeps S a
+    // corridor. Unvisited: W (west of S, two steps through S) and NW (west of N, three steps by
+    // NE and N, not through S). The nearer one is through the start; the planner takes the other.
+    Explorer e;
+    explorerInit(e);
+    uint8_t east1 = 0;
+    uint8_t northEast = 0;
+    uint8_t north = 0;
+    TEST_ASSERT_TRUE(neighbour(kStartCell, Dir::East, east1));
+    TEST_ASSERT_TRUE(neighbour(east1, Dir::North, northEast));
+    TEST_ASSERT_TRUE(neighbour(kStartCell, Dir::North, north));
+    for (const uint8_t idx : {kStartCell, east1, northEast, north}) {
+        e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | kVisited);
+    }
+    markWall(e, kStartCell, Dir::South);
+    markWall(e, kStartCell, Dir::North);
+    markWall(e, east1, Dir::East);
+    markWall(e, east1, Dir::South);
+    markWall(e, northEast, Dir::North);
+    markWall(e, northEast, Dir::East);
+    markWall(e, north, Dir::North);
+    e.pos = east1;
+    e.heading = Dir::West;
+    Dir step = Dir::West;
+    TEST_ASSERT_TRUE(explorerPlan(e, step));
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::North), static_cast<int>(step));
+}
+
+static void test_plan_crosses_the_start_tile_when_it_is_the_only_way()
+{
+    Explorer e;
+    explorerInit(e);
+    // A corridor: walls east and west of the start, open north and south. North is a dead end.
+    explorerObserve(e, false, true, true);
+    explorerAdvance(e);
+    explorerObserve(e, true, true, true);
+    Dir step = Dir::North;
+    TEST_ASSERT_TRUE(explorerPlan(e, step));
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::South), static_cast<int>(step)); // through the start
+}
+
 // ---- Section A -------------------------------------------------------------------------------
 static void test_truth_maze_is_one_connected_region()
 {
@@ -360,6 +409,26 @@ static void test_missed_side_readings_cost_time_not_the_finish()
     }
 }
 
+static void test_the_start_tile_is_re_entered_only_where_it_cannot_be_avoided()
+{
+    // In this maze the start tile is a chokepoint for some starts (a dead end behind it, or the
+    // only way between two parts). Re-entering it elsewhere would abort the attempt: 10 of the 60
+    // runs do, down from 30 without the avoidance.
+    int reentered = 0;
+    for (int r = 0; r < kN; ++r) {
+        for (int c = 0; c < kN; ++c) {
+            for (uint8_t h = 0; h < 4; ++h) {
+                if (r == kFinishRow && c == kFinishCol) {
+                    continue;
+                }
+                const SimResult res = run(r, c, static_cast<Dir>(h), 0, 1);
+                reentered += res.startReentries > 0 ? 1 : 0;
+            }
+        }
+    }
+    TEST_ASSERT_LESS_OR_EQUAL_INT(10, reentered);
+}
+
 static void test_starting_on_the_finish_does_not_move()
 {
     const SimResult res = run(kFinishRow, kFinishCol, Dir::South, 0, 1);
@@ -378,6 +447,8 @@ int main()
     RUN_TEST(test_plan_goes_straight_when_everything_is_open);
     RUN_TEST(test_plan_goes_around_a_known_wall);
     RUN_TEST(test_plan_returns_through_visited_cells_to_the_nearest_unvisited);
+    RUN_TEST(test_plan_keeps_out_of_the_start_tile_when_another_way_exists);
+    RUN_TEST(test_plan_crosses_the_start_tile_when_it_is_the_only_way);
     RUN_TEST(test_plan_reports_a_sealed_cell);
     RUN_TEST(test_rescan_forgets_the_walls_and_keeps_the_pose);
     RUN_TEST(test_advance_refuses_a_known_wall);
@@ -385,6 +456,7 @@ int main()
     RUN_TEST(test_truth_maze_is_one_connected_region);
     RUN_TEST(test_every_start_tile_and_heading_reaches_the_white_tile);
     RUN_TEST(test_missed_side_readings_cost_time_not_the_finish);
+    RUN_TEST(test_the_start_tile_is_re_entered_only_where_it_cannot_be_avoided);
     RUN_TEST(test_starting_on_the_finish_does_not_move);
     return UNITY_END();
 }
