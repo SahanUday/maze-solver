@@ -199,8 +199,8 @@ duplicated pin, a missing `ATOMIC_BLOCK`) and confirms it is reported, and that
 a clean project passes. Files: `test_pin_map.py`, `test_isr_atomicity.py`,
 `test_docs_drift.py`, `test_banned_patterns.py`, `test_pr_title.py`,
 `test_size_report.py`, `test_tbd_report.py`, `test_untested_headers.py`,
-`test_check_coverage.py` (the shell wiring, run against a stub `gcovr`), with shared helpers in
-`support.py`. They use Python's
+`test_check_coverage.py` (the shell wiring, run against a stub `gcovr`),
+`test_fit_motor_sweep.py` (the calibration helper below), with shared helpers in `support.py`. They use Python's
 built-in `unittest`; nothing to install.
 **Run:** `python -m unittest discover -s scripts/tests`.
 **Changing a script?** Add or update its test in the same PR.
@@ -230,6 +230,19 @@ when you edit the title. **Run:** `scripts/check-pr-title.py "your title"`.
   forgotten. List them yourself with `scripts/list-tbds.sh`.
 
 Both appear in one comment that the bot edits on each push.
+
+## Calibration firmware and helper scripts (not run by CI)
+- `env:calibrate` builds the calibration firmware (`src/calibration/`: the safe
+  run and the sweep) with `env:mega`'s toolchain and flags, so it is held to the
+  same `-Werror`. CI does not build it and the RAM and flash budget checks do not
+  cover it: `pio run -e calibrate` and read the size line.
+- `scripts/fit-motor-sweep.py CAPTURE` turns a capture of the sweep run (or
+  `motor-speed-curve.csv`) into the dead zone, the rpm-per-duty slope, the top
+  speed and how well the two motors match. Plain Python, no packages; it exits
+  1 for a sweep with missing rungs. Its tests are in `scripts/tests/`.
+- `scripts/plot-motor-curve.py` draws the motor speed-curve figures in
+  `docs/calibration/` from `motor-speed-curve.csv`. It needs matplotlib, which
+  CI does not install; run it by hand after recording a new sweep.
 
 ## What is not tested automatically
 **The firmware itself running on the robot.** CI compiles it and checks its
