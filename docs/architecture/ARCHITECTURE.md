@@ -53,16 +53,18 @@ register or an Arduino I/O call directly:
    its entry points return success/failure instead of a reading
    ([`decisions/0007`](decisions/0007-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
-   and plain data. `lib/maze` lives here and must never include `Arduino.h`
-   (see "Dual build target" below).
-3. **Sequencing layer** — `src/main.cpp` and, eventually, the top-level
-   run-phase state machine. Wires the other two layers together once per
-   tick.
+   and plain data. The pure headers in `include/` and `lib/maze` live here and
+   must never include `Arduino.h` (see "Dual build target" below). See
+   [Control layer](#control-layer).
+3. **Sequencing layer** — `src/main.cpp`, which wires the other two layers
+   together once per tick, plus the glue that is not host-testable
+   (`src/operator_io`, `src/line_cal_store`).
 
 ## Fixed-period control loop
 
-`src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
-every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`). The
+`src/main.cpp`'s `loop()` runs `readSensors()`, then `runAlgorithm()`, then applies
+the `DriveCommand` it returns, once every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz —
+`include/RobotSpec.h`). The
 tick-due/drift-resync logic itself lives in `include/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
@@ -84,7 +86,7 @@ library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers onl
 automatically; see the [testing guide](../testing.md).
 
 Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
-`Heading.h`) stays in `include/` so `env:native` can test it. A header there
+`Heading.h` and the control layer below) stays in `include/` so `env:native` can test it. A header there
 with function bodies in it must appear in the coverage report or declare
 `// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
 
@@ -164,6 +166,11 @@ This is what lets `lib/maze` compile and run its unit tests on a laptop
 (`env:native`) with no robot attached: its input is a plain struct, not a
 pin.
 
+The output side mirrors it: `runAlgorithm()` returns an `include/DriveCommand.h`
+(`left`, `right`, `enable`) and only `main.cpp` turns that into
+`motorsEnable()`/`motorSet()` calls. So everything above the HAL, including the
+whole run, can be driven on the host against a simulated robot.
+
 ## Config split: pins vs. spec
 
 `include/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
@@ -173,10 +180,42 @@ timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
 include it directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
 without pulling in a framework the host build doesn't have.
 
+`include/NavParams.h` is the one place that reads the spec for the control layer: each
+module takes a parameter struct, not the constants, so the host tests run it with values
+of their own (the spec's are 0 until calibrated).
+
 Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
 (`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
 tracked via `scripts/list-tbds.sh` rather than a comment someone has to
 happen to read.
+
+## Control layer
+
+Everything between `RobotState` and `DriveCommand`. Per tick, in `main.cpp`:
+
+```
+RobotState --perceive()--> Perception --missionStep()--> DriveCommand --> motors
+```
+
+| Piece | File | Role |
+|---|---|---|
+| Perception | `include/Perception.h`, `Odometry.h`, `Tilt.h` | distance, speed, yaw rate, tilt; the wall view; the line view |
+| Motion control | `include/MotionControl.h`, `MotionProfile.h` | a trapezoid reference; linear PID on the odometer + angular PID on the **gyro**, mixed into left/right duty; stall latch |
+| Primitives | `include/MotionPrimitives.h`, `StepCell.h` | straight run, in-place turn, one-cell step that reads the walls on the way |
+| Wall sensing | `include/WallSense.h` | wall presence, centring trim |
+| Line | `include/LineFollow.h` | line centroid, follower, marker / line-zone detector |
+| Maze | `lib/maze/MazeMap.h`, `Explorer.h` | map in the robot's own frame, next-move search |
+| Mission | `include/Mission.h` | the phase state machine |
+
+Nothing about the layout is fixed in code: the start cell, its heading and the bridge corner are
+discovered at run time, in a map whose "north" is the start heading. The run is
+`WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> LineFollow -> Done`, any phase to
+`Fault`; Section A is explored without stopping on straight cells, and the line is followed until it
+ends. Per-module detail is in [`modules/`](modules/).
+
+The control layer is **only verified in simulation**: the host suites run the whole stack against a
+simulated arena, and the robot-specific values it needs are `<<TBD>>` placeholders in `RobotSpec.h`
+(`scripts/list-tbds.sh`).
 
 ## Dual build target
 

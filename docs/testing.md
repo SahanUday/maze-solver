@@ -162,7 +162,9 @@ and structs need nothing.
 
 **What can be unit tested.** Only code that does not touch hardware and does not
 include `Arduino.h`: the headers in `include/` (`Scheduler.h`, `Quadrature.h`,
-`MotorDrive.h`, `LineSense.h`, `UltrasonicMath.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
+`MotorDrive.h`, `LineSense.h`, `UltrasonicMath.h`, `Heading.h` and the control layer:
+`Odometry.h`, `MotionProfile.h`, `MotionControl.h`, `MotionPrimitives.h`, `StepCell.h`,
+`WallSense.h`, `LineFollow.h`, `Perception.h`, `Mission.h`, ...) and the library `lib/maze`. Code in `src/` (the HAL drivers and
 `main.cpp`) is built only for the robot. That is why drivers keep their
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
@@ -170,8 +172,20 @@ register code isn't.
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
 `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`,
-`test_ultrasonic`, and `test_native`
-(a placeholder that proves the host build works). A test file looks like this
+`test_heading`, `test_ultrasonic`, `test_odometry`, `test_motion_profile`,
+`test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_step_cell`,
+`test_tilt`, `test_line_follow`, `test_maze_explorer`, `test_nav_params`,
+`test_mission`, and `test_native` (a placeholder that proves the host build works).
+
+Several of the control-layer suites are **closed loop**: they run the code against a
+small simulated robot (`sim.h` in `test_motion_primitives`, `test_step_cell`,
+`test_line_follow`, `test_mission`: a differential-drive plant with wheel lag) and
+`test_mission` goes further, driving the whole stack through
+`RobotState -> Perception -> missionStep -> DriveCommand` against a simulated 4x4 arena
+(walls, ultrasonic rays refreshed one sensor per slot, encoders, an IR array over a painted
+floor). That found problems unit tests alone had not - a target that chased a stale
+ultrasonic reading, a run detector that split a white tile in two - so when you change
+the control layer, run it. A test file looks like this
 (Unity is the test framework):
 ```cpp
 #include <unity.h>
@@ -242,8 +256,10 @@ on the real hardware. For hardware-facing code:
   unchecked in the module's `## Status` section (see
   `architecture/modules/encoders.md`).
 
-Not yet covered because the code does not exist yet: tests of the maze solver.
-They will be added with it and run in the jobs above without CI changes.
+The simulations have no wheel slip, no sensor noise and an ideal motor response, so a pass
+there says the logic is right, not that the tuning is. Gains, thresholds, speeds and the
+marker/line lengths are `<<TBD CALIBRATION>>` placeholders in `RobotSpec.h`; none of the
+control layer has run on the robot.
 
 ## When a check fails
 
