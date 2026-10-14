@@ -296,6 +296,17 @@ static void test_the_bias_is_held_through_a_gap_then_faded()
     TEST_ASSERT_EQUAL_FLOAT(0.0f, w.biasDeg);
 }
 
+static void test_the_unseen_time_saturates()
+{
+    WallSteer w;
+    const WallParams p = params();
+    w.unseenMs = UINT16_MAX - 5;
+    trimOf(w, state(400, 400, 400), p, 0.0f, 10);
+    TEST_ASSERT_EQUAL_UINT16(UINT16_MAX, w.unseenMs);
+    trimOf(w, state(400, 400, 400), p, 0.0f, 10);
+    TEST_ASSERT_EQUAL_UINT16(UINT16_MAX, w.unseenMs);
+}
+
 static void test_a_negative_bias_fades_toward_zero_too()
 {
     WallSteer w;
@@ -399,6 +410,7 @@ int main()
     RUN_TEST(test_the_bias_keeps_applying_with_no_wall_in_view);
     RUN_TEST(test_the_bias_does_not_grow_with_no_wall_in_view);
     RUN_TEST(test_the_bias_is_held_through_a_gap_then_faded);
+    RUN_TEST(test_the_unseen_time_saturates);
     RUN_TEST(test_a_negative_bias_fades_toward_zero_too);
     RUN_TEST(test_seeing_a_wall_again_restarts_the_hold);
     RUN_TEST(test_a_turn_drops_the_bias_by_itself);
