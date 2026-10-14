@@ -27,8 +27,8 @@ inline MotionControlParams specMotionControl()
     p.kdTurn = KD_TURN;
     p.ffPwmPerMmS = FEEDFORWARD_PWM_PER_MM_S;
     p.ffPwmPerDps = FEEDFORWARD_PWM_PER_DPS;
-    p.minPwmL = MOTOR_MIN_PWM_L;
-    p.minPwmR = MOTOR_MIN_PWM_R;
+    p.minPwmL = CONTROL_MIN_PWM_L;
+    p.minPwmR = CONTROL_MIN_PWM_R;
     p.pwmTop = MOTOR_PWM_TOP;
     p.stallDuty = STALL_DUTY;
     p.stallTimeMs = STALL_TIME_MS;

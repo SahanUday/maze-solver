@@ -71,6 +71,12 @@ constexpr uint16_t MOTOR_MIN_PWM_R = 250; // measure at MOTOR_PWM_FREQ_HZ, not A
 // these are start-from-rest values under load, not the floor of the speed curve
 // (docs/calibration/).
 
+// What the motion controller adds to every non-zero duty command (MotionControl.h toDuty). The
+// start-from-rest values above are not it: lifting every command to 160 / 250 made the turn
+// controller chatter between +150 and -200 duty around its target (tried 2026-10-14).
+constexpr uint16_t CONTROL_MIN_PWM_L = 0;
+constexpr uint16_t CONTROL_MIN_PWM_R = 0;
+
 // ---- IR array ---------------------------------------------------------- --
 // Analog reflectance array read through the ADC. See decisions/0005-*.md.
 constexpr uint8_t IR_CHANNEL_COUNT = 8;
@@ -180,29 +186,34 @@ constexpr int16_t US_OFFSET_RIGHT_MM = 47;
 constexpr uint16_t US_ECHO_TIMEOUT_TICKS =
     static_cast<uint16_t>((static_cast<uint32_t>(US_RANGE_CAP_MM) * 4000u) / SPEED_OF_SOUND_M_S);
 
-// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
-constexpr float KP_DISTANCE = 0.0f;
-constexpr float KI_DISTANCE = 0.0f;
+// ---- Motion PID gains ---------------------------------------- [MEASURED] --
+// Tuned 2026-10-14 on the floor with tools/probe/motion.cpp: 300 and 400 mm straights arrive within
+// 1.5 mm of the target with the heading inside 2 deg of its reference; 90 deg turns arrive in
+// ~1.3 s without overshoot. Distance gains are duty counts per mm; turn gains per deg (KD_TURN per
+// deg/s). The integral terms remove the constant left/right difference: at equal duty the right
+// wheel runs ~20% slower on the floor than the left, though the two matched on a stand.
+constexpr float KP_DISTANCE = 4.0f;
+constexpr float KI_DISTANCE = 2.0f;
 constexpr float KD_DISTANCE = 0.0f;
-constexpr float KP_TURN = 0.0f;
-constexpr float KI_TURN = 0.0f;
-constexpr float KD_TURN = 0.0f;
+constexpr float KP_TURN = 4.0f;
+constexpr float KI_TURN = 8.0f;
+constexpr float KD_TURN = 0.5f;
 
 // ---- Navigation geometry ----------------------------- <<TBD HARDWARE>> --
 // Measured along the robot's forward axis / across it, from the mount drawing or a ruler.
 constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 0.0f; // wheel axle to the IR array's sensing line
 constexpr float IR_SENSOR_PITCH_MM = 0.0f;         // centre to centre of adjacent IR channels
 
-// ---- Motion limits and feedforward -------------------- <<TBD CALIBRATION>> --
+// ---- Motion limits and feedforward --------------------------- [MEASURED] --
 // Fit from logged step responses at stepped duty: speed against duty gives the feedforward,
 // the fastest slip-free ramp gives the accelerations.
-constexpr float SEARCH_SPEED_MM_S = 0.0f;        // cruise speed while exploring
-constexpr float LINE_SPEED_MM_S = 0.0f;          // cruise speed on the line
-constexpr float ACCEL_MM_S2 = 0.0f;              // linear acceleration and deceleration
-constexpr float TURN_RATE_MAX_DPS = 0.0f;        // in-place turn peak rate
-constexpr float TURN_ACCEL_DPS2 = 0.0f;          // in-place turn ramp
-constexpr float FEEDFORWARD_PWM_PER_MM_S = 0.0f; // duty counts per mm/s of wheel speed
-constexpr float FEEDFORWARD_PWM_PER_DPS = 0.0f;  // duty counts per deg/s of yaw rate
+constexpr float SEARCH_SPEED_MM_S = 150.0f;       // cruise speed while exploring
+constexpr float LINE_SPEED_MM_S = 0.0f;           // cruise speed on the line
+constexpr float ACCEL_MM_S2 = 500.0f;             // linear acceleration and deceleration
+constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
+constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
+constexpr float FEEDFORWARD_PWM_PER_MM_S = 1.15f; // duty counts per mm/s of wheel speed
+constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of yaw rate
 
 // ---- Steering gains ----------------------------------- <<TBD CALIBRATION>> --
 // Wall centring turns a lateral error (mm) into a heading offset (deg); line following does the
@@ -224,11 +235,14 @@ constexpr uint16_t FRONT_STOP_MM = 0;       // front reading when stopped at a c
 constexpr uint16_t WALL_SAMPLE_LEAD_MM = 0; // walls are sampled this far before the cell centre
 constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 0; // ...over this much travel
 
-// ---- Moves -------------------------------------------- <<TBD CALIBRATION>> --
-constexpr float STEP_TOLERANCE_MM = 0.0f;  // a stop this close to the target counts as arrived
-constexpr float TURN_TOLERANCE_DEG = 0.0f; // a turn this close to the target counts as done
-constexpr uint16_t TURN_SETTLE_MS = 0;     // ...once it has stayed inside the tolerance this long
-constexpr uint16_t MOVE_TIMEOUT_MS = 0;    // a move longer than this is a fault; 0 = no limit
+// ---- Moves ---------------------------------------------------- [MEASURED] --
+// A turn that ends 2-3 deg short is left there: static friction stops the wheels below duty ~160,
+// so a tighter tolerance only waits for the integral to wind up. The next straight holds the
+// grid heading and takes the remainder out. The first 4 s timeout fits a 300 mm move (2.4 s).
+constexpr float STEP_TOLERANCE_MM = 3.0f;  // a stop this close to the target counts as arrived
+constexpr float TURN_TOLERANCE_DEG = 4.0f; // a turn this close to the target counts as done
+constexpr uint16_t TURN_SETTLE_MS = 150;   // ...once it has stayed inside the tolerance this long
+constexpr uint16_t MOVE_TIMEOUT_MS = 4000; // a move longer than this is a fault; 0 = no limit
 
 // ---- Stall protection --------------------------------- <<TBD CALIBRATION>> --
 // Duty at or above STALL_DUTY with the robot not moving for STALL_TIME_MS cuts the motors.
