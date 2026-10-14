@@ -300,14 +300,16 @@ constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far bef
 constexpr uint16_t WALL_SAMPLE_WINDOW_MM = 30; // ...over this much travel
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
-// A turn that ends up to ~5 deg short is left there: static friction stops the wheels below duty
-// ~160, so a tighter tolerance only waits for the integral to wind up. The next straight holds the
-// grid heading and takes the remainder out. The first 4 s timeout fits a 300 mm move (2.4 s). A
-// stop tolerance of 3 mm timed out in the mission: the target is anchored to the front sensor,
-// which jitters by +-4 mm, and the wheels stick, so the robot hunted at the wall. A centre needs
-// ~+-10 mm.
+// Turns: with KI_TURN 60 the wheels are pushed through the sticking zone, so the tolerance can be
+// tight. At 6 deg a turn stopped as soon as it was inside the band, 2-4.5 deg short every time
+// (40 clockwise 90s: mean +2.9 deg short). At 2 deg, 40 absolute turns (90 and 180, both ways)
+// all arrived within 2 deg of the target in 1.3-2.7 s. The next straight still holds the grid
+// heading and takes out what is left.
+// Steps: the 4 s timeout fits a 300 mm move (2.4 s) and the slowest turn (2.7 s). A stop tolerance
+// of 3 mm timed out in the mission: the target is anchored to the front sensor, which jitters by
+// +-4 mm, and the wheels stick, so the robot hunted at the wall. A centre needs ~+-10 mm.
 constexpr float STEP_TOLERANCE_MM = 8.0f;  // a stop this close to the target counts as arrived
-constexpr float TURN_TOLERANCE_DEG = 6.0f; // a turn this close to the target counts as done
+constexpr float TURN_TOLERANCE_DEG = 2.0f; // a turn this close to the target counts as done
 constexpr uint16_t TURN_SETTLE_MS = 150;   // ...once it has stayed inside the tolerance this long
 constexpr uint16_t MOVE_TIMEOUT_MS = 4000; // a move longer than this is a fault; 0 = no limit
 

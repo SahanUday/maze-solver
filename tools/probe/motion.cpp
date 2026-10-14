@@ -15,6 +15,8 @@
 //    b                       recapture the gyro bias (robot held still) and zero the heading
 //    o <L> <R> <ms>          open loop: fixed signed duty on each wheel (max +-DUTY_CAP, 2000 ms)
 //    s <mm>                  closed-loop straight, signed (max +-DIST_CAP_MM)
+//    c                       one mission cell step: wall vote, front-anchored stop
+//    a <heading> <dir>       turn to an exact heading, dir +1 CCW / -1 CW (what the mission does)
 //    t <deg>                 closed-loop turn in place, CCW positive
 //    x                       stop (also: any byte during a move)
 // ============================================================================
@@ -31,6 +33,7 @@
 #include "RobotSpec.h"
 #include "RobotState.h"
 #include "Scheduler.h"
+#include "StepCell.h"
 #include "WallSense.h"
 #include "hal/encoders.h"
 #include "hal/imu.h"
@@ -87,6 +90,9 @@ struct Tune {
     float kpw = 0.0f;      // deg of heading offset per mm of lateral error
     float kdw = 0.0f;
     float smax = 10.0f;
+    float lead = static_cast<float>(WALL_SAMPLE_LEAD_MM);
+    float win = static_cast<float>(WALL_SAMPLE_WINDOW_MM);
+    float fstop = static_cast<float>(FRONT_STOP_MM);
 };
 Tune g_tune;
 WallSteer g_steer;
@@ -119,33 +125,42 @@ const Name g_names[] = {
     {"kpw", &g_tune.kpw},
     {"kdw", &g_tune.kdw},
     {"smax", &g_tune.smax},
+    {"lead", &g_tune.lead},
+    {"win", &g_tune.win},
+    {"fstop", &g_tune.fstop},
 };
 
 void tuneDefaults()
 {
+    // The values in RobotSpec.h, so a probe run tests what the mission will use. `set` changes them
+    // live; nothing is written back.
     g_tune.ctl = MotionControlParams{};
     g_tune.ctl.pwmTop = MOTOR_PWM_TOP;
-    // Start points, not answers. The wheel-speed sweep (docs/calibration/, wheels free) gives
-    // about 1.12 mm/s per duty count above duty ~200, so ~0.9 duty per mm/s; a pivot moves each
-    // wheel at (track / 2) * omega = 1.48 mm/s per deg/s, so ~1.3 duty per deg/s. minPwm stays 0
-    // here: toDuty() adds it as an offset to every non-zero command.
-    g_tune.ctl.ffPwmPerMmS = 1.15f;
-    g_tune.ctl.ffPwmPerDps = 1.3f;
-    g_tune.ctl.kpDist = 4.0f;
-    g_tune.ctl.kiDist = 2.0f;
-    g_tune.ctl.kpTurn = 4.0f;
-    g_tune.ctl.kiTurn = 60.0f;
-    g_tune.ctl.kiHold = 8.0f;
-    g_tune.ctl.ffScaleR = 1.0f;
-    g_tune.ctl.kdTurn = 0.5f;
-    g_tune.plan.accelMmS2 = 500.0f;
-    g_tune.plan.turnRateMaxDps = 120.0f;
-    g_tune.plan.turnAccelDps2 = 400.0f;
-    g_tune.plan.stepToleranceMm = 3.0f;
-    g_tune.plan.turnToleranceDeg = 4.0f;
-    g_tune.plan.turnSettleMs = 150;
-    g_tune.plan.moveTimeoutMs = MOVE_MAX_MS;
-    g_tune.vMax = 150.0f;
+    g_tune.ctl.ffPwmPerMmS = FEEDFORWARD_PWM_PER_MM_S;
+    g_tune.ctl.ffPwmPerDps = FEEDFORWARD_PWM_PER_DPS;
+    g_tune.ctl.ffScaleR = FEEDFORWARD_RIGHT_SCALE;
+    g_tune.ctl.kpDist = KP_DISTANCE;
+    g_tune.ctl.kiDist = KI_DISTANCE;
+    g_tune.ctl.kdDist = KD_DISTANCE;
+    g_tune.ctl.kpTurn = KP_TURN;
+    g_tune.ctl.kiTurn = KI_TURN;
+    g_tune.ctl.kdTurn = KD_TURN;
+    g_tune.ctl.kiHold = KI_TURN_HOLD;
+    g_tune.plan.accelMmS2 = ACCEL_MM_S2;
+    g_tune.plan.turnRateMaxDps = TURN_RATE_MAX_DPS;
+    g_tune.plan.turnAccelDps2 = TURN_ACCEL_DPS2;
+    g_tune.plan.stepToleranceMm = STEP_TOLERANCE_MM;
+    g_tune.plan.turnToleranceDeg = TURN_TOLERANCE_DEG;
+    g_tune.plan.turnSettleMs = TURN_SETTLE_MS;
+    g_tune.plan.moveTimeoutMs = MOVE_TIMEOUT_MS;
+    g_tune.vMax = SEARCH_SPEED_MM_S;
+    g_tune.wall = 0.0f;
+    g_tune.side = static_cast<float>(WALL_PRESENT_SIDE_MM);
+    g_tune.front = static_cast<float>(WALL_PRESENT_FRONT_MM);
+    g_tune.center = static_cast<float>(WALL_CENTER_DIST_MM);
+    g_tune.kpw = KP_WALL;
+    g_tune.kdw = KD_WALL;
+    g_tune.smax = STEER_MAX_DEG;
 }
 
 WallParams wallParams()
@@ -169,12 +184,14 @@ bool g_imuPresent = false;
 GyroBias g_bias;
 Heading g_heading;
 
-enum class Mode : uint8_t { Idle, Open, Straight, Turn };
+enum class Mode : uint8_t { Idle, Open, Straight, Turn, Cell };
 Mode g_mode = Mode::Idle;
 
 MotionControl g_mc;
 Straight g_straight;
 Turn g_turn;
+StepCell g_cell;
+bool g_cellReported = false;
 int16_t g_openL = 0;
 int16_t g_openR = 0;
 uint16_t g_openMs = 0;
@@ -267,13 +284,28 @@ void printTunables()
 
 void help()
 {
-    Serial.println(F("# h | p | w | set <name> <v> | b | o <L> <R> <ms> | s <mm> | t <deg> | x"));
+    Serial.println(
+        F("# h | p | w | c | set <name> <v> | b | o <L> <R> <ms> | s <mm> | t <deg> | x"));
     Serial.println(
         F("# names: kpd kid kdd kpt kit kdt ffv ffd v acc rate tacc stol ttol minl minr"));
 }
 
+StepCellParams cellParams()
+{
+    StepCellParams p;
+    p.plan = g_tune.plan;
+    p.wall = wallParams();
+    p.pitchMm = static_cast<float>(TILE_PITCH_MM);
+    p.cruiseMmS = g_tune.vMax;
+    p.sampleLeadMm = g_tune.lead;
+    p.sampleWindowMm = g_tune.win;
+    p.frontStopMm = g_tune.fstop;
+    return p;
+}
+
 void beginMove(Mode mode)
 {
+    g_cellReported = false;
     motionControlReset(g_mc);
     wallSteerReset(g_steer);
     g_logCount = 0;
@@ -296,8 +328,10 @@ void endMove(const char *reason)
     g_reason = reason;
 
     Serial.print(F("# end "));
-    Serial.print(was == Mode::Open ? F("open")
-                                   : (was == Mode::Straight ? F("straight") : F("turn")));
+    Serial.print(was == Mode::Open
+                     ? F("open")
+                     : (was == Mode::Straight ? F("straight")
+                                              : (was == Mode::Cell ? F("cell") : F("turn"))));
     Serial.print(F(" reason="));
     Serial.print(reason);
     Serial.print(F(" ms="));
@@ -413,7 +447,24 @@ void stepMove()
         }
     } else {
         MoveStatus st;
-        if (g_mode == Mode::Straight) {
+        if (g_mode == Mode::Cell) {
+            const StepCellParams cp = cellParams();
+            st = stepCellStep(g_cell, cp, fb, wallView(g_state, cp.wall), CONTROL_LOOP_PERIOD_MS,
+                              target);
+            if (g_cell.wallsReady && !g_cellReported) {
+                g_cellReported = true;
+                Serial.print(F("# walls front="));
+                Serial.print(g_cell.walls.front);
+                Serial.print(F(" left="));
+                Serial.print(g_cell.walls.left);
+                Serial.print(F(" right="));
+                Serial.print(g_cell.walls.right);
+                Serial.print(F(" unreliable="));
+                Serial.print(g_cell.walls.unreliable);
+                Serial.print(F(" at dist="));
+                Serial.println(fb.distMm - g_startDistMm, 0);
+            }
+        } else if (g_mode == Mode::Straight) {
             if (g_tune.wall > 0.5f) {
                 const WallParams wp = wallParams();
                 trim = wallSteerTrim(g_steer, wallView(g_state, wp), wp, CONTROL_LOOP_PERIOD_MS);
@@ -541,6 +592,34 @@ void handleLine(char *line)
         Serial.print(F("# straight "));
         Serial.print(mm, 0);
         Serial.println(F(" mm"));
+    } else if (strcmp(cmd, "c") == 0) {
+        if (!needHeading()) {
+            return;
+        }
+        beginMove(Mode::Cell);
+        stepCellBegin(g_cell, cellParams(), g_per.motion, g_per.motion.headingDeg);
+        Serial.println(F("# cell step"));
+    } else if (strcmp(cmd, "a") == 0) {
+        // Absolute turn: end exactly on <heading>, going CCW (+1) or CW (-1), like the mission's.
+        const char *a = strtok(nullptr, " \t");
+        const char *b = strtok(nullptr, " \t");
+        if (a == nullptr || b == nullptr || !needHeading()) {
+            return;
+        }
+        const float target = headingWrapDeg(static_cast<float>(atof(a)));
+        const float dir = atof(b) >= 0 ? 1.0f : -1.0f;
+        float sweep = headingWrapDeg(target - g_per.motion.headingDeg);
+        if (dir > 0.0f && sweep <= 0.0f) {
+            sweep += 360.0f;
+        } else if (dir < 0.0f && sweep >= 0.0f) {
+            sweep -= 360.0f;
+        }
+        beginMove(Mode::Turn);
+        turnBegin(g_turn, g_per.motion, target, sweep);
+        Serial.print(F("# turn to "));
+        Serial.print(target, 1);
+        Serial.print(F(" sweep "));
+        Serial.println(sweep, 1);
     } else if (strcmp(cmd, "t") == 0) {
         const char *a = strtok(nullptr, " \t");
         if (a == nullptr || !needHeading()) {
