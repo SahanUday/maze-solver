@@ -11,7 +11,6 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
 #include "RobotState.h"
 
 struct WallParams {

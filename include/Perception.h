@@ -16,6 +16,7 @@
 #include "LineView.h"
 #include "MotionTypes.h"
 #include "Odometry.h"
+#include "RobotSpec.h"
 #include "RobotState.h"
 #include "Tilt.h"
 #include "WallSense.h"
