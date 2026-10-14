@@ -21,7 +21,8 @@ The Section A mission: from any tile, explore until the white tile and stop on i
 
 ## How it works
 
-`WaitStart` holds the motors off until `startPressed`, then takes the gyro heading as map North.
+`WaitStart` holds the motors off until `startPressed` (the run loop sets it when the run begins:
+[run_loop](run_loop.md)), then takes the gyro heading as map North.
 
 - **Sense:** stand still for `senseMs` and vote on the three walls. The explorer records what was
   heard (a wall only if heard and present) and plans.

@@ -22,10 +22,38 @@ static DriveCommand tick(RunLoop &rl, const RobotState &s, uint32_t nowMs, bool 
     return c;
 }
 
+// A robot with no start button: it stands until the delay after power-up, then runs.
+static void test_without_a_button_the_run_begins_after_the_delay()
+{
+    RunLoop rl;
+    runLoopInit(rl, true, nullptr);
+    TEST_ASSERT_FALSE(rl.waitForButton);
+    RobotState s;
+    const uint32_t bootMs = 1500; // the gyro zeroing took this long
+    for (uint32_t t = bootMs; t < bootMs + RUN_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
+        const DriveCommand c = tick(rl, s, t, false);
+        TEST_ASSERT_FALSE(c.enable);
+        TEST_ASSERT_FALSE(rl.started);
+    }
+    tick(rl, s, bootMs + RUN_START_DELAY_MS, false);
+    TEST_ASSERT_TRUE(rl.started);
+    TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::WaitStart);
+}
+
+static void test_a_button_is_ignored_when_none_is_fitted()
+{
+    RunLoop rl;
+    runLoopInit(rl, true, nullptr);
+    RobotState s;
+    tick(rl, s, 0, true); // a floating pin reading low must not matter
+    TEST_ASSERT_FALSE(rl.started);
+}
+
 static void test_nothing_moves_until_the_button_is_held()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
+    rl.waitForButton = true;
     RobotState s;
     for (uint32_t t = 0; t < 100; ++t) {
         const DriveCommand c = tick(rl, s, t * 10, false);
@@ -40,9 +68,10 @@ static void test_a_bounce_does_not_start_a_run()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
+    rl.waitForButton = true;
     RobotState s;
     for (uint32_t t = 0; t < 40; ++t) {
-        tick(rl, s, t * 10, (t % 3) != 0 && (t % 3) != 1 ? true : false); // never five in a row
+        tick(rl, s, t * 10, t % 3 == 2); // never five in a row
     }
     TEST_ASSERT_FALSE(rl.started);
 }
@@ -51,6 +80,7 @@ static void test_one_press_starts_the_run_and_releasing_does_not_stop_it()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
+    rl.waitForButton = true;
     RobotState s;
     uint32_t t = 0;
     for (; t < RUN_START_DEBOUNCE_TICKS + 2; ++t) {
@@ -71,8 +101,9 @@ static void test_no_gyro_means_no_run()
     runLoopInit(rl, false, nullptr);
     RobotState s;
     DriveCommand c;
-    for (uint32_t t = 0; t < 20; ++t) {
+    for (uint32_t t = 0; t < RUN_START_DELAY_MS / 10 + 20; ++t) {
         c = tick(rl, s, t * 10, true);
+        TEST_ASSERT_FALSE(c.enable);
     }
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(rl.mission.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoImu), static_cast<int>(rl.mission.fault));
@@ -96,10 +127,10 @@ static void test_the_run_limit_ends_the_run()
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
     RobotState s;
-    uint32_t t = 0;
-    for (; t < RUN_START_DEBOUNCE_TICKS + 5; ++t) {
-        tick(rl, s, t * 10, true);
+    for (uint32_t t = 0; t <= RUN_START_DELAY_MS / 10 + 5; ++t) {
+        tick(rl, s, t * 10, false);
     }
+    TEST_ASSERT_TRUE(rl.started);
     const uint32_t startedAt = rl.startedAtMs;
     DriveCommand c = tick(rl, s, startedAt + RUN_LIMIT_MS - 10, false);
     TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::Fault);
@@ -109,8 +140,9 @@ static void test_the_run_limit_ends_the_run()
     TEST_ASSERT_FALSE(c.enable);
 }
 
-// The whole thing in the simulated arena: button, perception from raw sensors, mission, motors.
-static void test_a_run_from_the_button_to_the_white_tile()
+// The whole thing in the simulated arena: power-up delay, perception from raw sensors, mission,
+// motors.
+static void test_a_run_from_power_on_to_the_white_tile()
 {
     for (int facing : {0, 2}) {
         World w;
@@ -119,10 +151,10 @@ static void test_a_run_from_the_button_to_the_white_tile()
         w.state.startButtonPressed = false; // the loop sees the button, not the world
         const LineCalibration cal = World::calibration();
         RunLoop rl;
-        runLoopInit(rl, true, &cal);
+        runLoopInit(rl, true, &cal); // no button: it starts by itself
         bool done = false;
         for (uint32_t t = 0; t < RUN_LIMIT_MS / CONTROL_LOOP_PERIOD_MS && !done; ++t) {
-            const bool button = t >= 20 && t < 40;
+            const bool button = false;
             const uint32_t nowMs = t * CONTROL_LOOP_PERIOD_MS;
             // The world's own perception is not used: the loop gets the raw state.
             (void)w.sense();
@@ -149,12 +181,14 @@ static void test_a_run_from_the_button_to_the_white_tile()
 int main()
 {
     UNITY_BEGIN();
+    RUN_TEST(test_without_a_button_the_run_begins_after_the_delay);
+    RUN_TEST(test_a_button_is_ignored_when_none_is_fitted);
     RUN_TEST(test_nothing_moves_until_the_button_is_held);
     RUN_TEST(test_a_bounce_does_not_start_a_run);
     RUN_TEST(test_one_press_starts_the_run_and_releasing_does_not_stop_it);
     RUN_TEST(test_no_gyro_means_no_run);
     RUN_TEST(test_without_a_line_calibration_the_run_is_walls_only);
     RUN_TEST(test_the_run_limit_ends_the_run);
-    RUN_TEST(test_a_run_from_the_button_to_the_white_tile);
+    RUN_TEST(test_a_run_from_power_on_to_the_white_tile);
     return UNITY_END();
 }

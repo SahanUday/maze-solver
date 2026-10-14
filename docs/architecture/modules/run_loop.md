@@ -12,11 +12,15 @@ hardware and applies the result.
   calibration or null. Without a usable channel the run is `wallsOnly`; without a gyro it is
   failed (`NoImu`).
 - `runLoopTick(rl, state, nowMs, buttonDown, headingFixDeg)` - one tick; returns the
-  `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading.
+  `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading. `buttonDown` is
+  ignored while no button is fitted.
 
 ## How it works
 
-1. The raw start button is debounced (`RUN_START_DEBOUNCE_TICKS` in a row) and latched: one press
+1. The run starts. With no button fitted (`RUN_START_BUTTON_FITTED` false, as now) it begins by
+   itself `RUN_START_DELAY_MS` after the first tick: the power switch is the start, `setup()`
+   has zeroed the gyro with the robot held still by then, and the delay lets the hands come off. With
+   a button, the raw press is debounced (`RUN_START_DEBOUNCE_TICKS` in a row) and latched: one press
    begins the run, and releasing it does nothing.
 2. `RobotState` goes through `perceive()` (with the button as the latch) and the mission steps.
 3. The run limit (`RUN_LIMIT_MS`, 8 minutes from the press) fails a run still in progress
@@ -29,11 +33,11 @@ changes. The error LED follows `Fault`.
 ## Invariants
 
 - `RobotState` is copied, never written.
-- A command with `enable` false leaves the drivers coasting: no press, no gyro, a fault.
+- A command with `enable` false leaves the drivers coasting: before the start, no gyro, a fault.
 - The motors are touched only through the command this returns.
 
 ## Status
 
-Host tests, including a whole run from the button to the white tile through the raw sensors in the
+Host tests, including a whole run from power-on to the white tile through the raw sensors in the
 simulated arena. Not run on the robot. No IR calibration is stored yet, so `main.cpp` passes none
 and the run is walls only: it explores every reachable tile and stops (`Done`).

@@ -2,8 +2,9 @@
 //  main.cpp  --  fixed-period control loop scheduler.
 //  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
 //  Hardware is reached only through src/hal/* drivers - see RobotState.h.
-//  The algorithm is the Section A run (include/RunLoop.h): press START, and the robot explores
-//  from where it stands until the white tile, or every reachable tile without a line calibration.
+//  The algorithm is the Section A run (include/RunLoop.h): after the gyro is zeroed at power-up
+//  the robot explores from where it stands until the white tile, or every reachable tile without
+//  a line calibration.
 // ============================================================================
 
 #include <Arduino.h>
@@ -87,12 +88,14 @@ void setup()
 
     ultrasonicInit();
 
-    pinMode(PIN_BTN_START, INPUT_PULLUP);
+    if (RUN_START_BUTTON_FITTED) {
+        pinMode(PIN_BTN_START, INPUT_PULLUP);
+    }
     pinMode(PIN_LED_ERROR, OUTPUT);
     // No IR calibration is stored yet, so the run reads walls only: it explores every reachable
     // tile and stops. A calibration passed here makes it stop on the white tile.
     runLoopInit(g_run, g_imuPresent, nullptr);
-    Serial.println(g_imuPresent ? F("run: press START (walls only: no line calibration)")
+    Serial.println(g_imuPresent ? F("run: starts by itself (walls only: no line calibration)")
                                 : F("run: no gyro, will not start"));
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
@@ -121,7 +124,7 @@ static void readSensors(RobotState &state)
 // The Section A run: perception, mission, then the motors.
 static void runAlgorithm(const RobotState &state)
 {
-    const bool button = digitalRead(PIN_BTN_START) == LOW;
+    const bool button = RUN_START_BUTTON_FITTED && digitalRead(PIN_BTN_START) == LOW;
     float headingFixDeg = 0.0f;
     const DriveCommand cmd = runLoopTick(g_run, state, state.timestampMs, button, headingFixDeg);
 
