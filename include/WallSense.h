@@ -107,6 +107,12 @@ inline void wallSteerReset(WallSteer &w)
     w = WallSteer{};
 }
 
+// The caller moved the heading frame by `deltaDeg` (headingSet): keep the bias anchored to it.
+inline void wallSteerShiftFrame(WallSteer &w, float deltaDeg)
+{
+    w.anchorDeg = headingWrapDeg(w.anchorDeg + deltaDeg);
+}
+
 // Heading offset (deg, CCW positive) toward the centre line. A proportional term alone leaves an
 // offset of (heading error / kp), so the integral learns the error of the heading reference and
 // keeps applying it through gaps in the walls. The learned bias belongs to the heading it was

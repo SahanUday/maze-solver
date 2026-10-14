@@ -17,6 +17,8 @@ tested by `test/test_wall_sense/`. The readings come from [ultrasonic](ultrasoni
 - `wallSteerTrim(steer, view, params, headingDeg, dtMs)` - heading offset in degrees (CCW positive)
   toward the centre line. `headingDeg` is the gyro heading.
 - `wallSteerReset(steer)` - forget the filter and the learned bias.
+- `wallSteerShiftFrame(steer, deltaDeg)` - the caller moved the heading frame (`headingSet`): keep
+  the bias anchored to it.
 
 ## How it works
 

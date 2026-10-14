@@ -21,6 +21,8 @@ struct World {
     bool echo = true;           // false: no sensor hears anything
     float frontJitterMm = 0.0f; // the front alternates +- this, a new value every 60 ms
     int glitchTick = -1;        // the front reads glitchMm on this one tick
+    float frontDeadMm = 0.0f;   // no front echo when the wall is nearer than this (the dead zone)
+    int echoFromTick = 0;       // no front echo before this tick
     uint16_t glitchMm = 40;
 };
 
@@ -47,12 +49,19 @@ struct Rig {
         p.sampleLeadMm = 60.0f;
         p.sampleWindowMm = 30.0f;
         p.frontStopMm = 125.0f;
+        p.snapMm = 100.0f;
     }
 
     WallView view() const
     {
         RobotState s;
         s.usValid = world.echo ? 0x07 : 0x00;
+        if (world.wallX >= 0.0f && world.wallX - sim.distMm < world.frontDeadMm) {
+            s.usValid &= static_cast<uint8_t>(~0x01);
+        }
+        if (ticks < world.echoFromTick) {
+            s.usValid &= static_cast<uint8_t>(~0x01);
+        }
         const float jitter = ((ticks / 6) % 2 != 0) ? world.frontJitterMm : -world.frontJitterMm;
         s.distFrontMm = static_cast<uint16_t>(
             world.wallX >= 0.0f ? world.wallX - sim.distMm + jitter : 2000.0f);
@@ -466,6 +475,172 @@ static void test_a_wall_the_verdict_missed_is_stopped_for_at_the_stop_point()
     TEST_ASSERT_FLOAT_WITHIN(8.0f, 125.0f, 375.0f - r.sim.distMm);
 }
 
+// The wall stays where it was seen when the sensor goes quiet: the dead zone must not make it
+// vanish.
+static void test_a_wall_is_still_stopped_for_when_the_sensor_goes_silent()
+{
+    Rig r;
+    r.world.wallX = 250.0f + 125.0f;
+    r.world.frontDeadMm = 190.0f; // blind from before the safety trigger
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    bool answered = false;
+    for (int i = 0; i < 1200 && st == MoveStatus::Running; ++i) {
+        if (r.sc.wallsReady && !answered) {
+            stepCellContinue(r.sc, r.p); // drives on regardless of the wall
+            answered = true;
+        }
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_FLOAT_WITHIN(12.0f, 125.0f, 375.0f - r.sim.distMm);
+}
+
+static void test_a_move_that_begins_in_the_dead_zone_does_not_drive_into_the_wall()
+{
+    Rig r;
+    r.world.wallX = 100.0f;
+    r.world.frontDeadMm = 140.0f;
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_TRUE(r.sc.blocked);
+    TEST_ASSERT_TRUE(r.sim.distMm < 3.0f);
+}
+
+static void test_a_move_waits_for_its_first_echo_then_goes()
+{
+    Rig r;
+    r.world.echoFromTick = 15; // the sensor answers 150 ms late
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 14; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.sim.distMm < 0.5f); // held
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_FALSE(r.sc.blocked);
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 250.0f, r.sim.distMm);
+}
+
+static void test_a_dead_front_sensor_blocks_unless_waiting_is_turned_off()
+{
+    Rig r;
+    r.world.echoFromTick = 100000;
+    r.p.blindMs = 0;
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_FALSE(r.sc.blocked); // the caller chose to go blind: it does, by odometry
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 250.0f, r.sim.distMm);
+}
+
+// Centred between both walls the bias the steer learned is the heading frame's error: handed back.
+static void test_the_learned_bias_is_handed_back_as_a_heading_fix()
+{
+    Rig r;
+    r.sim.gyroOffsetDeg = 5.0f; // the gyro reads 5 degrees more than the true heading
+    r.sim.headingDeg = 5.0f;
+    r.p.pitchMm = 3000.0f;
+    r.begin();
+    float taken = 0.0f;
+    for (int i = 0; i < 1500; ++i) {
+        r.tick();
+        const float fix = stepCellTakeHeadingFix(r.sc);
+        r.sim.headingDeg -= fix;
+        r.sim.gyroOffsetDeg -= fix;
+        taken += fix;
+    }
+    TEST_ASSERT_TRUE(taken > 3.0f);
+    TEST_ASSERT_FLOAT_WITHIN(2.0f, 0.0f, r.sim.gyroOffsetDeg);
+    TEST_ASSERT_FLOAT_WITHIN(6.0f, 0.0f, r.sim.yMm);
+}
+
+static void test_one_wall_teaches_the_heading_frame_too()
+{
+    Rig r;
+    r.world.rightWall = false;
+    r.sim.gyroOffsetDeg = 5.0f;
+    r.sim.headingDeg = 5.0f;
+    r.p.pitchMm = 3000.0f;
+    r.begin();
+    for (int i = 0; i < 1500; ++i) {
+        r.tick();
+        const float fix = stepCellTakeHeadingFix(r.sc);
+        r.sim.headingDeg -= fix;
+        r.sim.gyroOffsetDeg -= fix;
+    }
+    TEST_ASSERT_FLOAT_WITHIN(2.0f, 0.0f, r.sim.gyroOffsetDeg);
+}
+
+static void test_no_wall_teaches_nothing()
+{
+    Rig r;
+    r.world.leftWall = false;
+    r.world.rightWall = false;
+    r.sim.gyroOffsetDeg = 5.0f;
+    r.sim.headingDeg = 5.0f;
+    r.p.pitchMm = 3000.0f;
+    r.begin();
+    float taken = 0.0f;
+    for (int i = 0; i < 1500; ++i) {
+        r.tick();
+        taken += stepCellTakeHeadingFix(r.sc);
+    }
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, taken);
+}
+
+static void test_a_frame_error_too_big_to_be_the_gyro_is_left_alone()
+{
+    Rig r;
+    r.sim.gyroOffsetDeg = 9.0f; // over snapMaxDeg: the corridor is not square to the grid
+    r.sim.headingDeg = 9.0f;
+    r.p.pitchMm = 3000.0f;
+    r.begin();
+    float taken = 0.0f;
+    for (int i = 0; i < 1500; ++i) {
+        r.tick();
+        taken += stepCellTakeHeadingFix(r.sc);
+    }
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, taken);
+}
+
+static void test_cells_covered_and_the_remaining_distance_come_from_the_odometer()
+{
+    Rig r;
+    r.begin();
+    r.sim.distMm = 100.0f;
+    TEST_ASSERT_EQUAL(0, stepCellCells(r.sc, r.p, r.sim.feedback()));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 150.0f, stepCellRemainingMm(r.sc, r.sim.feedback()));
+    r.sim.distMm = 130.0f;
+    TEST_ASSERT_EQUAL(1, stepCellCells(r.sc, r.p, r.sim.feedback()));
+    stepCellContinue(r.sc, r.p);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 370.0f, stepCellRemainingMm(r.sc, r.sim.feedback()));
+    r.sim.distMm = -130.0f; // backwards counts too
+    TEST_ASSERT_EQUAL(-1, stepCellCells(r.sc, r.p, r.sim.feedback()));
+}
+
+static void test_a_blocked_move_can_resume_to_its_planned_centre()
+{
+    Rig r;
+    r.begin();
+    r.sim.distMm = 100.0f; // stopped short by a stray pair of echoes
+    stepCellResume(r.sc, r.p, r.sim.feedback(), 0.0f);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 250.0f, r.sc.straight.targetMm);
+    TEST_ASSERT_FALSE(r.sc.blocked);
+    r.sim.distMm = 249.0f;
+    TEST_ASSERT_EQUAL(1,
+                      stepCellCells(r.sc, r.p, r.sim.feedback())); // counted from the first begin
+}
+
 static void test_a_move_that_cannot_start_is_stuck()
 {
     Rig r;
@@ -506,6 +681,16 @@ int main()
     RUN_TEST(test_continue_clears_the_cell_it_leaves);
     RUN_TEST(test_the_params_default_to_the_spec);
     RUN_TEST(test_a_wall_the_verdict_missed_is_stopped_for_at_the_stop_point);
+    RUN_TEST(test_a_wall_is_still_stopped_for_when_the_sensor_goes_silent);
+    RUN_TEST(test_a_move_that_begins_in_the_dead_zone_does_not_drive_into_the_wall);
+    RUN_TEST(test_a_move_waits_for_its_first_echo_then_goes);
+    RUN_TEST(test_a_dead_front_sensor_blocks_unless_waiting_is_turned_off);
+    RUN_TEST(test_the_learned_bias_is_handed_back_as_a_heading_fix);
+    RUN_TEST(test_one_wall_teaches_the_heading_frame_too);
+    RUN_TEST(test_no_wall_teaches_nothing);
+    RUN_TEST(test_a_frame_error_too_big_to_be_the_gyro_is_left_alone);
+    RUN_TEST(test_cells_covered_and_the_remaining_distance_come_from_the_odometer);
+    RUN_TEST(test_a_blocked_move_can_resume_to_its_planned_centre);
     RUN_TEST(test_a_move_that_cannot_start_is_stuck);
     return UNITY_END();
 }
