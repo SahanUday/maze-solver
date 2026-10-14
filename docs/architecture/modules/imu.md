@@ -117,12 +117,20 @@ gyro Z carries it (`IMU_GYRO_AXIS_YAW` = 2). Lifting the nose about 26 deg moves
 (`IMU_ACCEL_AXIS_FORWARD` = 1, `IMU_ACCEL_NOSE_UP_NEGATIVE` = true). The turn was not
 measured against a reference angle, so this fixes the sign, not the gyro scale.
 
+Accelerometer, level (2026-10-14): 30 s still in each of two orientations 180 deg apart.
+|g| is 17152 counts in both (1.047 x 16384), so this unit's sensitivity reads about 4.7% high
+(the datasheet tolerance was not checked here). The part of X and Y that stays with the robot
+is X +57 and Y +245 counts, about 0.8 deg, and the surface contributed up to +-210 counts of
+Y; `IMU_ACCEL_ONE_G_COUNTS` and `IMU_ACCEL_FORWARD_LEVEL_COUNTS` record them. A mount tilt of
+that size couples about 1.5% of a pitch or roll rate into the yaw axis. Tables:
+[docs/calibration/gyro-and-accelerometer-compact-chassis.md](../../calibration/gyro-and-accelerometer-compact-chassis.md).
+
 **Everything else about the device is unverified**: that the configuration takes,
 that the counts mean what the scales say. The ~0.4 ms read time is derived from
 the bit count at 400 kHz, not measured.
 
 Still to check, in roughly this order: that 400 kHz is reliable over the real harness length (fall back to 100 kHz if
-not); the actual read duration; the gyro bias magnitude and how far it moves as
-the chip warms up; vibration amplitude at the real mount with the motors
-running; and whether clearing the internal pull-ups is enough or the bus needs
-level shifting.
+not); the actual read duration; vibration amplitude at the real mount with the motors
+running; the accelerometer's offset against temperature and with all six faces
+(sensor offset against mount tilt); and whether clearing the internal pull-ups is
+enough or the bus needs level shifting.
