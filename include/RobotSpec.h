@@ -234,6 +234,31 @@ constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of ya
 // all arrived (90 deg within 3 deg, 180 deg within 4.4 deg).
 constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 
+// ---- Steering gains ----------------------------------------- [PARTIAL] --
+// Wall centring turns a lateral error (mm) into a heading offset (deg). Tune P first, add D if it
+// oscillates.
+// Wall (2026-10-14, tools/probe/motion.cpp). Measured twice. With KI_TURN 8, KP_WALL 0.3-0.7 looked
+// stable over 450 mm. With KI_TURN 60 (needed to finish turns) and the ultrasonics' 60 ms refresh,
+// 0.2 and 0.4 swung the heading by 17-19 deg peak to peak (the zig-zag, and a wall hit in the
+// maze); 0.1 held it within 1.6 deg of its reference and the robot within about +-10 mm of the
+// centre of the corridor. KD_WALL is not used.
+constexpr float KP_WALL = 0.1f;
+constexpr float KD_WALL = 0.0f;
+constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset either loop may command
+
+// ---- Wall sensing ------------------------------------------- [MEASURED] --
+// Distances are the offset-corrected readings in RobotState, so the reference point of each is
+// whatever US_OFFSET_* made it: the axle for the front, the centreline for the sides.
+// Side: a wall reads 117 +-30 mm; through a gap in the wall it read 396-418 mm (a few echoes
+// 763-784), never "no echo". 250 sits between them. Front: the wall that ends the cell is 117 mm
+// ahead of the axle at the centre, 167-197 mm at the sample point, and the next wall is 350+ mm;
+// the reading is good to ~3 mm up to 300 mm and falls up to 6% short beyond that (the beam is wider
+// than the corridor), so 260 is well inside the accurate range. The corridor measured 231-235 mm
+// (left + right readings of a centred robot).
+constexpr uint16_t WALL_PRESENT_SIDE_MM = 250;  // side reading below this = wall
+constexpr uint16_t WALL_PRESENT_FRONT_MM = 260; // front reading below this = wall (at the sample)
+constexpr uint16_t WALL_CENTER_DIST_MM = 117; // side reading when centred, used with one wall only
+
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // Turns: with KI_TURN 60 the wheels are pushed through the sticking zone, so the tolerance can be
 // tight. At 6 deg a turn stopped as soon as it was inside the band, 2-4.5 deg short every time
