@@ -96,9 +96,16 @@ at the low end.
 Nothing calls `gyroYawRateDps()`, `headingSet()` or `headingWrapDeg()` from the
 firmware yet; `main.cpp` calls only the bias functions and `headingUpdate()`.
 
-Still to check: the real bias magnitude and its warm-up drift,
-how much heading is actually lost over `RUN_LIMIT_MS`, and the per-tick cost of
-the float arithmetic on the Mega. The two mechanisms meant to bound the residual
-drift - re-zeroing the bias when the robot is known stationary, and snapping to
-the maze's 90 deg grid against wall readings - are **not built**; neither has a
-trigger yet.
+Measured at rest on the compact chassis (2026-10-14, motors off): the zero is about 15
+counts (0.23 deg/s) and the heading wandered +2.4 deg in 10 min with the chip warm and
++4.8 deg just after power-on, from a bias that moved 0.5 to 0.8 counts (0.008 to
+0.012 deg/s). A fixed warm-up wait would not have helped, and capturing the zero again at
+START made the 8-minute error smaller in 2 of 4 cases and larger in the other 2, so
+neither is built. The gyro scale reproduces closed hand laps to 1.001 to 1.002
+(+-0.002). Tables:
+[docs/calibration/gyro-and-accelerometer-compact-chassis.md](../../calibration/gyro-and-accelerometer-compact-chassis.md).
+
+Still to check: how much heading is actually lost over `RUN_LIMIT_MS` with the motors
+running (these were all bench runs), and the per-tick cost of the float arithmetic on the
+Mega. Snapping to the maze's 90 deg grid against wall readings - the mechanism meant to
+bound the residual drift - is **not built**; it has no trigger yet.
