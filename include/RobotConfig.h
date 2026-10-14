@@ -79,8 +79,8 @@ constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // Physical switches - no reprogramming allowed between trials.
-constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
-constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW
+constexpr uint8_t PIN_BTN_START = 48;            // PULLUP: pressed = LOW
+constexpr uint8_t PIN_DIP[4] = {40, 42, 44, 46}; // PULLUP: on = LOW
 constexpr uint8_t PIN_POT = A8;                  // read once at boot
 
 // ---- Indicators --------------------------------------------- [PROPOSED] --
