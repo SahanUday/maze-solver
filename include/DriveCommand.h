@@ -1,10 +1,6 @@
 // ============================================================================
-//  DriveCommand.h  --  what the algorithm layer asks of the drivetrain.
-//
-//  The output counterpart of RobotState: runAlgorithm() returns one per tick and
-//  only main.cpp turns it into motorSet() / motorsEnable() calls, so everything
-//  above the HAL stays testable on the host. Duties are signed timer counts, the
-//  unit motorSet() takes.
+//  DriveCommand.h  --  what the algorithm layer asks of the drivetrain, one per tick.
+//  Duties are signed timer counts, the unit motorSet() takes.
 // ============================================================================
 
 #pragma once

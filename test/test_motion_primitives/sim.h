@@ -1,5 +1,5 @@
-// Tiny differential-drive plant for closed-loop tests of the motion stack: duty in, a first-order
-// lagged wheel speed out, integrated into the same quantities Perception reports.
+// Differential-drive plant for closed-loop motion tests: duty in, first-order lagged wheel speed
+// out, integrated into MotionFeedback.
 #pragma once
 
 #include <math.h>
@@ -65,6 +65,8 @@ inline PlanParams simPlanParams()
     p.stepToleranceMm = 2.0f;
     p.turnToleranceDeg = 2.0f;
     p.turnSettleMs = 30;
-    p.moveTimeoutMs = 4000;
+    p.progressMinMm = 2.0f;
+    p.progressMinDeg = 1.0f;
+    p.patienceMs = 1000;
     return p;
 }

@@ -65,6 +65,8 @@ inline PlanParams simPlanParams()
     p.stepToleranceMm = 2.0f;
     p.turnToleranceDeg = 2.0f;
     p.turnSettleMs = 30;
-    p.moveTimeoutMs = 4000;
+    p.progressMinMm = 2.0f;
+    p.progressMinDeg = 1.0f;
+    p.patienceMs = 1000;
     return p;
 }

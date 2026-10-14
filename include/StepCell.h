@@ -55,7 +55,7 @@ struct StepCell {
     bool haveFront = false;
     // The anchored stop position, smoothed over the readings. The front reading jitters by +-4 mm
     // (110 and 119 alternated at a dead end on the robot); retargeting to each one kept the
-    // profile restarting, so the move never settled and timed out.
+    // profile restarting, so the move never settled.
     float anchorMm = 0.0f;
     bool haveAnchor = false;
 };

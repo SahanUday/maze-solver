@@ -36,7 +36,7 @@ chase the robot and hunt back and forth (found by the mission simulation, not by
 The anchored stop position is then **smoothed** (`STEP_ANCHOR_FILTER`, applied once per new reading, to the
 position and not to the reading, so it adds no lag while the robot approaches). On the robot the front reading
 alternated 110 and 119 mm at a dead end; retargeting to each one restarted the profile every few readings, the
-move never settled inside the stop tolerance, and it timed out.
+move never settled inside the stop tolerance.
 
 ## Invariants
 

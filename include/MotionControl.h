@@ -1,13 +1,10 @@
 // ============================================================================
-//  MotionControl.h  --  turns a MotionTarget into left/right duty. No hardware,
+//  MotionControl.h  --  MotionTarget + MotionFeedback to left/right duty. No hardware,
 //  no Arduino.h - testable under env:native.
 //
-//  Two channels, mixed:
-//    linear   position PID on the odometer + speed feedforward
-//    angular  heading PID on the GYRO       + rate feedforward
-//  left = linear - angular, right = linear + angular (CCW positive, so a CCW turn
-//  speeds the right wheel). The gyro, not the encoders, closes the angular loop,
-//  so turns do not depend on the measured track width.
+//    linear   PID on the odometer + speed feedforward
+//    angular  PID on the gyro heading (not the encoders) + yaw-rate feedforward
+//  left = linear - angular, right = (linear + angular) * ffScaleR; CCW positive.
 //  docs/architecture/modules/motion_control.md
 // ============================================================================
 
@@ -18,27 +15,23 @@
 #include "Heading.h"
 #include "MotionTypes.h"
 
+// Gains are duty counts per mm, deg, mm/s or deg/s (P, D) and per mm*s or deg*s (I).
 struct MotionControlParams {
     float kpDist = 0.0f;
     float kiDist = 0.0f;
-    float kdDist = 0.0f; // acts on the speed error
+    float kdDist = 0.0f; // on the speed error
     float kpTurn = 0.0f;
-    float kiTurn =
-        0.0f; // heading integral while turning in place: it has to break the wheels loose
-    float kdTurn = 0.0f; // acts on the yaw-rate error
-    // Heading integral while driving (not pivoting). Negative = same as kiTurn. A turn-sized
-    // integral on a straight rings: it is what the zig-zag was.
-    float kiHold = -1.0f;
-    // The right wheel needs more duty than the left for the same speed on the floor (~20%): its
-    // whole command is multiplied by this, so the integral has nothing constant left to supply.
-    float ffScaleR = 1.0f;
+    float kiTurn = 0.0f;   // heading integral while pivoting
+    float kdTurn = 0.0f;   // on the yaw-rate error
+    float kiHold = -1.0f;  // heading integral while driving; negative = kiTurn
+    float ffScaleR = 1.0f; // multiplies the whole right command
     float ffPwmPerMmS = 0.0f;
     float ffPwmPerDps = 0.0f;
-    uint16_t minPwmL = 0; // duty that just starts the wheel; 0 = none
+    uint16_t minPwmL = 0; // non-zero commands are lifted to this duty; 0 = no lift
     uint16_t minPwmR = 0;
     uint16_t pwmTop = 0;
-    // Stall: duty at or above stallDuty with the robot neither translating nor rotating for
-    // stallTimeMs. Either of those two at 0 turns it off.
+    // Stall: duty >= stallDuty with speed and yaw rate under their minimums for stallTimeMs.
+    // stallDuty or stallTimeMs at 0 disables it.
     uint16_t stallDuty = 0;
     uint16_t stallTimeMs = 0;
     float stallMinSpeedMmS = 0.0f;
@@ -57,7 +50,7 @@ struct MotionOutput {
     int16_t right = 0;
 };
 
-// An integral term may contribute at most this much duty, so a long stall cannot wind it up.
+// Most duty one integral term may contribute (anti-windup).
 constexpr float MOTION_INTEGRAL_MAX_DUTY = 200.0f;
 
 inline void motionControlReset(MotionControl &mc)
@@ -65,9 +58,8 @@ inline void motionControlReset(MotionControl &mc)
     mc = MotionControl{};
 }
 
-// A new move starts from a clean slate: the heading integral wound up at the end of a turn (to
-// break the wheels loose) must not carry into the straight that follows, where it shows up as a
-// zig-zag. The stall latch is left alone.
+// Forget both integrals, keep the stall latch. motionControlStep() calls it on a new move, so one
+// move's wound-up integral does not carry into the next, under a different gain.
 inline void motionControlClearIntegrals(MotionControl &mc)
 {
     mc.distIntegral = 0.0f;
@@ -97,8 +89,8 @@ inline void accumulate(float &integral, float err, float dtS, float gain)
     integral = clampSymmetric(integral + err * dtS, MOTION_INTEGRAL_MAX_DUTY / gain);
 }
 
-// Duty command -> signed counts: a non-zero command is lifted past the wheel's start-up
-// threshold, and the result is clamped to the timer's TOP.
+// Duty command -> signed timer counts: non-zero commands are rescaled onto [minPwm, top];
+// |cmd| < 0.5 is 0.
 inline int16_t toDuty(float cmd, uint16_t minPwm, uint16_t top)
 {
     if (top == 0 || absf(cmd) < 0.5f) {
@@ -118,6 +110,9 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
                                       uint16_t dtMs)
 {
     using namespace motion_detail;
+    if (target.newMove) {
+        motionControlClearIntegrals(mc);
+    }
     const float dtS = static_cast<float>(dtMs) / 1000.0f;
 
     const float distErr = target.distRefMm - fb.distMm;
@@ -136,7 +131,7 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
     out.left = toDuty(linear - angular, p.minPwmL, p.pwmTop);
     out.right = toDuty((linear + angular) * p.ffScaleR, p.minPwmR, p.pwmTop);
 
-    // Stall: the motors are being pushed hard and nothing moves.
+    // Stall: pushing hard, not moving.
     if (p.stallDuty > 0 && p.stallTimeMs > 0) {
         const int16_t l = out.left < 0 ? static_cast<int16_t>(-out.left) : out.left;
         const int16_t r = out.right < 0 ? static_cast<int16_t>(-out.right) : out.right;

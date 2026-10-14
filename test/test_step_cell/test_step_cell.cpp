@@ -34,7 +34,7 @@ struct Rig {
     Rig()
     {
         p.plan = simPlanParams();
-        p.plan.moveTimeoutMs = 5000;
+        p.plan.patienceMs = 5000;
         p.wall.sideMm = 200;
         p.wall.frontMm = 280;
         p.wall.centerDistMm = 120;
@@ -323,17 +323,17 @@ static void test_vote_counters_saturate()
     TEST_ASSERT_EQUAL_UINT8(255, v[0]);
 }
 
-static void test_stuck_move_times_out()
+static void test_a_move_that_cannot_start_is_stuck()
 {
     Rig r;
     r.p.plan.accelMmS2 = 0.0f;
-    r.p.plan.moveTimeoutMs = 200;
+    r.p.plan.patienceMs = 200;
     r.begin();
     MoveStatus st = MoveStatus::Running;
     for (int i = 0; i < 100 && st == MoveStatus::Running; ++i) {
         st = r.tick();
     }
-    TEST_ASSERT_EQUAL(asInt(MoveStatus::Timeout), asInt(st));
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Stuck), asInt(st));
 }
 
 int main()
@@ -354,6 +354,6 @@ int main()
     RUN_TEST(test_silent_sensors_read_as_walls_and_unreliable);
     RUN_TEST(test_verdict_follows_the_majority);
     RUN_TEST(test_vote_counters_saturate);
-    RUN_TEST(test_stuck_move_times_out);
+    RUN_TEST(test_a_move_that_cannot_start_is_stuck);
     return UNITY_END();
 }

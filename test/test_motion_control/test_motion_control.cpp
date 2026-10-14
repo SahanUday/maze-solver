@@ -317,6 +317,46 @@ static void test_clearing_the_integrals_keeps_the_stall_latch()
     TEST_ASSERT_TRUE(mc.stalled);
 }
 
+static void test_a_new_move_starts_from_zero_integrals()
+{
+    MotionControlParams p = params();
+    p.kiDist = 2.0f;
+    p.kiTurn = 20.0f;
+    p.kiHold = 2.0f;
+    MotionControl mc;
+    mc.distIntegral = 10.0f; // wound up by the last move
+    mc.turnIntegral = 1.0f;
+    MotionTarget t;
+    t.newMove = true;
+    const MotionOutput o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(0, o.left);
+    TEST_ASSERT_EQUAL_INT16(0, o.right);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, mc.distIntegral);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, mc.turnIntegral);
+}
+
+static void test_a_move_in_progress_keeps_its_integrals()
+{
+    MotionControlParams p = params();
+    p.kiDist = 2.0f;
+    MotionControl mc;
+    mc.distIntegral = 10.0f;
+    const MotionOutput o = motionControlStep(mc, p, MotionTarget{}, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(20, o.left); // kiDist * integral
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, mc.distIntegral);
+}
+
+static void test_a_new_move_keeps_the_stall_latch()
+{
+    MotionControlParams p = params();
+    MotionControl mc;
+    mc.stalled = true;
+    MotionTarget t;
+    t.newMove = true;
+    motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_TRUE(mc.stalled);
+}
+
 // The heading integral has its own gain while driving: the turn-sized one rings on a straight.
 static float heldAngular(const MotionControlParams &p, bool pivot)
 {
@@ -390,5 +430,8 @@ int main()
     RUN_TEST(test_a_brief_stop_resets_the_stall_timer);
     RUN_TEST(test_stall_protection_is_off_by_default);
     RUN_TEST(test_reset_clears_a_latched_stall);
+    RUN_TEST(test_a_new_move_starts_from_zero_integrals);
+    RUN_TEST(test_a_move_in_progress_keeps_its_integrals);
+    RUN_TEST(test_a_new_move_keeps_the_stall_latch);
     return UNITY_END();
 }
