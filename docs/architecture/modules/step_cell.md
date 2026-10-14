@@ -41,7 +41,9 @@ move never settled inside the stop tolerance.
 ## Invariants
 
 - `wallsReady` rises once per cell and is cleared by `stepCellContinue()`.
-- Steering is by trim on the gyro-held heading, so with no wall in view it just holds heading.
+- Steering is by trim on the gyro-held heading, so with no wall in view it just holds heading. The
+  `WallSteer` keeps what it learned across `stepCellBegin()` and drops it by itself when the heading
+  moves 20 degrees (a turn); a caller that snaps the heading to the grid calls `wallSteerReset()`.
 - `frontStopMm == 0` disables anchoring.
 
 ## Status

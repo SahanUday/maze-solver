@@ -147,19 +147,34 @@ static_assert(static_cast<uint32_t>(IMU_ACCEL_ONE_G_COUNTS) * 10 >
                       static_cast<uint32_t>(ACCEL_COUNTS_PER_G) * 11,
               "measured 1 g should be within 10% of the nominal scale");
 
+// ---- Incline level capture ---------------------------------- [FROM TESTS] --
+// Tilt.h averages the forward-axis reading at boot. A still capture scattered 16-25 counts (std)
+// on the bench, a range of about 150 over 1000 samples; one taken while the robot is carried or
+// tilted by hand spreads far wider. Not yet checked with the motors running.
+constexpr uint16_t INCLINE_LEVEL_MIN_SAMPLES = 50;
+constexpr uint16_t INCLINE_LEVEL_MAX_RANGE_COUNTS = 600; // about 2 deg; 4x a still capture
+
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
-// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
-// +-1 count).
+// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable.
 constexpr uint16_t ADC_FULL_SCALE_COUNTS = 1023;
-constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 10;
+constexpr uint16_t ADC_NOISE_COUNTS = 1; // +-1 count, one sigma
+constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 30;
 
 // Normalized 0 (white) .. 255 (black): a channel turns black above ON and white below OFF.
 constexpr uint8_t LINE_MASK_ON_PCT = 60;
 constexpr uint8_t LINE_MASK_OFF_PCT = 40;
+// The hysteresis band of the narrowest accepted channel must be at least 6 sigma wide, or its mask
+// flickers where the line edge passes: host model, reading at the middle of the range, 1000 ticks
+// of 8 channels: a span of 20 flipped 604 times, 25 151 times, 29 twice, 36 never.
+static_assert(static_cast<uint32_t>(LINE_CAL_MIN_SPAN_COUNTS) *
+                      (LINE_MASK_ON_PCT - LINE_MASK_OFF_PCT) / 100 >=
+                  6u * ADC_NOISE_COUNTS,
+              "LINE_CAL_MIN_SPAN_COUNTS is too small for the hysteresis band against ADC noise");
 
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
 // Sensor face to floor at the final mount; the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
+constexpr float IR_SENSOR_PITCH_MM = 0.0f; // channel to channel; 0 = LineView::errMm reads 0
 
 // ---- Ultrasonic sensing ------------------------------------------------ --
 // HC-SR04 x3, round-robin. See decisions/0007-*.md.
@@ -232,30 +247,36 @@ constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of ya
 constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 
 // ---- Steering gains ----------------------------------------- [PARTIAL] --
-// Wall centring turns a lateral error (mm) into a heading offset (deg). Tune P first, add D if it
-// oscillates.
-// Wall (2026-10-14, tools/probe/motion.cpp). Measured twice. With KI_TURN 8, KP_WALL 0.3-0.7 looked
-// stable over 450 mm. With KI_TURN 60 (needed to finish turns) and the ultrasonics' 60 ms refresh,
-// 0.2 and 0.4 swung the heading by 17-19 deg peak to peak (the zig-zag, and a wall hit in the
-// maze); 0.1 held it within 1.6 deg of its reference and the robot within about +-10 mm of the
-// centre of the corridor. KD_WALL is not used.
-constexpr float KP_WALL = 0.1f;
-constexpr float KD_WALL = 0.0f;
-constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset either loop may command
+// Wall centring: a lateral error (mm) to a heading offset (deg). KP_WALL tuned on the floor,
+// 2026-10-14; KI_WALL and the bias limits from the host model with the measured sensor figures.
+constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
+constexpr float KI_WALL = 0.10f;      // deg per mm per second; learns the heading reference error
+constexpr float STEER_MAX_DEG = 8.0f; // clamp on the whole offset
+// What the integral may learn: a 2 deg turn tolerance plus ~4 deg of gyro drift over a run. It is
+// dropped when the heading moves this far from where it was learned (a turn).
+constexpr float WALL_BIAS_MAX_DEG = 6.0f;
+constexpr float WALL_BIAS_RESET_DEG = 20.0f;
+// With no wall to confirm it the bias is held this long (a gap of a cell or two), then faded out:
+// a bias learned from a bad reading must not steer the robot for ever.
+constexpr uint16_t WALL_BIAS_HOLD_MS = 2000;
+constexpr float WALL_BIAS_FADE_DEG_S = 4.0f;
 
 // ---- Wall sensing ------------------------------------------- [MEASURED] --
-// Distances are the offset-corrected readings in RobotState, so the reference point of each is
-// whatever US_OFFSET_* made it: the axle for the front, the centreline for the sides.
-// Side: a wall reads 117 +-30 mm; through a gap in the wall it read 396-418 mm (a few echoes
-// 763-784), never "no echo". 250 sits between them. Front: the wall that ends the cell is 117 mm
-// ahead of the axle at the centre, 167-197 mm at the sample point, and the next wall is 350+ mm;
-// the reading is good to ~3 mm up to 300 mm and falls up to 6% short beyond that (the beam is wider
-// than the corridor), so 260 is well inside the accurate range. The corridor measured 231-235 mm
-// (left + right readings of a centred robot).
+// Readings are the offset-corrected values in RobotState: the front from the axle, the sides from
+// the centreline. A wall reads 117 +-30 mm at the side and a gap 396 mm or more, never "no echo".
+// The front reads true to ~3 mm up to 300 mm and up to 6% short beyond; the wall that ends the
+// cell is 167-197 mm ahead of the axle at the sample point and the next one 350+ mm. Corridor
+// 231-235 mm (left + right of a centred robot).
 constexpr uint16_t WALL_PRESENT_SIDE_MM = 250;  // side reading below this = wall
 constexpr uint16_t WALL_PRESENT_FRONT_MM = 260; // front reading below this = wall (at the sample)
-constexpr uint16_t WALL_CENTER_DIST_MM = 117; // side reading when centred, used with one wall only
-constexpr uint16_t FRONT_STOP_MM = 117;       // front reading when stopped at a cell centre
+constexpr uint16_t WALL_CENTER_DIST_MM = 117;   // side reading when centred; one wall only
+// Both walls: |left + right - 2 * centre| above this means one reading is wrong (a corridor
+// measured 231-235 mm; two readings at 3 mm noise). No centring then; the gyro holds the heading.
+constexpr uint16_t WALL_PAIR_TOL_MM = 30;
+// A side sensor whose reading does not change at all for this long is frozen, not a flat wall
+// (the real reading scatters by ~3 mm), so its valid bit is dropped.
+constexpr uint16_t WALL_FROZEN_MS = 400;
+constexpr uint16_t FRONT_STOP_MM = 117; // front reading when stopped at a cell centre
 // Braking from SEARCH_SPEED_MM_S at ACCEL_MM_S2 takes v^2 / 2a = 22 mm, so the decision point is
 // 50 mm out; at 150 mm/s each sensor updates every 60 ms (9 mm), so 30 mm holds about 3 echoes.
 constexpr uint16_t WALL_SAMPLE_LEAD_MM = 50;   // walls are sampled this far before the cell centre

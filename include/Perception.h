@@ -1,11 +1,9 @@
 // ============================================================================
-//  Perception.h  --  RobotState in, what the control layer acts on out. No
-//  hardware, no Arduino.h - testable under env:native.
+//  Perception.h  --  RobotState in, one derived Perception out per tick. No hardware, no
+//  Arduino.h - testable under env:native.
 //
-//  RobotState is raw: counts, deg, mm, ADC counts. The control layer wants
-//  distance travelled, a yaw RATE, which walls exist and where the line is, so
-//  this derives them once per tick and hands over one struct. RobotState itself is
-//  never written here - drivers own it.
+//  RobotState is raw (counts, deg, mm); this derives distance, walls, the line and the incline,
+//  and passes the yaw rate through. It never writes RobotState.
 //  docs/architecture/modules/perception.md
 // ============================================================================
 
@@ -13,61 +11,78 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
 #include "LineSense.h"
 #include "LineView.h"
 #include "MotionTypes.h"
 #include "Odometry.h"
+#include "RobotSpec.h"
 #include "RobotState.h"
 #include "Tilt.h"
 #include "WallSense.h"
 
 struct Perception {
     MotionFeedback motion;
-    float tiltDeg = 0.0f;
+    int16_t inclineCounts = 0; // nose-up slope in accel counts; see Tilt.h
     WallView walls;
+    // How long neither side sensor has given a usable reading (no echo, or frozen). An open side
+    // reads far and is valid; this is a sensor failure, for the mission to act on.
+    uint16_t sideBlindMs = 0;
     LineView line;
     bool startPressed = false;
 };
 
+// The defaults are the values in RobotSpec.h.
 struct PerceiveParams {
-    float mmPerCount = 0.0f;
-    uint16_t dtMs = 10;
+    float mmPerCount = MM_PER_ENCODER_COUNT;
+    uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
+    uint16_t frozenMs = WALL_FROZEN_MS; // an unchanging side reading this long is a frozen sensor
     WallParams wall;
-    float irPitchMm = 0.0f;
+    float irPitchMm = IR_SENSOR_PITCH_MM;
 };
 
 struct Perceiver {
     Odometry odo;
-    float lastHeadingDeg = 0.0f;
-    bool headingPrimed = false;
-    float yawRateDps = 0.0f;
+    int16_t levelCounts = IMU_ACCEL_FORWARD_LEVEL_COUNTS; // forward-axis reading on level ground
+    uint16_t sideLastMm[2] = {0, 0}; // left, right: last reading and how long it has not changed
+    uint16_t sideSameMs[2] = {0, 0};
+    uint16_t sideBlindMs = 0;
     LineCalibration cal{};
     uint8_t usable = 0; // channels the calibration accepted
     uint8_t mask = 0;   // black channels, with hysteresis
     uint8_t norm[IR_CHANNEL_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
 };
 
-// Weight of the newest yaw-rate sample; the gyro is integrated into a heading at 100 Hz, so its
-// difference is noisy at the resolution of one tick.
-constexpr float YAW_RATE_FILTER = 0.5f;
-
 inline void perceiverReset(Perceiver &pc)
 {
     pc = Perceiver{};
 }
 
-// Install a calibration (from the store, or just taken) and work out which channels it accepts.
+// Install the level reading captured at boot (InclineLevel::counts).
+inline void perceiverSetLevel(Perceiver &pc, int16_t levelCounts)
+{
+    pc.levelCounts = levelCounts;
+}
+
+// Install a calibration and work out which channels it accepts.
 inline void perceiverSetCalibration(Perceiver &pc, const LineCalibration &cal)
 {
     pc.cal = cal;
-    pc.usable = 0;
-    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-        if (cal.scale[ch] != 0) {
-            pc.usable = static_cast<uint8_t>(pc.usable | (1u << ch));
-        }
-    }
+    pc.usable = lineCalibrationUsable(cal);
     pc.mask = 0;
+}
+
+// True once a valid reading has not changed at all for `frozenMs`: a real reading scatters by a few
+// mm, so a sensor repeating one value is stuck. Counts through the frozen stretch.
+inline bool sideFrozen(uint16_t &lastMm, uint16_t &sameMs, bool valid, uint16_t mm, uint16_t dtMs,
+                       uint16_t frozenMs)
+{
+    if (!valid || mm != lastMm) {
+        lastMm = mm;
+        sameMs = 0;
+        return false;
+    }
+    sameMs = sameMs > UINT16_MAX - dtMs ? UINT16_MAX : static_cast<uint16_t>(sameMs + dtMs);
+    return sameMs >= frozenMs;
 }
 
 inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParams &p,
@@ -75,20 +90,28 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
 {
     odometryUpdate(pc.odo, state.encoderCountL, state.encoderCountR, p.mmPerCount, p.dtMs);
 
-    if (pc.headingPrimed && p.dtMs > 0) {
-        const float raw = headingWrapDeg(state.headingDeg - pc.lastHeadingDeg) * 1000.0f /
-                          static_cast<float>(p.dtMs);
-        pc.yawRateDps += YAW_RATE_FILTER * (raw - pc.yawRateDps);
-    }
-    pc.lastHeadingDeg = state.headingDeg;
-    pc.headingPrimed = true;
-
     out.motion.distMm = pc.odo.distMm;
     out.motion.speedMmS = pc.odo.speedMmS;
     out.motion.headingDeg = state.headingDeg;
-    out.motion.yawRateDps = pc.yawRateDps;
-    out.tiltDeg = tiltDeg(state.imu);
+    out.motion.yawRateDps = state.yawRateDps;
+    out.inclineCounts = inclineCounts(state.imu, pc.levelCounts);
     out.walls = wallView(state, p.wall);
+    if (sideFrozen(pc.sideLastMm[0], pc.sideSameMs[0], out.walls.leftValid, out.walls.leftMm,
+                   p.dtMs, p.frozenMs)) {
+        out.walls.leftValid = false;
+        out.walls.left = false;
+    }
+    if (sideFrozen(pc.sideLastMm[1], pc.sideSameMs[1], out.walls.rightValid, out.walls.rightMm,
+                   p.dtMs, p.frozenMs)) {
+        out.walls.rightValid = false;
+        out.walls.right = false;
+    }
+    const bool blind = !out.walls.leftValid && !out.walls.rightValid;
+    pc.sideBlindMs = !blind ? 0
+                            : (pc.sideBlindMs > UINT16_MAX - p.dtMs
+                                   ? UINT16_MAX
+                                   : static_cast<uint16_t>(pc.sideBlindMs + p.dtMs));
+    out.sideBlindMs = pc.sideBlindMs;
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);
     pc.mask = lineMaskUpdate(pc.norm, pc.mask);

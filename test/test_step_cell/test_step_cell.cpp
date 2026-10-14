@@ -323,6 +323,31 @@ static void test_vote_counters_saturate()
     TEST_ASSERT_EQUAL_UINT8(255, v[0]);
 }
 
+static void test_the_wall_bias_survives_into_the_next_cell()
+{
+    // Stop-and-go through a straight corridor: what the steer learned in one cell still holds in
+    // the next, because the heading reference has not changed.
+    Rig r;
+    r.sc.steer.biasDeg = 2.0f;
+    r.sc.steer.anchored = true;
+    r.sc.steer.anchorDeg = 0.0f;
+    r.begin();
+    r.tick();
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 2.0f, r.sc.steer.biasDeg);
+}
+
+static void test_a_turn_before_the_cell_drops_the_wall_bias()
+{
+    Rig r;
+    r.sc.steer.biasDeg = 2.0f;
+    r.sc.steer.anchored = true;
+    r.sc.steer.anchorDeg = 0.0f;
+    r.sim.headingDeg = 90.0f; // a quarter turn has just ended
+    r.begin(90.0f);
+    r.tick();
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 0.0f, r.sc.steer.biasDeg);
+}
+
 static void test_a_move_that_cannot_start_is_stuck()
 {
     Rig r;
@@ -354,6 +379,8 @@ int main()
     RUN_TEST(test_silent_sensors_read_as_walls_and_unreliable);
     RUN_TEST(test_verdict_follows_the_majority);
     RUN_TEST(test_vote_counters_saturate);
+    RUN_TEST(test_the_wall_bias_survives_into_the_next_cell);
+    RUN_TEST(test_a_turn_before_the_cell_drops_the_wall_bias);
     RUN_TEST(test_a_move_that_cannot_start_is_stuck);
     return UNITY_END();
 }

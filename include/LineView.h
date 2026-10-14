@@ -1,9 +1,9 @@
 // ============================================================================
-//  LineView.h  --  one sweep of the IR array: where is the line. No hardware, no
-//  Arduino.h - testable under env:native.
+//  LineView.h  --  one sweep of the IR array to where the line is. No hardware, no Arduino.h -
+//  testable under env:native.
 //
-//  The maze floor is BLACK, so "every channel black" is the normal state. On the
-//  white bridge tiles the line is the black part and the rest is white.
+//  The maze floor is black, so "all black" is the normal state; on bridge tiles the line is the
+//  black part.
 //  docs/architecture/modules/line_view.md
 // ============================================================================
 
@@ -14,11 +14,12 @@
 #include "RobotSpec.h"
 
 struct LineView {
-    bool allBlack = false; // every usable channel black: bare maze floor (or the array lifted)
-    bool allWhite = false; // no usable channel black: off the line, or a plain white tile
-    bool onLine = false;   // some black and some white
-    // Centroid of the black channels, mm from the array centre, positive to the LEFT (the CCW
-    // side, like heading). Only meaningful when allWhite is false.
+    bool valid = false;    // at least one usable channel; otherwise the three below are all false
+    bool allBlack = false; // every usable channel black: bare floor, or the array lifted
+    bool allWhite = false; // no usable channel black: off the line, or a white tile
+    bool onLine = false;   // some black, some white
+    // Centroid of the black channels, mm from the array centre, positive to the LEFT (CCW, like
+    // heading). Meaningless when allWhite.
     float errMm = 0.0f;
 };
 
@@ -28,9 +29,10 @@ inline LineView lineView(const uint8_t (&norm)[IR_CHANNEL_COUNT], uint8_t mask, 
 {
     LineView v;
     const uint8_t black = static_cast<uint8_t>(mask & usable);
-    v.allBlack = usable != 0 && black == usable;
-    v.allWhite = black == 0;
-    v.onLine = !v.allBlack && !v.allWhite;
+    v.valid = usable != 0;
+    v.allBlack = v.valid && black == usable;
+    v.allWhite = v.valid && black == 0;
+    v.onLine = v.valid && !v.allBlack && !v.allWhite;
 
     float weight = 0.0f;
     float moment = 0.0f;

@@ -2,6 +2,7 @@
 //  test_line_view.cpp  --  lineView(): one sweep of the array to where the line is. No hardware.
 // ============================================================================
 
+#include <initializer_list>
 #include <unity.h>
 
 #include "LineView.h"
@@ -83,11 +84,24 @@ static void test_unusable_channels_are_ignored()
     TEST_ASSERT_TRUE(lineView(t.norm, t.mask, 0b01111111, PITCH).allWhite);
 }
 
-static void test_no_usable_channels_never_reads_as_floor()
+static void test_no_usable_channels_reports_nothing()
 {
-    const Sweep s = sweep(0xFF);
-    const LineView v = lineView(s.norm, s.mask, 0x00, PITCH);
-    TEST_ASSERT_FALSE(v.allBlack);
+    // A missing calibration is not "the floor" and not "a white tile": no data at all.
+    for (uint8_t mask : {0xFF, 0x00, 0x18}) {
+        const Sweep s = sweep(mask);
+        const LineView v = lineView(s.norm, s.mask, 0x00, PITCH);
+        TEST_ASSERT_FALSE(v.valid);
+        TEST_ASSERT_FALSE(v.allBlack);
+        TEST_ASSERT_FALSE(v.allWhite);
+        TEST_ASSERT_FALSE(v.onLine);
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, v.errMm);
+    }
+}
+
+static void test_one_usable_channel_is_enough_to_be_valid()
+{
+    const Sweep s = sweep(0x00);
+    TEST_ASSERT_TRUE(lineView(s.norm, s.mask, 0x01, PITCH).valid);
 }
 
 int main()
@@ -100,6 +114,7 @@ int main()
     RUN_TEST(test_all_black_is_the_floor);
     RUN_TEST(test_all_white);
     RUN_TEST(test_unusable_channels_are_ignored);
-    RUN_TEST(test_no_usable_channels_never_reads_as_floor);
+    RUN_TEST(test_no_usable_channels_reports_nothing);
+    RUN_TEST(test_one_usable_channel_is_enough_to_be_valid);
     return UNITY_END();
 }

@@ -1,6 +1,6 @@
 // ============================================================================
-//  test_perception.cpp  --  perceive(): RobotState in, distance / speed / yaw rate / walls / tilt /
-//  line view out. No hardware needed.
+//  test_perception.cpp  --  perceive(): RobotState in, distance / speed / yaw rate / walls /
+//  incline / line view out. No hardware needed.
 // ============================================================================
 
 #include <unity.h>
@@ -70,28 +70,36 @@ static void test_speed_settles_at_the_true_speed()
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 100.0f, r.out.motion.speedMmS);
 }
 
-static void test_yaw_rate_comes_from_the_heading_change()
+static void test_heading_and_yaw_rate_are_passed_through()
 {
     Rig r;
+    r.s.headingDeg = 42.0f;
+    r.s.yawRateDps = -17.5f;
     r.tick();
-    for (int i = 1; i <= 60; ++i) {
-        r.s.headingDeg = 0.1f * static_cast<float>(i); // 0.1 deg per 10 ms = 10 deg/s
-        r.tick();
-    }
-    TEST_ASSERT_FLOAT_WITHIN(0.2f, 10.0f, r.out.motion.yawRateDps);
-    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 6.0f, r.out.motion.headingDeg);
+    TEST_ASSERT_EQUAL_FLOAT(42.0f, r.out.motion.headingDeg);
+    TEST_ASSERT_EQUAL_FLOAT(-17.5f, r.out.motion.yawRateDps);
 }
 
-static void test_yaw_rate_is_not_fooled_by_the_wrap_at_180()
+static void test_a_heading_snap_is_not_a_yaw_rate()
 {
+    // The mission snaps the heading to the grid; the robot is not turning.
     Rig r;
-    r.s.headingDeg = 179.95f;
+    r.s.headingDeg = 0.0f;
+    r.s.yawRateDps = 0.0f;
     r.tick();
-    for (int i = 0; i < 60; ++i) {
-        r.s.headingDeg = (i % 2 == 0) ? -179.95f : 179.95f; // +-0.1 deg across the wrap, in turn
-        r.tick();
-    }
-    TEST_ASSERT_TRUE(r.out.motion.yawRateDps < 12.0f && r.out.motion.yawRateDps > -12.0f);
+    r.s.headingDeg = 3.0f;
+    r.tick();
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, r.out.motion.yawRateDps);
+    TEST_ASSERT_EQUAL_FLOAT(3.0f, r.out.motion.headingDeg);
+}
+
+static void test_the_defaults_are_the_spec_values()
+{
+    const PerceiveParams d;
+    TEST_ASSERT_EQUAL_FLOAT(MM_PER_ENCODER_COUNT, d.mmPerCount);
+    TEST_ASSERT_EQUAL_UINT16(CONTROL_LOOP_PERIOD_MS, d.dtMs);
+    TEST_ASSERT_EQUAL_FLOAT(IR_SENSOR_PITCH_MM, d.irPitchMm);
+    TEST_ASSERT_EQUAL_UINT16(WALL_PRESENT_SIDE_MM, d.wall.sideMm);
 }
 
 static void test_the_wall_view_uses_the_thresholds()
@@ -119,15 +127,97 @@ static void test_a_silent_sensor_is_neither_wall_nor_open()
     TEST_ASSERT_FALSE(r.out.walls.right);
 }
 
-static void test_tilt_is_the_angle_from_vertical()
+static void test_a_side_sensor_that_never_changes_is_frozen()
 {
     Rig r;
-    r.s.imu.accel[2] = 16384;
+    r.s.usValid = 0x07;
+    r.s.distLeftMm = 100;
+    for (int i = 0; i < WALL_FROZEN_MS / DT_MS + 2; ++i) {
+        r.s.distRightMm = (i & 1) ? 110 : 112; // scatters, like a real reading
+        r.tick();
+    }
+    TEST_ASSERT_FALSE(r.out.walls.leftValid);
+    TEST_ASSERT_FALSE(r.out.walls.left); // not a wall, and not "open" either
+    TEST_ASSERT_TRUE(r.out.walls.rightValid);
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+}
+
+static void test_a_reading_that_scatters_is_not_frozen()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    for (int i = 0; i < 300; ++i) {
+        r.s.distLeftMm = (i & 1) ? 100 : 103;
+        r.s.distRightMm = (i & 1) ? 120 : 117;
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_TRUE(r.out.walls.rightValid);
+}
+
+static void test_a_frozen_sensor_comes_back_when_the_value_moves()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distLeftMm = 100;
+    for (int i = 0; i < WALL_FROZEN_MS / DT_MS + 5; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_FALSE(r.out.walls.leftValid);
+    r.s.distLeftMm = 103;
     r.tick();
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, r.out.tiltDeg);
-    r.s.imu.accel[0] = 16384;
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_TRUE(r.out.walls.left);
+}
+
+static void test_the_blind_time_counts_only_while_no_side_has_a_reading()
+{
+    Rig r;
+    r.s.usValid = 0x01; // front only: both sides silent
+    for (int i = 0; i < 25; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_EQUAL_UINT16(25 * DT_MS, r.out.sideBlindMs);
+    r.s.usValid = 0x03;
+    r.s.distLeftMm = 100;
     r.tick();
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 45.0f, r.out.tiltDeg);
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+}
+
+static void test_an_open_side_is_not_blind()
+{
+    // Far readings that arrive are valid: an opening is information, not a failure.
+    Rig r;
+    r.s.usValid = 0x07;
+    for (int i = 0; i < 100; ++i) {
+        r.s.distLeftMm = static_cast<uint16_t>(400 + (i & 3));
+        r.s.distRightMm = static_cast<uint16_t>(405 + (i & 1));
+        r.tick();
+    }
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_FALSE(r.out.walls.left);
+}
+
+static void test_the_incline_is_the_forward_axis_above_level()
+{
+    Rig r;
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
+    r.tick();
+    TEST_ASSERT_EQUAL_INT16(0, r.out.inclineCounts);
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = static_cast<int16_t>(
+        IMU_ACCEL_FORWARD_LEVEL_COUNTS + (IMU_ACCEL_NOSE_UP_NEGATIVE ? -2400 : 2400));
+    r.tick();
+    TEST_ASSERT_EQUAL_INT16(2400, r.out.inclineCounts);
+}
+
+static void test_a_captured_level_replaces_the_bench_value()
+{
+    Rig r;
+    perceiverSetLevel(r.pc, 1000);
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = 1000;
+    r.tick();
+    TEST_ASSERT_EQUAL_INT16(0, r.out.inclineCounts);
 }
 
 static void test_a_calibration_marks_its_usable_channels()
@@ -141,14 +231,17 @@ static void test_a_calibration_marks_its_usable_channels()
     TEST_ASSERT_EQUAL_HEX8(0b10001001, r.pc.usable);
 }
 
-static void test_without_a_calibration_the_floor_is_never_reported()
+static void test_without_a_calibration_the_line_view_reports_nothing()
 {
     Rig r;
     for (auto &c : r.s.irRaw) {
         c = 900;
     }
     r.tick();
+    TEST_ASSERT_FALSE(r.out.line.valid);
     TEST_ASSERT_FALSE(r.out.line.allBlack);
+    TEST_ASSERT_FALSE(r.out.line.allWhite);
+    TEST_ASSERT_FALSE(r.out.line.onLine);
 }
 
 static void test_the_start_button_is_passed_through()
@@ -180,13 +273,20 @@ int main()
     RUN_TEST(test_the_first_tick_only_records_the_counts);
     RUN_TEST(test_distance_is_the_mean_of_both_wheels_in_mm);
     RUN_TEST(test_speed_settles_at_the_true_speed);
-    RUN_TEST(test_yaw_rate_comes_from_the_heading_change);
-    RUN_TEST(test_yaw_rate_is_not_fooled_by_the_wrap_at_180);
+    RUN_TEST(test_heading_and_yaw_rate_are_passed_through);
+    RUN_TEST(test_a_heading_snap_is_not_a_yaw_rate);
+    RUN_TEST(test_the_defaults_are_the_spec_values);
     RUN_TEST(test_the_wall_view_uses_the_thresholds);
     RUN_TEST(test_a_silent_sensor_is_neither_wall_nor_open);
-    RUN_TEST(test_tilt_is_the_angle_from_vertical);
+    RUN_TEST(test_a_side_sensor_that_never_changes_is_frozen);
+    RUN_TEST(test_a_reading_that_scatters_is_not_frozen);
+    RUN_TEST(test_a_frozen_sensor_comes_back_when_the_value_moves);
+    RUN_TEST(test_the_blind_time_counts_only_while_no_side_has_a_reading);
+    RUN_TEST(test_an_open_side_is_not_blind);
+    RUN_TEST(test_the_incline_is_the_forward_axis_above_level);
+    RUN_TEST(test_a_captured_level_replaces_the_bench_value);
     RUN_TEST(test_a_calibration_marks_its_usable_channels);
-    RUN_TEST(test_without_a_calibration_the_floor_is_never_reported);
+    RUN_TEST(test_without_a_calibration_the_line_view_reports_nothing);
     RUN_TEST(test_the_start_button_is_passed_through);
     RUN_TEST(test_reset_forgets_the_run);
     return UNITY_END();

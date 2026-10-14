@@ -58,16 +58,18 @@ static void test_accumulate_keeps_the_lowest_and_highest_count_per_channel()
     TEST_ASSERT_EQUAL_UINT16(700, cal.black[7]);
 }
 
-static void test_finish_marks_every_fixture_channel_usable()
+static void test_finish_marks_the_wide_enough_fixture_channels_usable()
 {
+    // The fixture spans are 36 46 43 43 45 33 37 29 counts; channel 7 is one under the minimum.
     LineCalibration cal;
     lineCalibrationReset(cal);
     lineCalibrationAccumulate(cal, kWhite);
     lineCalibrationAccumulate(cal, kBlack);
-    TEST_ASSERT_EQUAL_UINT8(0xFF, lineCalibrationFinish(cal));
-    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+    TEST_ASSERT_EQUAL_UINT8(0x7F, lineCalibrationFinish(cal));
+    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT - 1; ++ch) {
         TEST_ASSERT_TRUE(cal.scale[ch] != 0);
     }
+    TEST_ASSERT_EQUAL_UINT32(0, cal.scale[IR_CHANNEL_COUNT - 1]);
 }
 
 static void test_a_range_under_the_minimum_is_unusable_the_minimum_itself_is_not()
@@ -89,6 +91,16 @@ static void test_a_range_under_the_minimum_is_unusable_the_minimum_itself_is_not
     TEST_ASSERT_EQUAL_UINT32(0, cal.scale[2]);
 }
 
+static void test_usable_comes_from_the_scales_alone()
+{
+    // A calibration loaded from the store has no white/black history, only the scales.
+    LineCalibration cal{};
+    cal.scale[1] = 7;
+    cal.scale[6] = 1;
+    TEST_ASSERT_EQUAL_UINT8(0b01000010, lineCalibrationUsable(cal));
+    TEST_ASSERT_EQUAL_UINT8(0, lineCalibrationUsable(LineCalibration{}));
+}
+
 static void test_a_channel_never_sampled_is_unusable()
 {
     LineCalibration cal;
@@ -105,9 +117,10 @@ static void test_white_normalizes_to_0_and_black_to_255_on_every_channel()
         TEST_ASSERT_EQUAL_UINT8(0, norm[ch]);
     }
     lineNormalize(cal, kBlack, norm);
-    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT - 1; ++ch) {
         TEST_ASSERT_EQUAL_UINT8(255, norm[ch]);
     }
+    TEST_ASSERT_EQUAL_UINT8(0, norm[IR_CHANNEL_COUNT - 1]); // unusable: reads 0
 }
 
 static void test_the_endpoints_are_exact_for_any_range_from_the_minimum_to_full_scale()
@@ -140,8 +153,8 @@ static void test_the_middle_of_the_range_is_the_middle_of_the_scale()
     }
     uint8_t norm[IR_CHANNEL_COUNT];
     lineNormalize(cal, mid, norm);
-    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-        TEST_ASSERT_UINT8_WITHIN(8, 127, norm[ch]); // one count of a 29-count range is ~9 units
+    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT - 1; ++ch) {
+        TEST_ASSERT_UINT8_WITHIN(8, 127, norm[ch]); // one count of a 33-count range is ~8 units
     }
 }
 
@@ -264,8 +277,9 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_reset_sees_nothing_and_scales_nothing);
     RUN_TEST(test_accumulate_keeps_the_lowest_and_highest_count_per_channel);
-    RUN_TEST(test_finish_marks_every_fixture_channel_usable);
+    RUN_TEST(test_finish_marks_the_wide_enough_fixture_channels_usable);
     RUN_TEST(test_a_range_under_the_minimum_is_unusable_the_minimum_itself_is_not);
+    RUN_TEST(test_usable_comes_from_the_scales_alone);
     RUN_TEST(test_a_channel_never_sampled_is_unusable);
     RUN_TEST(test_white_normalizes_to_0_and_black_to_255_on_every_channel);
     RUN_TEST(test_the_endpoints_are_exact_for_any_range_from_the_minimum_to_full_scale);

@@ -89,6 +89,17 @@ static void test_distance_does_not_drift_over_a_long_run()
     TEST_ASSERT_FLOAT_WITHIN(0.1f, static_cast<float>(static_cast<double>(c) * mm), o.distMm);
 }
 
+static void test_the_counts_may_wrap_around_int32()
+{
+    // The encoder counters are free-running: a step across the wrap is still a small step.
+    Odometry o;
+    odometryUpdate(o, INT32_MAX - 4, INT32_MAX - 4, 1.0f, 10);
+    odometryUpdate(o, INT32_MIN + 5, INT32_MIN + 5, 1.0f, 10); // +10 counts
+    TEST_ASSERT_FLOAT_WITHIN(1e-4f, 10.0f, o.distMm);
+    odometryUpdate(o, INT32_MAX - 4, INT32_MAX - 4, 1.0f, 10); // and back
+    TEST_ASSERT_FLOAT_WITHIN(1e-4f, 0.0f, o.distMm);
+}
+
 static void test_reset_clears_everything()
 {
     Odometry o;
@@ -110,6 +121,7 @@ int main()
     RUN_TEST(test_zero_scale_means_not_moving);
     RUN_TEST(test_zero_dt_keeps_distance_but_not_speed);
     RUN_TEST(test_distance_does_not_drift_over_a_long_run);
+    RUN_TEST(test_the_counts_may_wrap_around_int32);
     RUN_TEST(test_reset_clears_everything);
     return UNITY_END();
 }

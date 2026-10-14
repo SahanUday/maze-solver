@@ -81,8 +81,7 @@ inline void stepCellBegin(StepCell &sc, const StepCellParams &p, const MotionFee
                           float headingRefDeg)
 {
     straightBegin(sc.straight, fb, p.pitchMm, p.cruiseMmS, 0.0f, headingRefDeg);
-    wallSteerReset(sc.steer);
-    stepCellClearVotes(sc);
+    stepCellClearVotes(sc); // the wall steer keeps what it learned: a turn drops it by itself
     sc.walls = CellWalls{};
     sc.haveFront = false;
 }
@@ -171,6 +170,6 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
         }
     }
 
-    const float trim = wallSteerTrim(sc.steer, wv, p.wall, dtMs);
+    const float trim = wallSteerTrim(sc.steer, wv, p.wall, fb.headingDeg, dtMs);
     return straightStep(sc.straight, p.plan, fb, trim, dtMs, out);
 }
