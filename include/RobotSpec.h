@@ -147,6 +147,13 @@ static_assert(static_cast<uint32_t>(IMU_ACCEL_ONE_G_COUNTS) * 10 >
                       static_cast<uint32_t>(ACCEL_COUNTS_PER_G) * 11,
               "measured 1 g should be within 10% of the nominal scale");
 
+// ---- Incline level capture ---------------------------------- [FROM TESTS] --
+// Tilt.h averages the forward-axis reading at boot. A still capture scattered 16-25 counts (std)
+// on the bench, a range of about 150 over 1000 samples; one taken while the robot is carried or
+// tilted by hand spreads far wider. Not yet checked with the motors running.
+constexpr uint16_t INCLINE_LEVEL_MIN_SAMPLES = 50;
+constexpr uint16_t INCLINE_LEVEL_MAX_RANGE_COUNTS = 600; // about 2 deg; 4x a still capture
+
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
 // 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
 // +-1 count).

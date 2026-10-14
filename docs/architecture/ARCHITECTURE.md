@@ -193,9 +193,9 @@ from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measure
 | Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
 | Moves | `include/MotionPrimitives.h` | straight run along a held heading; in-place turn |
 | Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
-| Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, tilt, the wall view and the line view |
+| Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
 | Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
-| Tilt | `include/Tilt.h` | angle between gravity and the board's Z axis |
+| Incline | `include/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
 | Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
 
 ## Dual build target

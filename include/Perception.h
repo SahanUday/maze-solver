@@ -3,7 +3,7 @@
 //  Arduino.h - testable under env:native.
 //
 //  RobotState is raw (counts, deg, mm); this derives distance, a yaw RATE, walls, the line and
-//  tilt. It never writes RobotState.
+//  the incline. It never writes RobotState.
 //  docs/architecture/modules/perception.md
 // ============================================================================
 
@@ -23,7 +23,7 @@
 
 struct Perception {
     MotionFeedback motion;
-    float tiltDeg = 0.0f;
+    int16_t inclineCounts = 0; // nose-up slope in accel counts; see Tilt.h
     WallView walls;
     LineView line;
     bool startPressed = false;
@@ -41,6 +41,7 @@ struct Perceiver {
     float lastHeadingDeg = 0.0f;
     bool headingPrimed = false;
     float yawRateDps = 0.0f;
+    int16_t levelCounts = IMU_ACCEL_FORWARD_LEVEL_COUNTS; // forward-axis reading on level ground
     LineCalibration cal{};
     uint8_t usable = 0; // channels the calibration accepted
     uint8_t mask = 0;   // black channels, with hysteresis
@@ -53,6 +54,12 @@ constexpr float YAW_RATE_FILTER = 0.5f;
 inline void perceiverReset(Perceiver &pc)
 {
     pc = Perceiver{};
+}
+
+// Install the level reading captured at boot (InclineLevel::counts).
+inline void perceiverSetLevel(Perceiver &pc, int16_t levelCounts)
+{
+    pc.levelCounts = levelCounts;
 }
 
 // Install a calibration and work out which channels it accepts.
@@ -85,7 +92,7 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
     out.motion.speedMmS = pc.odo.speedMmS;
     out.motion.headingDeg = state.headingDeg;
     out.motion.yawRateDps = pc.yawRateDps;
-    out.tiltDeg = tiltDeg(state.imu);
+    out.inclineCounts = inclineCounts(state.imu, pc.levelCounts);
     out.walls = wallView(state, p.wall);
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);

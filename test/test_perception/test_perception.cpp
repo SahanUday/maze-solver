@@ -1,6 +1,6 @@
 // ============================================================================
-//  test_perception.cpp  --  perceive(): RobotState in, distance / speed / yaw rate / walls / tilt /
-//  line view out. No hardware needed.
+//  test_perception.cpp  --  perceive(): RobotState in, distance / speed / yaw rate / walls /
+//  incline / line view out. No hardware needed.
 // ============================================================================
 
 #include <unity.h>
@@ -119,15 +119,25 @@ static void test_a_silent_sensor_is_neither_wall_nor_open()
     TEST_ASSERT_FALSE(r.out.walls.right);
 }
 
-static void test_tilt_is_the_angle_from_vertical()
+static void test_the_incline_is_the_forward_axis_above_level()
 {
     Rig r;
-    r.s.imu.accel[2] = 16384;
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
     r.tick();
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, r.out.tiltDeg);
-    r.s.imu.accel[0] = 16384;
+    TEST_ASSERT_EQUAL_INT16(0, r.out.inclineCounts);
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = static_cast<int16_t>(
+        IMU_ACCEL_FORWARD_LEVEL_COUNTS + (IMU_ACCEL_NOSE_UP_NEGATIVE ? -2400 : 2400));
     r.tick();
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 45.0f, r.out.tiltDeg);
+    TEST_ASSERT_EQUAL_INT16(2400, r.out.inclineCounts);
+}
+
+static void test_a_captured_level_replaces_the_bench_value()
+{
+    Rig r;
+    perceiverSetLevel(r.pc, 1000);
+    r.s.imu.accel[IMU_ACCEL_AXIS_FORWARD] = 1000;
+    r.tick();
+    TEST_ASSERT_EQUAL_INT16(0, r.out.inclineCounts);
 }
 
 static void test_a_calibration_marks_its_usable_channels()
@@ -184,7 +194,8 @@ int main()
     RUN_TEST(test_yaw_rate_is_not_fooled_by_the_wrap_at_180);
     RUN_TEST(test_the_wall_view_uses_the_thresholds);
     RUN_TEST(test_a_silent_sensor_is_neither_wall_nor_open);
-    RUN_TEST(test_tilt_is_the_angle_from_vertical);
+    RUN_TEST(test_the_incline_is_the_forward_axis_above_level);
+    RUN_TEST(test_a_captured_level_replaces_the_bench_value);
     RUN_TEST(test_a_calibration_marks_its_usable_channels);
     RUN_TEST(test_without_a_calibration_the_floor_is_never_reported);
     RUN_TEST(test_the_start_button_is_passed_through);
