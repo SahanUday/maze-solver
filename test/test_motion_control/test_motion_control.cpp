@@ -382,6 +382,42 @@ static void test_a_straight_uses_the_hold_integral_and_a_pivot_the_turn_one()
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 200.0f, pivot);
 }
 
+// The integral breaks the wheels loose; once the error has flipped it points the wrong way.
+static void test_a_pivot_drops_an_integral_that_points_against_the_error()
+{
+    MotionControl mc;
+    MotionControlParams p = params();
+    p.kiTurn = 20.0f;
+    MotionTarget t;
+    t.pivot = true;
+    t.headingRefDeg = 10.0f;
+    for (int i = 0; i < 50; ++i) {
+        motionControlStep(mc, p, t, MotionFeedback{}, 10); // wound up against +10 deg
+    }
+    TEST_ASSERT_TRUE(mc.turnIntegral > 0.0f);
+    MotionFeedback fb;
+    fb.headingDeg = 12.0f; // overshot: the error is now -2 deg
+    motionControlStep(mc, p, t, fb, 10);
+    TEST_ASSERT_TRUE(mc.turnIntegral <= 0.0f);
+}
+
+static void test_a_straight_keeps_its_heading_integral_through_an_overshoot()
+{
+    MotionControl mc;
+    MotionControlParams p = params();
+    p.kiHold = 2.0f;
+    MotionTarget t;
+    t.headingRefDeg = 10.0f;
+    for (int i = 0; i < 50; ++i) {
+        motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    }
+    const float wound = mc.turnIntegral;
+    MotionFeedback fb;
+    fb.headingDeg = 10.5f;
+    motionControlStep(mc, p, t, fb, 10);
+    TEST_ASSERT_TRUE(mc.turnIntegral > 0.9f * wound); // it holds a steady disturbance
+}
+
 static void test_a_negative_hold_gain_falls_back_to_the_turn_gain()
 {
     MotionControlParams p = params();
@@ -407,6 +443,8 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_a_straight_uses_the_hold_integral_and_a_pivot_the_turn_one);
     RUN_TEST(test_a_negative_hold_gain_falls_back_to_the_turn_gain);
+    RUN_TEST(test_a_pivot_drops_an_integral_that_points_against_the_error);
+    RUN_TEST(test_a_straight_keeps_its_heading_integral_through_an_overshoot);
     RUN_TEST(test_the_right_scale_multiplies_only_the_right_command);
     RUN_TEST(test_clearing_the_integrals_keeps_the_stall_latch);
     RUN_TEST(test_all_zero_gains_output_nothing);

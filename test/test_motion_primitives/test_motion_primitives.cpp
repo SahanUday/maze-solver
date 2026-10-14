@@ -3,6 +3,7 @@
 //  plant (sim.h). No hardware needed.
 // ============================================================================
 
+#include <initializer_list>
 #include <unity.h>
 
 #include "../support/sim.h"
@@ -505,6 +506,31 @@ static void test_turn_stays_on_the_spot()
     TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, r.sim.distMm);
 }
 
+// Wheels that stick (the right one more, and slow to answer): a pivot's integral breaks them loose
+// and must not carry on past the target, or the turn hunts around it.
+static void test_a_turn_on_sticking_wheels_settles_instead_of_hunting()
+{
+    for (float target : {90.0f, -90.0f, 45.0f, 20.0f}) {
+        Rig r;
+        r.sim.breakawayDuty = 160.0f;
+        r.sim.sustainDuty = 55.0f;
+        r.sim.rightStick = 1.5f;
+        r.sim.lag = 0.25f;
+        r.cp.kiTurn = 20.0f;
+        r.plan.patienceMs = 3000;
+        Turn t;
+        turnBegin(t, r.sim.feedback(), target, target);
+        MoveStatus st = MoveStatus::Running;
+        for (int i = 0; i < 1500 && st == MoveStatus::Running; ++i) {
+            MotionTarget tg;
+            st = turnStep(t, r.plan, r.sim.feedback(), DT_MS, tg);
+            r.drive(tg);
+        }
+        TEST_ASSERT_EQUAL(static_cast<int>(MoveStatus::Done), static_cast<int>(st));
+        TEST_ASSERT_FLOAT_WITHIN(2.5f, target, r.sim.headingDeg);
+    }
+}
+
 static void test_turn_that_cannot_move_is_stuck()
 {
     Rig r;
@@ -639,6 +665,7 @@ int main()
     RUN_TEST(test_turn_across_the_wrap_point);
     RUN_TEST(test_turn_corrects_start_error_by_aiming_at_the_grid_heading);
     RUN_TEST(test_turn_stays_on_the_spot);
+    RUN_TEST(test_a_turn_on_sticking_wheels_settles_instead_of_hunting);
     RUN_TEST(test_turn_that_cannot_move_is_stuck);
     RUN_TEST(test_zero_degree_turn_finishes_immediately);
     RUN_TEST(test_turn_waits_out_the_settle_time);

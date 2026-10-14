@@ -23,6 +23,10 @@ wheel.
   yaw-rate error. The gyro closes this loop, so a turn does not depend on the track width.
 - **Heading integral:** `kiTurn` while the target is `pivot`, else `kiHold` (negative = `kiTurn`).
   Each integral is clamped to `MOTION_INTEGRAL_MAX_DUTY` of duty.
+- **Pivot integral:** an integral that points against the error is dropped while pivoting. It only
+  breaks the wheels loose; once the error has flipped the wheels are moving and it would carry the
+  turn past the target and hunt. A straight keeps its heading integral through an overshoot, as it
+  holds a steady disturbance.
 - **New move:** `target.newMove` (the first tick of a begun move) clears both integrals before
   the step. A chain of cells (`straightExtend`) does not set it.
 - **Right scale:** `ffScaleR` multiplies the whole right command.
