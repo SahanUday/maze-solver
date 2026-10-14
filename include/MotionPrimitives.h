@@ -1,11 +1,10 @@
 // ============================================================================
-//  MotionPrimitives.h  --  the moves the mission is built from. No hardware, no
-//  Arduino.h - testable under env:native.
+//  MotionPrimitives.h  --  Straight and Turn moves. No hardware, no Arduino.h -
+//  testable under env:native.
 //
-//  A primitive is a small per-tick state machine: begin it, then call its step
-//  function once per tick. It writes the MotionTarget for MotionControl and says
-//  whether it has finished. It never touches the motors itself.
-//    Straight   a distance along a held heading (StepCell, below, builds on it)
+//  begin, then step once per tick: step writes the MotionTarget for MotionControl and
+//  returns a MoveStatus. Never touches the motors.
+//    Straight   a distance along a held heading
 //    Turn       an in-place pivot to an absolute heading
 //  docs/architecture/modules/motion_primitives.md
 // ============================================================================
@@ -25,7 +24,7 @@ struct PlanParams {
     float stepToleranceMm = 0.0f;
     float turnToleranceDeg = 0.0f;
     uint16_t turnSettleMs = 0;
-    uint16_t moveTimeoutMs = 0; // 0 = no limit
+    uint16_t moveTimeoutMs = 0; // per leg; 0 = no limit
 };
 
 enum class MoveStatus : uint8_t {
@@ -41,13 +40,12 @@ struct Straight {
     float refMm = 0.0f;    // where the profile says the robot is
     float refSpeedMmS = 0.0f;
     float vMaxMmS = 0.0f;
-    float vEndMmS = 0.0f; // speed to arrive with; 0 = stop
+    float vEndMmS = 0.0f; // arrival speed; 0 = stop
     float headingRefDeg = 0.0f;
     uint16_t elapsedMs = 0;
 };
 
-// Start a move of `distMm` (signed) from where the robot is now. The profile starts at the
-// measured speed, so a move begun while rolling carries on without a jerk.
+// Start a move of `distMm` (signed) from the current position, at the measured speed.
 inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, float vMaxMmS,
                           float vEndMmS, float headingRefDeg)
 {
@@ -60,25 +58,23 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
     s.elapsedMs = 0;
 }
 
-// Move the finish line `addMm` further on and change the arrival speed: how a pass-through cell
-// becomes a stop, or the next cell is chained on without slowing.
+// Move the finish line `addMm` on and change the arrival speed. Restarts the timeout.
 inline void straightExtend(Straight &s, float addMm, float vEndMmS)
 {
     s.targetMm += addMm;
     s.vEndMmS = vEndMmS;
-    s.elapsedMs = 0; // the timeout is per leg: a chain of cells must not add up to one
+    s.elapsedMs = 0;
 }
 
-// Replace the finish line (a wall ahead told us where the cell centre really is).
+// Replace the finish line.
 inline void straightRetarget(Straight &s, float targetMm, float vEndMmS)
 {
     s.targetMm = targetMm;
     s.vEndMmS = vEndMmS;
 }
 
-// One tick. `trimDeg` is added to the held heading: wall centring steers through it.
-// Done means stopped on the target for a stop move (vEnd 0), or the reference passed the target
-// for a pass-through move.
+// One tick. `trimDeg` is added to the held heading (wall centring). Done: stopped within
+// tolerance (vEnd 0), or reference past the target (pass-through).
 inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const MotionFeedback &fb,
                                float trimDeg, uint16_t dtMs, MotionTarget &out)
 {
@@ -117,14 +113,13 @@ struct Turn {
     float deltaDeg = 0.0f;         // signed sweep; its sign picks the direction
     float refAngleDeg = 0.0f;      // sweep done so far, per the profile
     float refRateDps = 0.0f;
-    float holdMm = 0.0f; // odometer position to hold while pivoting
+    float holdMm = 0.0f; // odometer position held while pivoting
     uint16_t settledMs = 0;
     uint16_t elapsedMs = 0;
 };
 
-// Pivot by `deltaDeg` (CCW positive) to end on `targetHeadingDeg`. Both are given because a
-// 180 is ambiguous from the headings alone, and because the caller's target is on the maze's
-// 90 deg grid, so gyro error does not accumulate from turn to turn.
+// Pivot by `deltaDeg` (CCW positive) to end on `targetHeadingDeg`. Both are given: a 180 is
+// ambiguous from the headings alone.
 inline void turnBegin(Turn &t, const MotionFeedback &fb, float targetHeadingDeg, float deltaDeg)
 {
     t.startHeadingDeg = fb.headingDeg;
@@ -146,8 +141,7 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
     t.refAngleDeg += t.refRateDps * dtS;
     t.elapsedMs = static_cast<uint16_t>(t.elapsedMs + dtMs);
 
-    // Once the profile has stopped within a degree of its sweep, aim at the grid heading itself
-    // rather than at the sweep, which is only as exact as the start heading was.
+    // Profile stopped within a degree: aim at the grid heading, not start + sweep.
     const float left = t.deltaDeg - t.refAngleDeg;
     const bool profileDone = t.refRateDps == 0.0f && left < 1.0f && left > -1.0f;
     out.distRefMm = t.holdMm;

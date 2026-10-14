@@ -1,5 +1,5 @@
-// Tiny differential-drive plant for closed-loop tests of the motion stack: duty in, a first-order
-// lagged wheel speed out, integrated into the same quantities Perception reports.
+// Differential-drive plant for closed-loop motion tests: duty in, first-order lagged wheel speed
+// out, integrated into MotionFeedback.
 #pragma once
 
 #include <math.h>

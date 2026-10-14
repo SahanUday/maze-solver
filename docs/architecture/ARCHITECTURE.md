@@ -181,22 +181,17 @@ happen to read.
 
 ## Control layer
 
-Motion control is the first piece of the control layer: pure headers in `include/`, no `Arduino.h`,
-tested on the host against a simulated robot (`test/*/sim.h`). Nothing calls them from `main.cpp` yet.
+Motion control is pure headers in `include/`, no `Arduino.h`, tested on the host against a simulated
+plant (`test/test_motion_primitives/sim.h`). Nothing calls them from `main.cpp` yet. Per-module
+detail is in [`modules/`](modules/); the measured values are in `include/RobotSpec.h`.
 
 | Piece | File | Role |
 |---|---|---|
 | Odometry | `include/Odometry.h` | encoder counts to distance and speed |
-| Reference | `include/MotionProfile.h` | trapezoidal speed profile stepped on a reference trajectory |
-| Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer plus angular PID on the **gyro**, mixed into left and right duty |
-| Moves | `include/MotionPrimitives.h` | a straight run along a held heading, and an in-place turn |
-| Output | `include/DriveCommand.h` | the `{left, right, enable}` a caller hands to the motors |
-
-The controller and the moves work on a reference, not on the measurement, and the heading channel
-is closed on the gyro, so a turn does not depend on the measured track width. Per-module detail is in
-[`modules/`](modules/). The robot-measured values they use (wheel geometry, gains, speeds, tolerances,
-stall settings) are in `include/RobotSpec.h`; the gains and speeds were tuned on the floor, the stall latch
-has not been exercised by a real stall.
+| Profile | `include/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
+| Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
+| Moves | `include/MotionPrimitives.h` | straight run along a held heading; in-place turn |
+| Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
 
 ## Dual build target
 
