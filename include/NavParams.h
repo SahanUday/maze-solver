@@ -117,7 +117,8 @@ inline PerceiveParams specPerceive()
 // Time to stand and read the start cell's walls: every ultrasonic gets a fresh reading, plus slack.
 constexpr uint16_t START_SENSE_MS = US_SENSOR_COUNT * US_SLOT_MS + 40;
 
-// `hand` = +1 prefer left turns on a tie, -1 right (a DIP switch picks it on the day).
+// `hand` = +1 prefer left turns on a tie, -1 right (RUN_HAND, or a DIP switch if
+// RUN_USE_DIP_SWITCHES).
 inline MissionParams specMission(int8_t hand)
 {
     MissionParams p;
@@ -128,6 +129,7 @@ inline MissionParams specMission(int8_t hand)
     p.senseMs = START_SENSE_MS;
     p.leaveMarginMm = LINE_LEAVE_MARGIN_MM;
     p.hand = hand;
+    p.wallsOnly = !RUN_USE_FLOOR_SENSING;
     p.irAheadMm = IR_ARRAY_FORWARD_OFFSET_MM;
     p.dtMs = CONTROL_LOOP_PERIOD_MS;
     return p;

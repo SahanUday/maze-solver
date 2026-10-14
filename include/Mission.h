@@ -54,6 +54,7 @@ struct MissionParams {
     uint16_t senseMs = 0;       // how long to stand and read the start cell's walls
     float leaveMarginMm = 0.0f; // see LINE_LEAVE_MARGIN_MM
     int8_t hand = 1;            // +1 prefer left turns on a tie, -1 right
+    bool wallsOnly = false;     // no floor sensing: explore everything, then stop (Done)
     float irAheadMm = 0.0f;     // IR array ahead of the axle (IR_ARRAY_FORWARD_OFFSET_MM)
     uint16_t dtMs = 10;
 };
@@ -354,6 +355,10 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                 } else {
                     ms.pending = plan(ms, p);
                     if (ms.pending == maze::Move::None) {
+                        if (p.wallsOnly) {
+                            ms.phase = Phase::Done; // nothing to explore
+                            return cmd;
+                        }
                         missionFail(ms, FaultCode::NoRoute);
                         return cmd;
                     }
@@ -391,9 +396,13 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                 break;
             }
 
-            // Stepping. The floor tells us about the marker and the line zone.
+            // Stepping. The floor tells us about the marker and the line zone (walls-only: not
+            // read).
             float center = 0.0f;
-            switch (floorDetectorStep(ms.floor, pc.line.allBlack, fb.distMm, p.floor, center)) {
+            const FloorEvent ev = p.wallsOnly ? FloorEvent::None
+                                              : floorDetectorStep(ms.floor, pc.line.allBlack,
+                                                                  fb.distMm, p.floor, center);
+            switch (ev) {
                 case FloorEvent::RunStart:
                     onRunStart(ms);
                     break;
@@ -419,7 +428,7 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
             if (ms.phase == Phase::LineFollow) {
                 break;
             }
-            if (ms.out != Mission::Out::None) {
+            if (!p.wallsOnly && ms.out != Mission::Out::None) {
                 if (pc.line.allBlack) {
                     ms.outBlack = true;
                 } else if (!ms.outBlack && fb.distMm - ms.outCenterMm >= p.step.pitchMm * 0.5f -
@@ -448,6 +457,11 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                 return DriveCommand{};
             }
             if (st == MoveStatus::Done) {
+                if (p.wallsOnly && ms.decided && ms.pending == maze::Move::None) {
+                    ms.phase = Phase::Done; // every reachable cell explored
+                    cmd.enable = true;
+                    break;
+                }
                 if (!ms.decided || ms.pending == maze::Move::None) {
                     missionFail(ms, FaultCode::NoRoute);
                     return DriveCommand{};

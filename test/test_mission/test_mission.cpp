@@ -452,6 +452,71 @@ static void test_snake_arena_from_every_start_and_heading()
     sweep(makeSnake);
 }
 
+// ---- Walls only: no floor sensing -------------------------------------------------------------
+
+static MissionParams wallsOnlyParams()
+{
+    MissionParams mp = missionParams();
+    mp.wallsOnly = true;
+    return mp;
+}
+
+// The arena still has the marker and the bridge on its floor; with floor sensing off the robot
+// must not react to them, explore every cell, and stop inside the maze.
+static void test_walls_only_explores_and_stops_inside_the_maze_from_every_start()
+{
+    int failures = 0;
+    int left = 0;
+    int runs = 0;
+    for (int8_t sy = 0; sy < 4; ++sy) {
+        for (int8_t sx = 0; sx < 4; ++sx) {
+            for (int8_t hand = -1; hand <= 1; hand += 2) {
+                Robot r;
+                r.arena = ringArena();
+                makeBridge(r.arena, 3, 3, 0);
+                if ((sx == r.arena.bridgeX && sy == r.arena.bridgeY) ||
+                    (sx == r.arena.markerX && sy == r.arena.markerY)) {
+                    continue;
+                }
+                r.place(sx, sy, static_cast<uint8_t>((sx + sy) & 3));
+                MissionParams mp = wallsOnlyParams();
+                mp.hand = hand;
+                const Outcome o = runMission(r, mp);
+                ++runs;
+                failures += (o.phase == Phase::Done && o.fault == FaultCode::None) ? 0 : 1;
+                left +=
+                    (r.x > 0.0f && r.x < TILE * 4.0f && r.y > 0.0f && r.y < TILE * 4.0f) ? 0 : 1;
+            }
+        }
+    }
+    TEST_ASSERT_TRUE(runs > 20);
+    TEST_ASSERT_EQUAL(0, failures);
+    TEST_ASSERT_EQUAL(0, left);
+}
+
+static void test_walls_only_never_follows_the_line()
+{
+    Robot r;
+    r.arena = ringArena();
+    makeBridge(r.arena, 3, 3, 0);
+    r.place(0, 0, 0);
+    const Outcome o = runMission(r, wallsOnlyParams());
+    TEST_ASSERT_EQUAL(asInt(Phase::Done), asInt(o.phase));
+    TEST_ASSERT_TRUE(r.y < TILE * 4.0f); // the full-sensing run ends beyond y = 4 tiles
+    TEST_ASSERT_FALSE(o.touchedWall);
+}
+
+static void test_walls_only_with_nothing_to_explore_is_done_not_a_fault()
+{
+    Robot r;
+    r.arena = Arena{}; // no passages at all
+    makeBridge(r.arena, 3, 3, 0);
+    r.place(0, 0, 0);
+    const Outcome o = runMission(r, wallsOnlyParams(), 1500);
+    TEST_ASSERT_EQUAL(asInt(Phase::Done), asInt(o.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(FaultCode::None), static_cast<int>(o.fault));
+}
+
 // ---- Faults and refusals ----------------------------------------------------------------------
 
 static void test_waits_for_the_start_button()
@@ -842,6 +907,9 @@ int main()
     RUN_TEST(test_finds_the_bridge_and_follows_the_line_to_its_end);
     RUN_TEST(test_ring_arena_from_every_start_and_heading);
     RUN_TEST(test_snake_arena_from_every_start_and_heading);
+    RUN_TEST(test_walls_only_explores_and_stops_inside_the_maze_from_every_start);
+    RUN_TEST(test_walls_only_never_follows_the_line);
+    RUN_TEST(test_walls_only_with_nothing_to_explore_is_done_not_a_fault);
     RUN_TEST(test_waits_for_the_start_button);
     RUN_TEST(test_a_missing_precondition_keeps_the_motors_off);
     RUN_TEST(test_a_boxed_in_start_is_no_route);

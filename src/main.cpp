@@ -37,6 +37,7 @@ static MissionParams g_missionParams;
 // The IMU is the one driver that can be absent (an unplugged I2C device answers
 // nothing), so the loop has to cope with it never coming up.
 static bool g_imuPresent = false;
+static uint32_t g_bootDoneMs = 0; // when setup() finished: the auto-start delay counts from here
 static GyroBias g_gyroBias;
 static Heading g_heading;
 
@@ -117,7 +118,9 @@ void setup()
     encodersInit();
     lineSensorsInit();
 
-    const uint8_t dip = operatorReadDip();
+    // The DIP switches are only read when RUN_USE_DIP_SWITCHES is set; without them there is no
+    // line-calibration mode and the hand is RUN_HAND.
+    const uint8_t dip = RUN_USE_DIP_SWITCHES ? operatorReadDip() : 0;
     g_state.dipSwitches = dip;
     if ((dip & DIP_LINE_CAL) != 0) {
         lineCalibrationMode(); // does not return
@@ -135,19 +138,23 @@ void setup()
     // The run: the mission refuses to start (motors stay off, error LED on) if a precondition
     // is missing.
     g_perceiveParams = specPerceive();
-    g_missionParams = specMission((dip & DIP_HAND_RIGHT) != 0 ? -1 : 1);
+    const int8_t hand = RUN_USE_DIP_SWITCHES ? ((dip & DIP_HAND_RIGHT) != 0 ? -1 : 1) : RUN_HAND;
+    g_missionParams = specMission(hand);
     missionReset(g_mission);
     perceiverReset(g_perceiver);
     LineCalibration cal;
     if (lineCalLoad(cal)) {
         perceiverSetCalibration(g_perceiver, cal);
-    } else {
+    } else if (RUN_USE_FLOOR_SENSING) {
         Serial.println(F("line cal: none stored - set DIP 4, calibrate, reset"));
         missionFail(g_mission, FaultCode::NoLineCal);
+    } else {
+        Serial.println(F("line cal: none stored - not needed, floor sensing is off"));
     }
     if (!g_imuPresent) {
         missionFail(g_mission, FaultCode::NoImu);
     }
+    g_bootDoneMs = millis();
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
@@ -171,8 +178,13 @@ static void readSensors(RobotState &state)
     state.distRightMm = ultrasonicDistanceMm(Ultrasonic::Right);
     state.usValid = ultrasonicValidMask();
 
-    // Operator controls: START is polled every tick, the DIPs were read once at power-up.
-    state.startButtonPressed = operatorStartPressed();
+    // START is polled every tick, the DIPs were read once at power-up. Without the button the run
+    // starts by itself RUN_AUTOSTART_MS after boot.
+    if (RUN_USE_START_BUTTON) {
+        state.startButtonPressed = operatorStartPressed();
+    } else {
+        state.startButtonPressed = (millis() - g_bootDoneMs) >= RUN_AUTOSTART_MS;
+    }
 }
 
 // Algorithms read g_state and decide what to do next: derive perception, step the mission.

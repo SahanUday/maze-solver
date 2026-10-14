@@ -9,8 +9,9 @@ against a simulated arena, plus two glue files in `src/` that are not host-testa
 
 `WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> LineFollow -> Done`, any phase `-> Fault`.
 
-- **WaitStart** - motors off until START is pressed. `main.cpp` refuses to start (`Fault`) with no IMU or no
-  stored line calibration.
+- **WaitStart** - motors off until START is pressed (or, with `RUN_USE_START_BUTTON` off, until
+  `RUN_AUTOSTART_MS` after boot). `main.cpp` refuses to start (`Fault`) with no IMU, or with no stored line
+  calibration when `RUN_USE_FLOOR_SENSING` is on.
 - **SenseFront / TurnAround / SenseBack** - read the start cell's walls standing still; the turn round shows
   the wall behind.
 - **Explore** - [step_cell](step_cell.md) to the next cell; at each cell the map is updated and
@@ -33,6 +34,17 @@ handled by looking at what the floor does when the robot **leaves** a white tile
 edge, leaving a line tile means the robot is going out along the line (hand over to the follower), and leaving
 the START tile means the next tile is white too, so a line tile - the START tile is white and nothing about it is
 measured.
+
+## Run options
+
+`RobotSpec.h` has three switches, all defaulting to the simplest setup (a walls-only maze, nothing pressed):
+`RUN_USE_FLOOR_SENSING`, `RUN_USE_START_BUTTON` (+ `RUN_AUTOSTART_MS`) and `RUN_USE_DIP_SWITCHES` (+ `RUN_HAND`).
+
+With floor sensing off `MissionParams::wallsOnly` is set: the floor detector and the leaving-a-white-tile check
+are skipped, no line calibration is needed, and when nothing is left to explore the mission ends in `Done`
+(a stand-still) instead of the `NoRoute` fault. A step that never read its walls is still a `NoRoute` fault.
+With the button off the run begins on its own after the delay, so the robot must be placed at the start cell
+before then. With the DIPs off there is no line-calibration mode and the hand is `RUN_HAND`.
 
 ## Operator controls
 

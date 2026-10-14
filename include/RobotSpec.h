@@ -199,6 +199,19 @@ constexpr float KP_TURN = 4.0f;
 constexpr float KI_TURN = 8.0f;
 constexpr float KD_TURN = 0.5f;
 
+// ---- Run options ------------------------------------------ [FROM DESIGN] --
+// What the run depends on. Each switch keeps the full behaviour available; the defaults below let
+// the robot run in a walls-only maze with no IR calibration, no START button and no DIP switches.
+// Floor sensing: the IR array finds the approach marker and the bridge line. Off = the robot
+// explores every cell and stops (Phase::Done); the line calibration is not required.
+constexpr bool RUN_USE_FLOOR_SENSING = false;
+// START button on PIN_BTN_START. Off = the run starts RUN_AUTOSTART_MS after boot finishes.
+constexpr bool RUN_USE_START_BUTTON = false;
+constexpr uint32_t RUN_AUTOSTART_MS = 5000; // time to put the robot down at the start cell
+// DIP switches on PIN_DIP. Off = no line-calibration mode and the hand below is used.
+constexpr bool RUN_USE_DIP_SWITCHES = false;
+constexpr int8_t RUN_HAND = 1; // +1 prefer left turns on a tie, -1 right
+
 // ---- Navigation geometry ----------------------------- <<TBD HARDWARE>> --
 // Measured along the robot's forward axis / across it, from the mount drawing or a ruler.
 constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 0.0f; // wheel axle to the IR array's sensing line

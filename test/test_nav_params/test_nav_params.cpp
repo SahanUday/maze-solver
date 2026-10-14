@@ -94,6 +94,7 @@ static void test_mission_params_and_hand()
     const MissionParams right = specMission(-1);
     TEST_ASSERT_EQUAL_INT8(1, left.hand);
     TEST_ASSERT_EQUAL_INT8(-1, right.hand);
+    TEST_ASSERT_EQUAL(!RUN_USE_FLOOR_SENSING, left.wallsOnly);
     TEST_ASSERT_EQUAL_FLOAT(IR_ARRAY_FORWARD_OFFSET_MM, left.irAheadMm);
     TEST_ASSERT_EQUAL_FLOAT(LINE_LEAVE_MARGIN_MM, left.leaveMarginMm);
     TEST_ASSERT_EQUAL_UINT16(CONTROL_LOOP_PERIOD_MS, left.dtMs);
