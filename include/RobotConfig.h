@@ -79,10 +79,13 @@ constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // Physical switches - no reprogramming allowed between trials.
-constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
-constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW
+constexpr uint8_t PIN_BTN_START = 48;            // PULLUP: pressed = LOW
+constexpr uint8_t PIN_DIP[4] = {40, 42, 44, 46}; // PULLUP: on = LOW
 constexpr uint8_t PIN_POT = A8;                  // read once at boot
 
 // ---- Indicators --------------------------------------------- [PROPOSED] --
 constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
 constexpr uint8_t PIN_LED_ERROR = 27;  // something is wrong
+// The Mega's own "L" LED (PB7). Needs no wiring; shows the run state when no serial
+// monitor is attached (include/StatusLed.h).
+constexpr uint8_t PIN_LED_ONBOARD = 13;

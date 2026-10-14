@@ -162,7 +162,9 @@ and structs need nothing.
 
 **What can be unit tested.** Only code that does not touch hardware and does not
 include `Arduino.h`: the headers in `include/` (`Scheduler.h`, `Quadrature.h`,
-`MotorDrive.h`, `LineSense.h`, `UltrasonicMath.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
+`MotorDrive.h`, `LineSense.h`, `UltrasonicMath.h`, `Heading.h` and the control layer:
+`Odometry.h`, `MotionProfile.h`, `MotionControl.h`, `MotionPrimitives.h`, `StepCell.h`,
+`WallSense.h`, `LineFollow.h`, `Perception.h`, `Mission.h`, ...) and the library `lib/maze`. Code in `src/` (the HAL drivers and
 `main.cpp`) is built only for the robot. That is why drivers keep their
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
@@ -170,8 +172,20 @@ register code isn't.
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
 `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`,
-`test_ultrasonic`, and `test_native`
-(a placeholder that proves the host build works). A test file looks like this
+`test_heading`, `test_ultrasonic`, `test_odometry`, `test_motion_profile`,
+`test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_step_cell`,
+`test_tilt`, `test_line_follow`, `test_maze_explorer`, `test_nav_params`,
+`test_mission`, and `test_native` (a placeholder that proves the host build works).
+
+Several of the control-layer suites are **closed loop**: they run the code against a
+small simulated robot (`sim.h` in `test_motion_primitives`, `test_step_cell`,
+`test_line_follow`, `test_mission`: a differential-drive plant with wheel lag) and
+`test_mission` goes further, driving the whole stack through
+`RobotState -> Perception -> missionStep -> DriveCommand` against a simulated 4x4 arena
+(walls, ultrasonic rays refreshed one sensor per slot, encoders, an IR array over a painted
+floor). That found problems unit tests alone had not - a target that chased a stale
+ultrasonic reading, a run detector that split a white tile in two - so when you change
+the control layer, run it. A test file looks like this
 (Unity is the test framework):
 ```cpp
 #include <unity.h>
@@ -242,8 +256,23 @@ on the real hardware. For hardware-facing code:
   unchecked in the module's `## Status` section (see
   `architecture/modules/encoders.md`).
 
-Not yet covered because the code does not exist yet: tests of the maze solver.
-They will be added with it and run in the jobs above without CI changes.
+The simulations have no wheel slip, no sensor noise and an ideal motor response, so a pass
+there says the logic is right, not that the tuning is. The motion gains, speeds, accelerations
+and move tolerances were tuned on the robot (2026-10-14, through the bench probes below). The
+wall thresholds, the wall-centring gains and the marker/line lengths are still
+`<<TBD CALIBRATION>>` placeholders in `RobotSpec.h`, and the mission has not yet run on the robot.
+
+### Bench probes (`tools/probe/`)
+Throwaway firmware for measuring `RobotSpec.h` values on the robot. They are not part of the
+mission build and CI does not run them (it only compiles `env:mega`).
+
+| Environment | What it does |
+|---|---|
+| `env:probe_sensors` | streams every sensor as CSV at 10 Hz; the motors stay off |
+| `env:probe_motion` | serial-driven motion tests on the real controller code; the motors stay off until a command starts a move, and any byte received aborts it. Duty, time, distance, front-wall and pushed-but-still limits apply whatever the controller does |
+
+Build and upload with `pio run -e probe_motion -t upload`, then talk to it over serial at
+250000 baud (`h` lists the commands).
 
 ## When a check fails
 
