@@ -13,7 +13,9 @@ Encoder counts to distance and speed. Pure logic in `include/Odometry.h`, tested
 ## How it works
 
 Distance advances by the mean of the two wheel steps times `mmPerCount`, so a pivot in
-place adds nothing. Speed is that step over `dtMs`, filtered with `ODOM_SPEED_FILTER`.
+place adds nothing. `distMm` is the integer sum of counts times `mmPerCount`, so it does not
+drift over a run; `mmPerCount` must stay constant. Speed is the last step over `dtMs`, filtered
+with `ODOM_SPEED_FILTER`.
 
 ## Invariants
 

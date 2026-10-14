@@ -70,6 +70,25 @@ static void test_zero_dt_keeps_distance_but_not_speed()
     TEST_ASSERT_EQUAL_FLOAT(0.0f, o.speedMmS);
 }
 
+static void test_distance_does_not_drift_over_a_long_run()
+{
+    // 8 minutes at 150 mm/s: 6.6 counts a tick, 72 m. Adding a float step to a float total
+    // loses about 22 mm by the end.
+    const float mm = 0.2274f;
+    Odometry o;
+    odometryUpdate(o, 0, 0, mm, 10);
+    double carry = 0.0;
+    int32_t c = 0;
+    for (int i = 0; i < 48000; ++i) {
+        carry += 150.0 * 0.01 / mm;
+        const int32_t n = static_cast<int32_t>(carry);
+        carry -= n;
+        c += n;
+        odometryUpdate(o, c, c, mm, 10);
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, static_cast<float>(static_cast<double>(c) * mm), o.distMm);
+}
+
 static void test_reset_clears_everything()
 {
     Odometry o;
@@ -90,6 +109,7 @@ int main()
     RUN_TEST(test_speed_converges_to_the_true_speed);
     RUN_TEST(test_zero_scale_means_not_moving);
     RUN_TEST(test_zero_dt_keeps_distance_but_not_speed);
+    RUN_TEST(test_distance_does_not_drift_over_a_long_run);
     RUN_TEST(test_reset_clears_everything);
     return UNITY_END();
 }
