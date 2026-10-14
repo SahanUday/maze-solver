@@ -115,21 +115,23 @@ inline void straightExtend(Straight &s, float addMm, float vEndMmS)
     progressRestart(s.watch);
 }
 
-// Replace the finish line. It cannot come closer than the braking distance (the move would run
-// through it and come back), and a line already nearer is never pushed out.
+// Replace the finish line. It cannot come closer than the braking distance in the direction of the
+// move (the move would run through it and come back), and a line already nearer is never pushed
+// out. A move never reverses: a line behind the reference is taken as the current line.
 inline void straightRetarget(Straight &s, float targetMm, float vEndMmS, float accelMmS2)
 {
-    const float v = s.refSpeedMmS;
-    const float dir = v > 0.0f ? 1.0f : (v < 0.0f ? -1.0f : (s.forward ? 1.0f : -1.0f));
+    const float dir = s.forward ? 1.0f : -1.0f;
+    const float v = s.refSpeedMmS * dir; // along the move; negative while creeping back
     const float excess = v * v - vEndMmS * vEndMmS;
-    const float brakeMm = excess > 0.0f && accelMmS2 > 0.0f ? excess / (2.0f * accelMmS2) : 0.0f;
-    float nearestMm = s.refMm + dir * brakeMm;
-    if (dir > 0.0f) {
-        nearestMm = nearestMm < s.targetMm ? nearestMm : s.targetMm;
-        s.targetMm = targetMm > nearestMm ? targetMm : nearestMm;
+    const float brakeMm =
+        v > 0.0f && excess > 0.0f && accelMmS2 > 0.0f ? excess / (2.0f * accelMmS2) : 0.0f;
+    const float nearestMm = s.refMm + dir * brakeMm;
+    if (s.forward) {
+        const float limit = nearestMm < s.targetMm ? nearestMm : s.targetMm;
+        s.targetMm = targetMm > limit ? targetMm : limit;
     } else {
-        nearestMm = nearestMm > s.targetMm ? nearestMm : s.targetMm;
-        s.targetMm = targetMm < nearestMm ? targetMm : nearestMm;
+        const float limit = nearestMm > s.targetMm ? nearestMm : s.targetMm;
+        s.targetMm = targetMm < limit ? targetMm : limit;
     }
     s.vEndMmS = vEndMmS;
 }

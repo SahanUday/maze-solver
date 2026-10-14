@@ -237,11 +237,16 @@ static void test_front_wall_closer_than_the_stop_distance_stops_now()
     r.p.sampleWindowMm = 0.0f;
     r.begin();
     MoveStatus st = MoveStatus::Running;
+    float last = 0.0f;
+    float backtrack = 0.0f;
     for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
         st = r.tick();
+        backtrack = last - r.sim.distMm > backtrack ? last - r.sim.distMm : backtrack;
+        last = r.sim.distMm;
     }
     TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
-    TEST_ASSERT_FLOAT_WITHIN(4.0f, 140.0f, r.sim.distMm);
+    TEST_ASSERT_TRUE(backtrack < 1.0f);
+    TEST_ASSERT_FLOAT_WITHIN(6.0f, 140.0f, r.sim.distMm);
 }
 
 static void test_centres_between_two_walls()
@@ -313,6 +318,9 @@ static void test_verdict_follows_the_majority()
     TEST_ASSERT_FALSE(unreliable);
     uint8_t someSilent[3] = {0, 3, 1};
     step_detail::verdict(someSilent, unreliable);
+    TEST_ASSERT_FALSE(unreliable); // a missed echo among heard ones is not a silent sensor
+    uint8_t allSilent[3] = {0, 0, 3};
+    step_detail::verdict(allSilent, unreliable);
     TEST_ASSERT_TRUE(unreliable);
 }
 
@@ -380,7 +388,7 @@ static void test_a_wall_that_stays_is_believed_after_the_second_echo()
     }
     TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
     TEST_ASSERT_TRUE(r.sc.blocked);
-    TEST_ASSERT_TRUE(180.0f - r.sim.distMm > 40.0f); // short of the wall, nowhere near the centre
+    TEST_ASSERT_FLOAT_WITHIN(8.0f, 55.0f, r.sim.distMm); // the stop point, 125 mm from the wall
     TEST_ASSERT_TRUE(r.sim.distMm < 125.0f);
 }
 
@@ -435,6 +443,27 @@ static void test_the_params_default_to_the_spec()
     TEST_ASSERT_EQUAL_FLOAT(FRONT_STOP_MM, d.frontStopMm);
     TEST_ASSERT_EQUAL_FLOAT(FRONT_AGREE_MM, d.frontAgreeMm);
     TEST_ASSERT_EQUAL_FLOAT(FRONT_ANCHOR_FILTER, d.anchorFilter);
+    TEST_ASSERT_EQUAL_FLOAT(US_SLOT_MS * US_SENSOR_COUNT, d.echoMs);
+}
+
+// The safety stop starts a braking distance and an echo early, so a wall that the verdict missed is
+// stopped for at the stop point, not past it.
+static void test_a_wall_the_verdict_missed_is_stopped_for_at_the_stop_point()
+{
+    Rig r;
+    r.world.wallX = 250.0f + 125.0f;
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    bool answered = false;
+    for (int i = 0; i < 1200 && st == MoveStatus::Running; ++i) {
+        if (r.sc.wallsReady && !answered) {
+            stepCellContinue(r.sc, r.p); // the caller drives on regardless of the wall
+            answered = true;
+        }
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_FLOAT_WITHIN(8.0f, 125.0f, 375.0f - r.sim.distMm);
 }
 
 static void test_a_move_that_cannot_start_is_stuck()
@@ -476,6 +505,7 @@ int main()
     RUN_TEST(test_a_small_correction_is_not_a_blocked_move);
     RUN_TEST(test_continue_clears_the_cell_it_leaves);
     RUN_TEST(test_the_params_default_to_the_spec);
+    RUN_TEST(test_a_wall_the_verdict_missed_is_stopped_for_at_the_stop_point);
     RUN_TEST(test_a_move_that_cannot_start_is_stuck);
     return UNITY_END();
 }

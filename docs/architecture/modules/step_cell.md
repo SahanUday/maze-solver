@@ -6,7 +6,8 @@ Drive from one cell centre to the next, reading its walls on the way. Pure logic
 ## Interface
 
 - `StepCellParams` - `PlanParams`, `WallParams`, and pitch, cruise speed, `sampleLeadMm`,
-  `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, which default to `RobotSpec.h`.
+  `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, `echoMs`, which default to
+  `RobotSpec.h`.
 - `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
 - `stepCellContinue(sc, params)` - the next cell is straight on: roll through this centre.
@@ -22,15 +23,17 @@ pitch and the robot rolls through; **no answer stops it on the centre**, so a ca
 answers is merely slow. Straight cells run without stopping and only turns stop.
 
 A vote is present / open / no-echo per sensor. A wall is present when seen at least as often as
-open; a sensor with no echo counts as present and sets `unreliable`.
+open; a sensor that heard no echo all window counts as present and sets `unreliable` (a few
+missed echoes among heard ones do not).
 
 A wall ahead moves the stop in two roles:
 
 - **Drift correction.** The cell's vote confirmed the wall: the centre is `frontStopMm` short of
   it, which cancels odometer drift. Believed only under half a pitch.
-- **Safety stop.** The reading is at or inside `frontStopMm`: the robot is already past where it
-  should brake, so the stop is pulled in by any amount (never out). Half a pitch or more sets
-  `blocked`.
+- **Safety stop.** The reading is within `frontStopMm` plus the braking distance at the current
+  speed plus one echo of travel (`echoMs`): the robot can no longer stop short of the stop point
+  by waiting, so the stop is pulled in by any amount (never out). Half a pitch or more sets
+  `blocked`. At rest the trigger is `frontStopMm` itself.
 
 Each echo is placed on the odometer and compared with the one before; it moves the stop only if
 they agree within `frontAgreeMm`, so one stray echo cannot. A real wall is believed one echo later

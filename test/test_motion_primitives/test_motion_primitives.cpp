@@ -231,6 +231,18 @@ static void test_retarget_never_pushes_a_line_out_that_is_already_inside_the_bra
     TEST_ASSERT_EQUAL_FLOAT(60.0f, s.targetMm);
 }
 
+static void test_retarget_does_not_reverse_a_reference_creeping_back()
+{
+    Straight s;
+    MotionFeedback fb;
+    straightBegin(s, fb, 250.0f, 150.0f, 0.0f, 0.0f);
+    s.refMm = 55.5f; // the profile stopped 0.7 mm past the line and is creeping back
+    s.refSpeedMmS = -20.0f;
+    s.targetMm = 54.8f;
+    straightRetarget(s, -60.0f, 0.0f, 500.0f);
+    TEST_ASSERT_EQUAL_FLOAT(54.8f, s.targetMm);
+}
+
 static void test_retarget_brakes_only_down_to_the_arrival_speed()
 {
     Straight s;
@@ -607,6 +619,7 @@ int main()
     RUN_TEST(test_retarget_inside_the_braking_distance_does_not_reverse);
     RUN_TEST(test_retarget_beyond_the_braking_distance_is_taken_as_given);
     RUN_TEST(test_retarget_never_pushes_a_line_out_that_is_already_inside_the_braking_distance);
+    RUN_TEST(test_retarget_does_not_reverse_a_reference_creeping_back);
     RUN_TEST(test_retarget_brakes_only_down_to_the_arrival_speed);
     RUN_TEST(test_retarget_of_a_reverse_move_clamps_the_other_way);
     RUN_TEST(test_retarget_at_rest_follows_the_direction_of_the_move);

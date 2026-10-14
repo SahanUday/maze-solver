@@ -28,6 +28,7 @@ struct StepCellParams {
     float frontStopMm = FRONT_STOP_MM;            // front reading on a centre; 0 = no anchoring
     float frontAgreeMm = FRONT_AGREE_MM;          // echoes this close count as agreeing
     float anchorFilter = FRONT_ANCHOR_FILTER;     // weight of each accepted echo
+    float echoMs = US_SLOT_MS * US_SENSOR_COUNT; // a sensor's refresh period: a reading is this old
 };
 
 struct CellWalls {
@@ -100,7 +101,7 @@ inline void vote(uint8_t (&v)[3], bool valid, bool present)
 // Present when seen at least as often as open; a sensor with no echo counts as present.
 inline bool verdict(const uint8_t (&v)[3], bool &unreliable)
 {
-    if (v[2] > 0) {
+    if (v[0] == 0 && v[1] == 0 && v[2] > 0) {
         unreliable = true;
     }
     return v[0] > 0 ? v[0] >= v[1] : v[1] == 0;
@@ -112,8 +113,9 @@ inline float absf(float x)
 }
 
 // Take in the front echo. Only one that agrees with the echo before it moves the stop, so a stray
-// reading cannot. A wall inside the stop distance is a safety stop: any amount, shortening only.
-// A wall this cell's vote confirmed is a drift correction, believed only while small.
+// reading cannot. A wall the robot can no longer stop short of the stop point for (braking distance
+// and one echo of travel included) is a safety stop: any amount, shortening only. A wall this
+// cell's vote confirmed is a drift correction, believed only while small.
 inline void frontAnchor(StepCell &sc, const StepCellParams &p, const MotionFeedback &fb,
                         const WallView &wv)
 {
@@ -127,7 +129,9 @@ inline void frontAnchor(StepCell &sc, const StepCellParams &p, const MotionFeedb
         sc.haveFront = true;
     }
 
-    const bool inside = front <= p.frontStopMm;
+    const float v = sc.straight.refSpeedMmS > 0.0f ? sc.straight.refSpeedMmS : 0.0f;
+    const float brakeMm = p.plan.accelMmS2 > 0.0f ? v * v / (2.0f * p.plan.accelMmS2) : 0.0f;
+    const bool inside = front <= p.frontStopMm + brakeMm + v * p.echoMs * 0.001f;
     const bool confirmed = sc.wallsReady && sc.walls.front && wv.front;
     if (!inside && !confirmed) {
         return;
