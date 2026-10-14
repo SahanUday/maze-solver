@@ -127,6 +127,78 @@ static void test_a_silent_sensor_is_neither_wall_nor_open()
     TEST_ASSERT_FALSE(r.out.walls.right);
 }
 
+static void test_a_side_sensor_that_never_changes_is_frozen()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distLeftMm = 100;
+    for (int i = 0; i < WALL_FROZEN_MS / DT_MS + 2; ++i) {
+        r.s.distRightMm = (i & 1) ? 110 : 112; // scatters, like a real reading
+        r.tick();
+    }
+    TEST_ASSERT_FALSE(r.out.walls.leftValid);
+    TEST_ASSERT_FALSE(r.out.walls.left); // not a wall, and not "open" either
+    TEST_ASSERT_TRUE(r.out.walls.rightValid);
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+}
+
+static void test_a_reading_that_scatters_is_not_frozen()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    for (int i = 0; i < 300; ++i) {
+        r.s.distLeftMm = (i & 1) ? 100 : 103;
+        r.s.distRightMm = (i & 1) ? 120 : 117;
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_TRUE(r.out.walls.rightValid);
+}
+
+static void test_a_frozen_sensor_comes_back_when_the_value_moves()
+{
+    Rig r;
+    r.s.usValid = 0x07;
+    r.s.distLeftMm = 100;
+    for (int i = 0; i < WALL_FROZEN_MS / DT_MS + 5; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_FALSE(r.out.walls.leftValid);
+    r.s.distLeftMm = 103;
+    r.tick();
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_TRUE(r.out.walls.left);
+}
+
+static void test_the_blind_time_counts_only_while_no_side_has_a_reading()
+{
+    Rig r;
+    r.s.usValid = 0x01; // front only: both sides silent
+    for (int i = 0; i < 25; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_EQUAL_UINT16(25 * DT_MS, r.out.sideBlindMs);
+    r.s.usValid = 0x03;
+    r.s.distLeftMm = 100;
+    r.tick();
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+}
+
+static void test_an_open_side_is_not_blind()
+{
+    // Far readings that arrive are valid: an opening is information, not a failure.
+    Rig r;
+    r.s.usValid = 0x07;
+    for (int i = 0; i < 100; ++i) {
+        r.s.distLeftMm = static_cast<uint16_t>(400 + (i & 3));
+        r.s.distRightMm = static_cast<uint16_t>(405 + (i & 1));
+        r.tick();
+    }
+    TEST_ASSERT_EQUAL_UINT16(0, r.out.sideBlindMs);
+    TEST_ASSERT_TRUE(r.out.walls.leftValid);
+    TEST_ASSERT_FALSE(r.out.walls.left);
+}
+
 static void test_the_incline_is_the_forward_axis_above_level()
 {
     Rig r;
@@ -206,6 +278,11 @@ int main()
     RUN_TEST(test_the_defaults_are_the_spec_values);
     RUN_TEST(test_the_wall_view_uses_the_thresholds);
     RUN_TEST(test_a_silent_sensor_is_neither_wall_nor_open);
+    RUN_TEST(test_a_side_sensor_that_never_changes_is_frozen);
+    RUN_TEST(test_a_reading_that_scatters_is_not_frozen);
+    RUN_TEST(test_a_frozen_sensor_comes_back_when_the_value_moves);
+    RUN_TEST(test_the_blind_time_counts_only_while_no_side_has_a_reading);
+    RUN_TEST(test_an_open_side_is_not_blind);
     RUN_TEST(test_the_incline_is_the_forward_axis_above_level);
     RUN_TEST(test_a_captured_level_replaces_the_bench_value);
     RUN_TEST(test_a_calibration_marks_its_usable_channels);

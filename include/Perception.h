@@ -24,6 +24,9 @@ struct Perception {
     MotionFeedback motion;
     int16_t inclineCounts = 0; // nose-up slope in accel counts; see Tilt.h
     WallView walls;
+    // How long neither side sensor has given a usable reading (no echo, or frozen). An open side
+    // reads far and is valid; this is a sensor failure, for the mission to act on.
+    uint16_t sideBlindMs = 0;
     LineView line;
     bool startPressed = false;
 };
@@ -32,6 +35,7 @@ struct Perception {
 struct PerceiveParams {
     float mmPerCount = MM_PER_ENCODER_COUNT;
     uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
+    uint16_t frozenMs = WALL_FROZEN_MS; // an unchanging side reading this long is a frozen sensor
     WallParams wall;
     float irPitchMm = IR_SENSOR_PITCH_MM;
 };
@@ -39,6 +43,9 @@ struct PerceiveParams {
 struct Perceiver {
     Odometry odo;
     int16_t levelCounts = IMU_ACCEL_FORWARD_LEVEL_COUNTS; // forward-axis reading on level ground
+    uint16_t sideLastMm[2] = {0, 0}; // left, right: last reading and how long it has not changed
+    uint16_t sideSameMs[2] = {0, 0};
+    uint16_t sideBlindMs = 0;
     LineCalibration cal{};
     uint8_t usable = 0; // channels the calibration accepted
     uint8_t mask = 0;   // black channels, with hysteresis
@@ -64,6 +71,20 @@ inline void perceiverSetCalibration(Perceiver &pc, const LineCalibration &cal)
     pc.mask = 0;
 }
 
+// True once a valid reading has not changed at all for `frozenMs`: a real reading scatters by a few
+// mm, so a sensor repeating one value is stuck. Counts through the frozen stretch.
+inline bool sideFrozen(uint16_t &lastMm, uint16_t &sameMs, bool valid, uint16_t mm, uint16_t dtMs,
+                       uint16_t frozenMs)
+{
+    if (!valid || mm != lastMm) {
+        lastMm = mm;
+        sameMs = 0;
+        return false;
+    }
+    sameMs = sameMs > UINT16_MAX - dtMs ? UINT16_MAX : static_cast<uint16_t>(sameMs + dtMs);
+    return sameMs >= frozenMs;
+}
+
 inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParams &p,
                      Perception &out)
 {
@@ -75,6 +96,22 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
     out.motion.yawRateDps = state.yawRateDps;
     out.inclineCounts = inclineCounts(state.imu, pc.levelCounts);
     out.walls = wallView(state, p.wall);
+    if (sideFrozen(pc.sideLastMm[0], pc.sideSameMs[0], out.walls.leftValid, out.walls.leftMm,
+                   p.dtMs, p.frozenMs)) {
+        out.walls.leftValid = false;
+        out.walls.left = false;
+    }
+    if (sideFrozen(pc.sideLastMm[1], pc.sideSameMs[1], out.walls.rightValid, out.walls.rightMm,
+                   p.dtMs, p.frozenMs)) {
+        out.walls.rightValid = false;
+        out.walls.right = false;
+    }
+    const bool blind = !out.walls.leftValid && !out.walls.rightValid;
+    pc.sideBlindMs = !blind ? 0
+                            : (pc.sideBlindMs > UINT16_MAX - p.dtMs
+                                   ? UINT16_MAX
+                                   : static_cast<uint16_t>(pc.sideBlindMs + p.dtMs));
+    out.sideBlindMs = pc.sideBlindMs;
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);
     pc.mask = lineMaskUpdate(pc.norm, pc.mask);

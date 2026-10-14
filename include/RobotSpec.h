@@ -155,14 +155,21 @@ constexpr uint16_t INCLINE_LEVEL_MIN_SAMPLES = 50;
 constexpr uint16_t INCLINE_LEVEL_MAX_RANGE_COUNTS = 600; // about 2 deg; 4x a still capture
 
 // ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
-// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable (noise is
-// +-1 count).
+// 10-bit ADC. A channel whose white-to-black range is below the minimum is unusable.
 constexpr uint16_t ADC_FULL_SCALE_COUNTS = 1023;
-constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 10;
+constexpr uint16_t ADC_NOISE_COUNTS = 1; // +-1 count, one sigma
+constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 30;
 
 // Normalized 0 (white) .. 255 (black): a channel turns black above ON and white below OFF.
 constexpr uint8_t LINE_MASK_ON_PCT = 60;
 constexpr uint8_t LINE_MASK_OFF_PCT = 40;
+// The hysteresis band of the narrowest accepted channel must be at least 6 sigma wide, or its mask
+// flickers where the line edge passes: host model, reading at the middle of the range, 1000 ticks
+// of 8 channels: a span of 20 flipped 604 times, 25 151 times, 29 twice, 36 never.
+static_assert(static_cast<uint32_t>(LINE_CAL_MIN_SPAN_COUNTS) *
+                      (LINE_MASK_ON_PCT - LINE_MASK_OFF_PCT) / 100 >=
+                  6u * ADC_NOISE_COUNTS,
+              "LINE_CAL_MIN_SPAN_COUNTS is too small for the hysteresis band against ADC noise");
 
 // ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
 // Sensor face to floor at the final mount; the signal falls steeply with height.
@@ -240,9 +247,19 @@ constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of ya
 constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 
 // ---- Steering gains ----------------------------------------- [PARTIAL] --
-// Wall centring: a lateral error (mm) to a heading offset (deg). Tuned on the floor, 2026-10-14.
+// Wall centring: a lateral error (mm) to a heading offset (deg). KP_WALL tuned on the floor,
+// 2026-10-14; KI_WALL and the bias limits from the host model with the measured sensor figures.
 constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
-constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset
+constexpr float KI_WALL = 0.10f;      // deg per mm per second; learns the heading reference error
+constexpr float STEER_MAX_DEG = 8.0f; // clamp on the whole offset
+// What the integral may learn: a 2 deg turn tolerance plus ~4 deg of gyro drift over a run. It is
+// dropped when the heading moves this far from where it was learned (a turn).
+constexpr float WALL_BIAS_MAX_DEG = 6.0f;
+constexpr float WALL_BIAS_RESET_DEG = 20.0f;
+// With no wall to confirm it the bias is held this long (a gap of a cell or two), then faded out:
+// a bias learned from a bad reading must not steer the robot for ever.
+constexpr uint16_t WALL_BIAS_HOLD_MS = 2000;
+constexpr float WALL_BIAS_FADE_DEG_S = 4.0f;
 
 // ---- Wall sensing ------------------------------------------- [MEASURED] --
 // Readings are the offset-corrected values in RobotState: the front from the axle, the sides from
@@ -253,6 +270,12 @@ constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset
 constexpr uint16_t WALL_PRESENT_SIDE_MM = 250;  // side reading below this = wall
 constexpr uint16_t WALL_PRESENT_FRONT_MM = 260; // front reading below this = wall (at the sample)
 constexpr uint16_t WALL_CENTER_DIST_MM = 117;   // side reading when centred; one wall only
+// Both walls: |left + right - 2 * centre| above this means one reading is wrong (a corridor
+// measured 231-235 mm; two readings at 3 mm noise). No centring then; the gyro holds the heading.
+constexpr uint16_t WALL_PAIR_TOL_MM = 30;
+// A side sensor whose reading does not change at all for this long is frozen, not a flat wall
+// (the real reading scatters by ~3 mm), so its valid bit is dropped.
+constexpr uint16_t WALL_FROZEN_MS = 400;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.

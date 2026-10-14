@@ -11,11 +11,11 @@
 - `perceiverReset(pc)`, `perceiverSetCalibration(pc, cal)` - the calibration comes from the EEPROM
   store at boot; this also works out which channels it accepts (`lineCalibrationUsable`).
 - `perceiverSetLevel(pc, counts)` - the forward-axis reading on level ground, from `InclineLevel`.
-- `PerceiveParams` - `mmPerCount`, `dtMs`, `wall`, `irPitchMm`. Every default is the value in
-  `RobotSpec.h`, so a default-constructed one is the spec.
+- `PerceiveParams` - `mmPerCount`, `dtMs`, `frozenMs`, `wall`, `irPitchMm`. Every default is the
+  value in `RobotSpec.h`, so a default-constructed one is the spec.
 - `perceive(pc, state, params, out)` - fills `Perception`: `motion` (distance, speed, heading, yaw
-  rate), `inclineCounts`, `walls` ([wall_sense](wall_sense.md)), `line` ([line_view](line_view.md)),
-  `startPressed`.
+  rate), `inclineCounts`, `walls` ([wall_sense](wall_sense.md)), `sideBlindMs`, `line`
+  ([line_view](line_view.md)), `startPressed`.
 
 ## Incline
 
@@ -31,6 +31,15 @@ counts with a threshold and no trigonometry is needed
 - Only valid at constant speed or at rest. The robot's own acceleration reads as a slope
   (500 mm/s^2 is about 875 counts, 2.9 deg), so a consumer needs a threshold well above that or a
   gate on motion.
+
+## Sensor health
+
+- **Frozen side sensor:** a valid side reading that does not change at all for `frozenMs`
+  (`WALL_FROZEN_MS`, 400 ms) is a stuck sensor, since a real one scatters by a few mm. Its valid bit
+  is dropped, so it is neither wall nor open and cannot steer the robot.
+- **`sideBlindMs`:** how long neither side sensor has given a usable reading (no echo, or frozen).
+  An open side reads far and is valid, so this is a sensor failure, not a gap in the walls; the
+  mission decides what to do about it.
 
 ## How it works
 
