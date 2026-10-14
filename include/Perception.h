@@ -36,8 +36,17 @@ struct PerceiveParams {
     float mmPerCount = MM_PER_ENCODER_COUNT;
     uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
     uint16_t frozenMs = WALL_FROZEN_MS; // an unchanging side reading this long is a frozen sensor
+    float frontFrozenMm = FRONT_FROZEN_MM; // an unchanging front reading over this travel is frozen
     WallParams wall;
     float irPitchMm = IR_SENSOR_PITCH_MM;
+};
+
+// The last three distinct echoes of one side sensor. A reading that is not the median of its
+// neighbours is a stray echo; the median costs one echo (60 ms) before a real change comes through.
+struct EchoMedian {
+    uint16_t v[3] = {0, 0, 0}; // newest first
+    uint8_t n = 0;
+    uint16_t last = 0; // the raw reading that was last pushed
 };
 
 struct Perceiver {
@@ -46,6 +55,9 @@ struct Perceiver {
     uint16_t sideLastMm[2] = {0, 0}; // left, right: last reading and how long it has not changed
     uint16_t sideSameMs[2] = {0, 0};
     uint16_t sideBlindMs = 0;
+    uint16_t frontLastMm = 0; // last front reading, and the odometer where it last changed
+    float frontSinceMm = 0.0f;
+    EchoMedian median[2]; // left, right
     LineCalibration cal{};
     uint8_t usable = 0; // channels the calibration accepted
     uint8_t mask = 0;   // black channels, with hysteresis
@@ -85,6 +97,30 @@ inline bool sideFrozen(uint16_t &lastMm, uint16_t &sameMs, bool valid, uint16_t 
     return sameMs >= frozenMs;
 }
 
+// Feed one tick's reading; returns the median of the last three echoes (the reading itself until
+// there are three). A repeated reading is not a new echo.
+inline uint16_t echoMedian(EchoMedian &e, bool valid, uint16_t mm)
+{
+    if (valid && (e.n == 0 || mm != e.last)) {
+        e.v[2] = e.v[1];
+        e.v[1] = e.v[0];
+        e.v[0] = mm;
+        e.last = mm;
+        if (e.n < 3) {
+            ++e.n;
+        }
+    }
+    if (e.n < 3) {
+        return mm;
+    }
+    const uint16_t a = e.v[0];
+    const uint16_t b = e.v[1];
+    const uint16_t c = e.v[2];
+    const uint16_t lo = a < b ? a : b;
+    const uint16_t hi = a < b ? b : a;
+    return c < lo ? lo : (c > hi ? hi : c);
+}
+
 inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParams &p,
                      Perception &out)
 {
@@ -105,6 +141,29 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
                    p.dtMs, p.frozenMs)) {
         out.walls.rightValid = false;
         out.walls.right = false;
+    }
+    // Front: frozen only over travel; at rest a steady wall reads steady.
+    if (out.walls.frontValid) {
+        if (out.walls.frontMm != pc.frontLastMm) {
+            pc.frontLastMm = out.walls.frontMm;
+            pc.frontSinceMm = pc.odo.distMm;
+        }
+        const float moved = pc.odo.distMm - pc.frontSinceMm;
+        if ((moved < 0.0f ? -moved : moved) >= p.frontFrozenMm) {
+            out.walls.frontValid = false;
+            out.walls.front = false;
+        }
+    }
+    // Stray echoes on the sides: the median of the last three distinct ones, on the sensors still
+    // believed. The front is left as it comes: its stray echoes are the step cell's to refuse
+    // (two echoes must agree), and a median there would lag a ramp by an echo and hide the strays
+    // from that check.
+    {
+        WallView &w = out.walls;
+        w.leftMm = echoMedian(pc.median[0], w.leftValid, w.leftMm);
+        w.rightMm = echoMedian(pc.median[1], w.rightValid, w.rightMm);
+        w.left = w.leftValid && w.leftMm < p.wall.sideMm;
+        w.right = w.rightValid && w.rightMm < p.wall.sideMm;
     }
     const bool blind = !out.walls.leftValid && !out.walls.rightValid;
     pc.sideBlindMs = !blind ? 0

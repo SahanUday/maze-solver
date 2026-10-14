@@ -252,6 +252,13 @@ constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
 constexpr float KI_WALL = 0.10f;      // deg per mm per second; learns the heading reference error
 constexpr float STEER_MAX_DEG = 8.0f; // clamp on the whole offset
+// The corridor's direction is measured over this much travel along one wall (a fitted line, about
+// 1 degree of noise at 3 mm sensor noise); the heading frame's error against it is taken out of
+// the gyro heading by this share per stretch (stepCellTakeHeadingFix), where the bias integral
+// alone relearns it after every turn.
+constexpr float WALL_SNAP_MM = 150.0f;
+constexpr float WALL_SNAP_GAIN = 0.5f;
+constexpr float WALL_SNAP_MIN_DEG = 0.3f;
 // What the integral may learn: a 2 deg turn tolerance plus ~4 deg of gyro drift over a run. It is
 // dropped when the heading moves this far from where it was learned (a turn).
 constexpr float WALL_BIAS_MAX_DEG = 6.0f;
@@ -288,6 +295,14 @@ static_assert(WALL_SAMPLE_LEAD_MM >= SEARCH_SPEED_MM_S * SEARCH_SPEED_MM_S / (2.
 constexpr float FRONT_AGREE_MM = 15.0f;
 // Weight of each accepted front echo in the stop; the front alternated 110/119 mm at a dead end.
 constexpr float FRONT_ANCHOR_FILTER = 0.3f;
+// The front sensor returns nothing below ~30 mm raw, 114 mm from the axle, and a stop lands 109 to
+// 126 mm: a move that begins in that zone hears no echo. A first echo is waited for this long (5
+// refresh periods, three misses at the 120 ms a missed slot costs), then the wall is taken to be in
+// the dead zone. 0 = never wait.
+constexpr uint16_t FRONT_BLIND_MS = 300;
+// A front reading that does not change over this much travel is frozen: approaching a wall it
+// changes by the distance covered. Not applied at rest, where it repeats (sd 0.0 at 300 mm).
+constexpr float FRONT_FROZEN_MM = 60.0f;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.
