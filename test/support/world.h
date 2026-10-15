@@ -317,7 +317,8 @@ struct World {
         along = dx * ex[exitDirOrNorth()] + dy * ey[exitDirOrNorth()];
         lat = -dx * ey[exitDirOrNorth()] + dy * ex[exitDirOrNorth()];
     }
-    bool lineGone = false; // the board has no line on it (a test takes it away)
+    bool lineGone = false;  // the board has no line on it (a test takes it away)
+    bool gapIsDark = false; // the gap reads dark like the strip, not as air (as on the real robot)
     int exitDirOrNorth() const
     {
         return arena.exitDir;
@@ -346,7 +347,8 @@ struct World {
             return BLACK_COUNTS;
         }
         if (along < GAP_TO_MM) {
-            return AIR_COUNTS;
+            return gapIsDark ? static_cast<uint16_t>(BLACK_COUNTS)
+                             : static_cast<uint16_t>(AIR_COUNTS);
         }
         if (along < PATCH_TO_MM) {
             return BLACK_COUNTS;

@@ -453,6 +453,24 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
     }
 }
 
+// On the real robot the gap read dark (915-1010), not as air: the follower takes over at the first
+// line view past the dark patch all the same.
+static void test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line()
+{
+    for (int facing = 0; facing < 4; ++facing) {
+        World w;
+        photoWorld(w);
+        w.gapIsDark = true;
+        w.start(2, 1, facing);
+        SectionA ms;
+        sectionAReset(ms);
+        const LineOutcome o = runToLine(w, ms, sectionAParams(), 500);
+        TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase));
+        TEST_ASSERT_FALSE(ms.gapSeen);
+        TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
+    }
+}
+
 static void test_a_line_that_never_comes_is_no_line()
 {
     World w;
@@ -643,5 +661,6 @@ int main()
     RUN_TEST(test_a_line_that_never_comes_is_no_line);
     RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
     RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
+    RUN_TEST(test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line);
     return UNITY_END();
 }

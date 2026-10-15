@@ -31,7 +31,9 @@ The Section A mission: from any tile, explore until the approach marker and stop
 - **Step:** drive one tile. The step reads the walls of the tile ahead 50 mm before its centre;
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
-- **Approach:** the marker has been seen. Straight on at the line speed over the strip and the gap
+- **Approach:** the marker has been seen. The hand-over is at the first line view past the gap, or,
+  if no gap read as air (it did not on the robot: 915-1010 against the floor's 1009-1020), at a
+  mixed line view `BRIDGE_HANDOVER_NO_GAP_MM` (230 mm) past the box's centre. Straight on at the line speed over the strip and the gap
   (`straightStep` along the grid heading, `FloorPattern` for the gap). If a wall is ahead on the
   marker's tile it stops, stands `senseMs` reading both sides, turns to the open side that answers
   from far or not at all (`medianOf`, a silent reading counted as the sensor's range), then goes.
