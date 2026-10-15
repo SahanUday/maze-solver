@@ -196,10 +196,14 @@ constexpr float MARKER_CENTRE_MIN_MM = 95.0f; // the black box between them
 constexpr float MARKER_CENTRE_MAX_MM = 140.0f;
 constexpr float GAP_MIN_MM = 12.0f;     // air for this long = the gap
 constexpr float FLOOR_GLITCH_MM = 4.0f; // a change shorter than this is noise
-// Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. The black floor reads 976-1013
-// and the black tape up to 1023 on the few channels it covers, so the whole array has to be
-// saturated at once. The margin is thin (a few counts); 0 turns the detection off.
-constexpr uint16_t IR_AIR_COUNTS = 1010;
+// Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. On the robot (2026-10-15, bench,
+// the arena's lighting): the array lifted clear of everything reads 1021-1023 on every channel; the
+// black maze floor reads 1009-1020 (channel means 1009-1016, sd 3.4), so a threshold of 1010 on 7
+// channels called the bare floor air. 1018 on 7 channels needs the whole array to be saturated: the
+// floor gets there on one or two channels at a time, not seven. The gap before the ramp read
+// 1016-1023 in PR #28's scans; recheck it against this threshold on the real course. 0 turns the
+// detection off.
+constexpr uint16_t IR_AIR_COUNTS = 1018;
 constexpr uint8_t IR_AIR_CHANNELS = 7;
 // A stored calibration is only believed if it looks like this array on this floor: the whites read
 // at least this high (lower is an array without its emitter supply) and differ from each other by
@@ -391,6 +395,10 @@ constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before i
 // marker's centre is `NoLine` (marker centre to the ramp's line is ~300 mm).
 constexpr bool SECTION_A_FOLLOW_LINE = true;
 constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
+// Without a seen gap, hand over at the first line view this far past the marker's box centre (the
+// gap ends ~182 mm and the dark patch ~190 mm from the tile's centre; the line is on the board
+// from there). Measured on the robot 2026-10-15: the gap read 915-1010, not air.
+constexpr float BRIDGE_HANDOVER_NO_GAP_MM = 230.0f;
 constexpr float APPROACH_NO_LINE_MM = 400.0f;
 // A step that makes no progress (a stiction stop short of its target) this close to the target,
 // standing still, is taken as arrived instead of a fault.

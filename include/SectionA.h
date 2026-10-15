@@ -68,6 +68,9 @@ struct SectionAParams {
     float approachSpeedMmS = LINE_SPEED_MM_S;
     float noLineMm = APPROACH_NO_LINE_MM;
     float handoverMinMm = BRIDGE_HANDOVER_MIN_MM;
+    // The gap may not read as air on this robot (it read 915-1010 on the real course, below the
+    // black floor's 1009-1020): a line view this far past the marker's box centre is the line.
+    float handoverNoGapMm = BRIDGE_HANDOVER_NO_GAP_MM;
     LineParams line;
     // The marker is told by the floor sensor; without it (the array not calibrated) the run
     // explores every reachable tile and stops (Done).
@@ -698,8 +701,11 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
             if (floorPatternStep(ms.floor, pc.floor, pos, p.pattern, centre) == PatternEvent::Gap) {
                 ms.gapSeen = true;
             }
+            const bool pastTheGap = pos - ms.markerCentreMm >= p.handoverNoGapMm &&
+                                    pc.line.onLine && pc.floor == FloorClass::Mixed;
             if (bridgeHandoverStep(ms.bridge, ms.gapSeen, pc.floor, pc.line, pos,
-                                   p.handoverMinMm)) {
+                                   p.handoverMinMm) ||
+                pastTheGap) {
                 // The line is in view past the gap: the follower takes over, mid-stride.
                 lineFollowBegin(ms.line, fb, true);
                 ms.phase = SectionAPhase::Line;
