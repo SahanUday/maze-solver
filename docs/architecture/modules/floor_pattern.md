@@ -41,6 +41,6 @@ air needs most of the array saturated at once; the margin is a few counts.
 Host tests (19) with the proportions measured on the robot (white 36-42, black 116-119, white 37-41
 mm). `PatternParams::farFrameMinMm` lets the far frame count at 12 mm: the array is 86 mm ahead of
 the axle, so a robot stopping on the tile's centre has only ~27 mm of it. The mission
-([section_a](section_a.md)) feeds `Marker`; `Gap` and `BridgeHandover` are tested but nothing calls
-them until the line follower lands. The gap detection's margin is a few counts, measured on one
+([section_a](section_a.md)) feeds `Marker`; `Gap` and `BridgeHandover` take the mission from the approach to
+the line follower; `floorPatternMarkerPending` accepts a marker the robot stopped a little short of. The gap detection's margin is a few counts, measured on one
 floor and one lighting.

@@ -206,3 +206,28 @@ inline PatternEvent floorPatternStep(FloorPattern &f, FloorClass seen, float dis
     }
     return PatternEvent::None;
 }
+
+// The marker is under the array as far as the path goes: its near frame and black box are complete
+// and the far frame has begun, however short. For a robot that has stopped a little short of the
+// tile's centre, with the far frame not yet at its reporting length.
+inline bool floorPatternMarkerPending(const FloorPattern &f, const PatternParams &p, float distMm,
+                                      float &centreMm)
+{
+    using namespace pattern_detail;
+    if (!f.started || f.markerSent || f.cls != FloorClass::White || f.doneCount < 2) {
+        return false;
+    }
+    const float length = distMm - f.runStartMm;
+    if (length < p.glitchMm || length > p.frameMaxMm) {
+        return false;
+    }
+    const PatternRun &black = f.done[2];
+    const PatternRun &near = f.done[1];
+    if (black.cls == FloorClass::Black && near.cls == FloorClass::White &&
+        within(black.endMm - black.startMm, p.centreMinMm, p.centreMaxMm) &&
+        within(near.endMm - near.startMm, p.frameMinMm, p.frameMaxMm)) {
+        centreMm = (black.startMm + black.endMm) * 0.5f;
+        return true;
+    }
+    return false;
+}

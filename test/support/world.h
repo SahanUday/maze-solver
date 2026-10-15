@@ -39,6 +39,19 @@ constexpr float MARKER_OUTER_MM = 191.0f; // white frame, 36.5 mm each side of t
 constexpr float MARKER_BOX_MM = 118.0f;
 constexpr int16_t WHITE_COUNTS = 500; // channel k reads this + 6k on white
 constexpr int16_t BLACK_COUNTS = 990; // the maze floor reads 976-1013
+constexpr int16_t AIR_COUNTS = 1020;  // nothing under the array
+// Beyond the marker tile's open edge, along the exit direction from the tile's centre: the edge
+// at 125 mm, ~20 mm of black strip, the ~37 mm gap, a dark patch, then the white ramp board with
+// the black line down the middle: straight for 600 mm, then a bend to the left.
+constexpr float STRIP_FROM_MM = 125.0f;
+constexpr float GAP_FROM_MM = 145.0f;
+constexpr float GAP_TO_MM = 182.0f;
+constexpr float PATCH_TO_MM = 190.0f;
+constexpr float LINE_STRAIGHT_TO_MM = 800.0f;
+constexpr float BAR_LENGTH_MM = 1500.0f; // the bend's bar, to the left of the line's end
+constexpr float LINE_HALF_MM = 12.0f;    // the line is 24 mm
+constexpr float RAMP_SLOPE_DEG = 10.0f;  // the ramp's slope, from PATCH_TO_MM for 300 mm
+constexpr float RAMP_LENGTH_MM = 300.0f;
 
 struct Rect {
     float x0, x1, y0, y1;
@@ -52,6 +65,7 @@ struct Arena {
     int rects = 0;
     int markerI = -1; // the tile with the approach marker; -1 = none
     int markerJ = -1;
+    int exitDir = 1; // the marker tile's open side: 0 = east, 1 = north, 2 = west, 3 = south
 
     void build()
     {
@@ -91,6 +105,7 @@ struct Arena {
             hw[0 * N + i] = true;
             hw[N * N + i] = i != 0;
         }
+        exitDir = 1;
         const struct {
             int row, col;
             char side; // E = its east side, S = its south side
@@ -291,17 +306,88 @@ struct World {
         held[slot] = static_cast<uint16_t>(mm < 0.0f ? 0.0f : mm);
     }
 
-    // The floor under a point: white on the marker's frame, black everywhere else.
-    bool whiteAt(float px, float py) const
+    // Distances from the marker tile's centre along the exit direction, and across it (left
+    // positive).
+    void exitFrame(float px, float py, float &along, float &lat) const
     {
+        static const float ex[4] = {1.0f, 0.0f, -1.0f, 0.0f};
+        static const float ey[4] = {0.0f, 1.0f, 0.0f, -1.0f};
+        const float dx = px - PITCH * static_cast<float>(arena.markerI);
+        const float dy = py - PITCH * static_cast<float>(arena.markerJ);
+        along = dx * ex[exitDirOrNorth()] + dy * ey[exitDirOrNorth()];
+        lat = -dx * ey[exitDirOrNorth()] + dy * ex[exitDirOrNorth()];
+    }
+    bool lineGone = false; // the board has no line on it (a test takes it away)
+    int exitDirOrNorth() const
+    {
+        return arena.exitDir;
+    }
+
+    // What one channel reads under a point of the floor.
+    uint16_t countsAt(float px, float py, uint8_t ch) const
+    {
+        const uint16_t white = static_cast<uint16_t>(WHITE_COUNTS + 6 * ch);
         if (arena.markerI < 0) {
-            return false;
+            return BLACK_COUNTS;
         }
-        const float dx = fabsf(px - PITCH * arena.markerI);
-        const float dy = fabsf(py - PITCH * arena.markerJ);
-        const float o = MARKER_OUTER_MM / 2;
-        const float b = MARKER_BOX_MM / 2;
-        return dx < o && dy < o && !(dx < b && dy < b);
+        float along = 0.0f;
+        float lat = 0.0f;
+        exitFrame(px, py, along, lat);
+        if (along < STRIP_FROM_MM) {
+            // The maze: black, and the marker's white frame around its black box.
+            const float dx = fabsf(px - PITCH * static_cast<float>(arena.markerI));
+            const float dy = fabsf(py - PITCH * static_cast<float>(arena.markerJ));
+            const float o = MARKER_OUTER_MM / 2;
+            const float b = MARKER_BOX_MM / 2;
+            return dx < o && dy < o && !(dx < b && dy < b) ? white
+                                                           : static_cast<uint16_t>(BLACK_COUNTS);
+        }
+        if (along < GAP_FROM_MM) {
+            return BLACK_COUNTS;
+        }
+        if (along < GAP_TO_MM) {
+            return AIR_COUNTS;
+        }
+        if (along < PATCH_TO_MM) {
+            return BLACK_COUNTS;
+        }
+        if (lineGone) {
+            return white;
+        }
+        const bool straight = along <= LINE_STRAIGHT_TO_MM && fabsf(lat) < LINE_HALF_MM;
+        const bool bend = fabsf(along - LINE_STRAIGHT_TO_MM) < LINE_HALF_MM &&
+                          lat >= -LINE_HALF_MM && lat <= BAR_LENGTH_MM;
+        return straight || bend ? static_cast<uint16_t>(BLACK_COUNTS) : white;
+    }
+
+    // The array centre's distance along the exit direction.
+    float lateAlongMm() const
+    {
+        float along = 0.0f;
+        float lat = 0.0f;
+        const float a = static_cast<float>(yawDeg) * 0.0174533f;
+        exitFrame(static_cast<float>(x) + ARRAY_AHEAD_MM * cosf(a),
+                  static_cast<float>(y) + ARRAY_AHEAD_MM * sinf(a), along, lat);
+        return along;
+    }
+
+    // How far the IR array's centre is from the line's centreline: the distance to the straight or
+    // to the bend's bar.
+    float lineErrorMm() const
+    {
+        float along = 0.0f;
+        float lat = 0.0f;
+        const float a = static_cast<float>(yawDeg) * 0.0174533f;
+        exitFrame(static_cast<float>(x) + ARRAY_AHEAD_MM * cosf(a),
+                  static_cast<float>(y) + ARRAY_AHEAD_MM * sinf(a), along, lat);
+        const float c = along < PATCH_TO_MM
+                            ? PATCH_TO_MM
+                            : (along > LINE_STRAIGHT_TO_MM ? LINE_STRAIGHT_TO_MM : along);
+        const float dA = sqrtf((along - c) * (along - c) + lat * lat);
+        const float l = lat < 0.0f ? 0.0f : (lat > BAR_LENGTH_MM ? BAR_LENGTH_MM : lat);
+        const float dB = sqrtf((along - LINE_STRAIGHT_TO_MM) * (along - LINE_STRAIGHT_TO_MM) +
+                               (lat - l) * (lat - l));
+        return dA < dB ? dA : dB;
     }
 
     // The eight channels of the array: ahead of the axle, D1 at the robot's right end.
@@ -313,10 +399,29 @@ struct World {
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
             const float across = (static_cast<float>(ch) - 3.5f) * IR_SENSOR_PITCH_MM *
                                  (IR_D1_ON_RIGHT ? 1.0f : -1.0f); // positive to the left
-            const float px = cx - across * sinf(a);
-            const float py = cy + across * cosf(a);
-            out[ch] = static_cast<uint16_t>(whiteAt(px, py) ? WHITE_COUNTS + 6 * ch : BLACK_COUNTS);
+            // A channel sees a patch of floor about a pitch wide: it reads the average, so a line
+            // edge moves its reading smoothly.
+            float sum = 0.0f;
+            for (int k = -2; k <= 2; ++k) {
+                const float o = across + static_cast<float>(k) * (IR_SENSOR_PITCH_MM * 0.2f);
+                sum += static_cast<float>(countsAt(cx - o * sinf(a), cy + o * cosf(a), ch));
+            }
+            out[ch] = static_cast<uint16_t>(sum / 5.0f + 0.5f);
         }
+    }
+
+    // The forward accelerometer axis: level, or tilted by the ramp under the axle.
+    int16_t forwardAccel() const
+    {
+        float along = 0.0f;
+        float lat = 0.0f;
+        exitFrame(static_cast<float>(x), static_cast<float>(y), along, lat);
+        float counts = 0.0f;
+        if (arena.markerI >= 0 && along >= PATCH_TO_MM && along <= PATCH_TO_MM + RAMP_LENGTH_MM) {
+            counts = static_cast<float>(IMU_ACCEL_ONE_G_COUNTS) * sinf(RAMP_SLOPE_DEG * 0.0174533f);
+        }
+        counts = IMU_ACCEL_NOSE_UP_NEGATIVE ? -counts : counts;
+        return static_cast<int16_t>(IMU_ACCEL_FORWARD_LEVEL_COUNTS + counts);
     }
 
     // What the robot senses this tick, as the firmware's Perception.
@@ -336,6 +441,7 @@ struct World {
         state.distRightMm = held[2];
         state.usValid = valid;
         arrayCounts(state.irRaw);
+        state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = forwardAccel();
         Perception out;
         perceive(pc, state, pp, out);
         return out;

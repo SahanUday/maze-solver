@@ -69,6 +69,14 @@ static bool mapMatchesTruth(const World &w, const SectionA &ms, int startI, int 
     return ms.map.pos == row * maze::kSide + col;
 }
 
+// The navigation tests end on the marker's tile; the line is tested on its own below.
+static SectionAParams stopAtMarker()
+{
+    SectionAParams p = sectionAParams();
+    p.followLine = false;
+    return p;
+}
+
 static void photoWorld(World &w)
 {
     w.arena.photo();
@@ -90,7 +98,7 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
                 w.start(i, j, facing);
                 SectionA ms;
                 sectionAReset(ms);
-                const Outcome o = run(w, ms, sectionAParams());
+                const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
                 TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the white tile");
@@ -116,7 +124,7 @@ static void test_a_walls_only_run_explores_every_tile_and_stops()
     w.start(3, 0, 1);
     SectionA ms;
     sectionAReset(ms);
-    SectionAParams p = sectionAParams();
+    SectionAParams p = stopAtMarker();
     p.wallsOnly = true;
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
@@ -131,7 +139,7 @@ static void test_without_a_marker_the_run_ends_in_no_route()
     w.start(2, 0, 1);
     SectionA ms;
     sectionAReset(ms);
-    const SectionAParams p = sectionAParams();
+    const SectionAParams p = stopAtMarker();
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoRoute), static_cast<int>(o.fault));
@@ -154,6 +162,7 @@ static void corridorToTheExit(World &w)
     }
     w.arena.markerI = 3;
     w.arena.markerJ = 3;
+    w.arena.exitDir = 0; // east
     w.arena.build();
 }
 
@@ -166,7 +175,7 @@ static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start
             w.start(i, 3, facing);
             SectionA ms;
             sectionAReset(ms);
-            const Outcome o = run(w, ms, sectionAParams());
+            const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
                                       static_cast<int>(o.phase), "did not reach the marker");
             TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the marker");
@@ -182,7 +191,7 @@ static void test_it_holds_still_once_done()
     w.start(3, 3, 2);
     SectionA ms;
     sectionAReset(ms);
-    const SectionAParams p = sectionAParams();
+    const SectionAParams p = stopAtMarker();
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
     const double x0 = w.x;
@@ -206,7 +215,7 @@ static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
     w.start(1, 0, 2, -12.0f); // facing west at the wall between (0, 0) and (1, 0)
     SectionA ms;
     sectionAReset(ms);
-    const Outcome o = run(w, ms, sectionAParams());
+    const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
     TEST_ASSERT_EQUAL_UINT16(0, ms.blocked); // taken as a wall without driving at it
@@ -223,7 +232,7 @@ static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
     w.start(3, 0, 1);
     SectionA ms;
     sectionAReset(ms);
-    const Outcome o = run(w, ms, sectionAParams());
+    const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(ms.blocked > 0);
     TEST_ASSERT_TRUE(ms.resumed > 0);
@@ -245,7 +254,7 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
             w.start(i, j, (i + j) & 3);
             SectionA ms;
             sectionAReset(ms);
-            const Outcome o = run(w, ms, sectionAParams());
+            const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
             TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
             TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
@@ -263,7 +272,7 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
     w.start(3, 0, 1);
     SectionA ms;
     sectionAReset(ms);
-    const Outcome o = run(w, ms, sectionAParams());
+    const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(w.minSideMm > world::BODY_HALF_MM - 15.0f);
 }
@@ -288,7 +297,7 @@ static void test_every_start_finishes_on_wheels_that_roll_hard()
                 w.start(i, j, facing);
                 SectionA ms;
                 sectionAReset(ms);
-                const Outcome o = run(w, ms, sectionAParams());
+                const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
                 TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
@@ -314,7 +323,7 @@ static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
                 w.start(i, j, (i + 2 * j) & 3);
                 SectionA ms;
                 sectionAReset(ms);
-                const Outcome o = run(w, ms, sectionAParams());
+                const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
                 TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
@@ -323,6 +332,163 @@ static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
             }
         }
     }
+}
+
+// ---- Out of the maze and onto the line --------------------------------------------------------
+struct LineOutcome {
+    SectionAPhase phase = SectionAPhase::WaitStart;
+    SectionAFault fault = SectionAFault::None;
+    bool reachedLine = false;
+    float worstErrMm = 0.0f;      // from the centreline, once the follower has the line
+    float worstStraightMm = 0.0f; // ... on the straight, before the bend
+    float finalErrMm = 0.0f;
+    bool onRampSeen = false;
+};
+
+// Run until the follower has had `lineTicks` ticks (or the run ends).
+static LineOutcome runToLine(World &w, SectionA &ms, const SectionAParams &p, uint32_t lineTicks)
+{
+    LineOutcome o;
+    uint32_t onLine = 0;
+    for (uint32_t t = 0; t < RUN_TICKS && onLine < lineTicks; ++t) {
+        const Perception pc = w.sense();
+        const DriveCommand cmd = sectionAStep(ms, p, pc);
+        const float fix = sectionATakeHeadingFix(ms);
+        if (fix != 0.0f) {
+            headingSet(w.heading, w.heading.deg - fix);
+        }
+        w.drive(cmd);
+        if (ms.phase == SectionAPhase::Fault || ms.phase == SectionAPhase::Done) {
+            break;
+        }
+        if (ms.phase == SectionAPhase::Line) {
+            o.reachedLine = true;
+            ++onLine;
+            const float e = w.lineErrorMm();
+            o.worstErrMm = e > o.worstErrMm ? e : o.worstErrMm;
+            if (w.lineErrorMm() < 60.0f && w.lateAlongMm() < world::LINE_STRAIGHT_TO_MM - 60.0f) {
+                o.worstStraightMm = e > o.worstStraightMm ? e : o.worstStraightMm;
+            }
+            o.onRampSeen = o.onRampSeen || pc.inclineCounts > RAMP_INCLINE_COUNTS;
+        }
+    }
+    o.phase = ms.phase;
+    o.fault = ms.fault;
+    o.finalErrMm = w.lineErrorMm();
+    return o;
+}
+
+static void test_the_marker_leads_over_the_gap_and_onto_the_line()
+{
+    for (int facing = 0; facing < 4; ++facing) {
+        World w;
+        photoWorld(w);
+        w.start(2, 1, facing);
+        SectionA ms;
+        sectionAReset(ms);
+        // 8 s of following: the straight, the ramp and the bend to the left after it.
+        const LineOutcome o = runToLine(w, ms, sectionAParams(), 800);
+        TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
+        TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase));
+        TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
+        TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
+        TEST_ASSERT_TRUE(o.onRampSeen);
+        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    }
+}
+
+static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
+{
+    for (int i = 0; i < world::N; ++i) {
+        for (int j = 0; j < world::N; ++j) {
+            if (i == 0 && j == world::N - 1) {
+                continue;
+            }
+            World w;
+            photoWorld(w);
+            w.rng.s = 55u + static_cast<uint32_t>(i * 9 + j);
+            w.start(i, j, (i + j) & 3);
+            SectionA ms;
+            sectionAReset(ms);
+            const LineOutcome o = runToLine(w, ms, sectionAParams(), 1000);
+            TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Line),
+                                      static_cast<int>(o.phase), "not following the line");
+            TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
+            TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
+            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+        }
+    }
+}
+
+// The marker's tile is entered facing a wall and the way out is to the side: it stops, reads both
+// sides (the other open side leads to a maze tile, the exit to nothing), turns and drives out.
+static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
+{
+    for (int exitSide = 0; exitSide < 2; ++exitSide) {
+        World w;
+        // Row 3 is a corridor along the top of the arena. The marker tile (3,3) is at its end: an
+        // open edge north (exitSide 0) or the tile below it being open and the exit north.
+        for (int j = 0; j < world::N; ++j) {
+            w.arena.vw[0 * world::N + j] = true;
+            w.arena.vw[world::N * world::N + j] = true;
+        }
+        for (int i = 0; i < world::N; ++i) {
+            w.arena.hw[0 * world::N + i] = true;
+            w.arena.hw[world::N * world::N + i] = i != 3; // the marker tile's north edge is open
+            w.arena.hw[3 * world::N + i] = i == 3 && exitSide == 1 ? false : true;
+        }
+        w.arena.markerI = 3;
+        w.arena.markerJ = 3;
+        w.arena.exitDir = 1; // north
+        w.arena.build();
+        w.start(0, 3, 0); // along the corridor; the tile ahead ends in a wall to the east
+        SectionA ms;
+        sectionAReset(ms);
+        const LineOutcome o = runToLine(w, ms, sectionAParams(), 500);
+        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase),
+                                  "did not leave by the side");
+        TEST_ASSERT_TRUE(ms.exiting); // it turned
+        TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
+        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    }
+}
+
+static void test_a_line_that_never_comes_is_no_line()
+{
+    World w;
+    photoWorld(w);
+    w.arena.markerI = 0;
+    w.arena.markerJ = 3;
+    w.start(0, 2, 1);
+    SectionAParams p = sectionAParams();
+    p.noLineMm = 90.0f; // the gap is 180 mm out: the follower is never reached
+    SectionA ms;
+    sectionAReset(ms);
+    const LineOutcome o = runToLine(w, ms, p, 100);
+    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoLine), static_cast<int>(o.fault));
+}
+
+static void test_a_line_lost_is_searched_for_and_then_the_motors_are_cut()
+{
+    World w;
+    photoWorld(w);
+    w.start(0, 2, 1);
+    SectionA ms;
+    sectionAReset(ms);
+    LineOutcome o = runToLine(w, ms, sectionAParams(), 100);
+    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase));
+    // The line is gone: nothing but white board.
+    const SectionAParams p = sectionAParams();
+    w.lineGone = true;
+    for (uint32_t t = 0; t < 1000 && ms.phase == SectionAPhase::Line; ++t) {
+        const DriveCommand cmd = sectionAStep(ms, p, w.sense());
+        w.drive(cmd);
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(ms.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::LineLost), static_cast<int>(ms.fault));
+    DriveCommand last = sectionAStep(ms, p, w.sense());
+    TEST_ASSERT_FALSE(last.enable);
 }
 
 // ---- Faults --------------------------------------------------------------------------------
@@ -342,7 +508,7 @@ static Outcome runWith(const SectionAParams &p, float sticking = 1.0f, int obsta
 
 static void test_a_step_that_cannot_start_is_a_stuck_step()
 {
-    SectionAParams p = sectionAParams();
+    SectionAParams p = stopAtMarker();
     p.step.plan.accelMmS2 = 0.0f; // the profile never leaves zero
     const Outcome o = runWith(p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
@@ -351,7 +517,7 @@ static void test_a_step_that_cannot_start_is_a_stuck_step()
 
 static void test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn()
 {
-    SectionAParams p = sectionAParams();
+    SectionAParams p = stopAtMarker();
     p.step.plan.turnAccelDps2 = 0.0f;
     // Facing south on (3, 0) the first plan is a turn.
     World w;
@@ -367,14 +533,14 @@ static void test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn()
 
 static void test_wheels_that_never_break_away_stall_the_motors()
 {
-    const Outcome o = runWith(sectionAParams(), 100.0f);
+    const Outcome o = runWith(stopAtMarker(), 100.0f);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::Stall), static_cast<int>(o.fault));
 }
 
 static void test_too_many_cut_short_steps_end_the_run()
 {
-    SectionAParams p = sectionAParams();
+    SectionAParams p = stopAtMarker();
     p.maxBlocked = 0;
     const Outcome o = runWith(p, 1.0f, 3500, 3750);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
@@ -390,7 +556,7 @@ static void test_nothing_moves_until_the_start_button()
     w.state.startButtonPressed = false;
     SectionA ms;
     sectionAReset(ms);
-    const SectionAParams p = sectionAParams();
+    const SectionAParams p = stopAtMarker();
     DriveCommand cmd;
     for (int i = 0; i < 50; ++i) {
         w.state.startButtonPressed = false;
@@ -410,7 +576,7 @@ static void test_a_failure_set_by_the_caller_cuts_the_motors()
     World w;
     photoWorld(w);
     w.start(1, 1, 0);
-    const DriveCommand cmd = sectionAStep(ms, sectionAParams(), w.sense());
+    const DriveCommand cmd = sectionAStep(ms, stopAtMarker(), w.sense());
     TEST_ASSERT_FALSE(cmd.enable);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoImu), static_cast<int>(ms.fault));
 }
@@ -472,5 +638,10 @@ int main()
     RUN_TEST(test_the_sweep_goes_the_way_of_the_turn);
     RUN_TEST(test_map_directions_run_clockwise_and_the_gyro_counter_clockwise);
     RUN_TEST(test_the_default_parameters_are_the_spec);
+    RUN_TEST(test_the_marker_leads_over_the_gap_and_onto_the_line);
+    RUN_TEST(test_every_start_reaches_the_line_and_follows_it_round_the_bend);
+    RUN_TEST(test_a_line_that_never_comes_is_no_line);
+    RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
+    RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
     return UNITY_END();
 }
