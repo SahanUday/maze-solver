@@ -5,7 +5,8 @@
 //
 //  The motors NEVER move on boot or reset. Only a command starts a move, and any byte received
 //  while moving aborts it. Hard limits that do not depend on the controller or the host:
-//    duty cap, time cap, distance cap, front cut-off, and a pushed-but-not-moving cut-off.
+//    duty cap, time cap, distance cap (not in a line run), front cut-off, and a
+//    pushed-but-not-moving cut-off.
 //
 //  Commands (one line, end with newline):
 //    h                       help
@@ -15,6 +16,14 @@
 //    b                       recapture the gyro bias (robot held still) and zero the heading
 //    o <L> <R> <ms>          open loop: fixed signed duty on each wheel (max +-DUTY_CAP, 2000 ms)
 //    s <mm>                  closed-loop straight, signed (max +-DIST_CAP_MM)
+//    k / f                   start / finish a line calibration capture (slide over white and black)
+//    K <mm> [v]              calibrate by driving: a slow straight, white floor onto black
+//    m [v] [mm]              approach: a slow straight (default 70 mm/s) that runs the marker and
+//    gap
+//                            detector live, then stops once the gap is behind the array
+//    L [mm]                  follow the line with the real follower (needs k/f first)
+//    i                       the 8 raw IR counts right now (check what is under the array first)
+//    r <mm> [v]              scan: slow straight logging the odometer with the 8 IR channels
 //    c                       one mission cell step: wall vote, front-anchored stop
 //    a <heading> <dir>       turn to an exact heading, dir +1 CCW / -1 CW (what the mission does)
 //    t <deg>                 closed-loop turn in place, CCW positive
@@ -26,8 +35,11 @@
 #include <string.h>
 
 #include "Heading.h"
+#include "LineFollow.h"
+#include "LineSense.h"
 #include "MotionControl.h"
 #include "MotionPrimitives.h"
+#include "NavParams.h"
 #include "Perception.h"
 #include "RobotConfig.h"
 #include "RobotSpec.h"
@@ -40,6 +52,7 @@
 #include "hal/line_sensors.h"
 #include "hal/motors.h"
 #include "hal/ultrasonic.h"
+#include "line_cal_store.h"
 
 namespace
 {
@@ -75,8 +88,64 @@ struct Sample {
     int16_t trim; // wall-steering offset added to the held heading, 0.1 deg
 };
 
-Sample g_log[LOG_MAX];
+// A scan (`r`) logs the IR array instead: the odometer and the 8 raw counts / 4 per sample. It
+// reuses the log's memory.
+constexpr uint8_t SCAN_MAX = 200; // one per 3 ticks, 6 s
+constexpr uint8_t SCAN_EVERY = 3;
+constexpr uint16_t SCAN_MAX_MS = 14000; // a scan may run this long (incl. the hold)
+constexpr uint16_t SCAN_TIMEOUT_MS = 8000;
+constexpr int16_t SCAN_HOLD_MS = 6000; // after the end of a scan the motors hold the position
+struct ScanSample {
+    int16_t dist; // 0.1 mm
+    uint8_t ir[IR_CHANNEL_COUNT];
+    int8_t tilt10; // tilt in 0.1 deg, clamped to +-12.7
+};
+// A line-follow run logs one of these every LINE_EVERY ticks.
+constexpr uint8_t LINE_EVERY_DEFAULT = 16; // 160 ms, so 200 samples = 32 s
+struct LineSample {
+    int16_t dist; // mm
+    int16_t err;  // line error, 0.1 mm (0 with no line in view)
+    int16_t speed;
+    uint8_t mask;  // black channels, bit = channel (0 = the robot's right end)
+    uint8_t flags; // bit0 line in view, bit1 all black, bit2 all white, bit3 air; bits 4-6 the mode
+    int8_t tilt10;
+};
+union LogStore {
+    Sample s[LOG_MAX];
+    ScanSample c[SCAN_MAX];
+    LineSample l[SCAN_MAX];
+};
+static_assert(sizeof(ScanSample) * SCAN_MAX <= sizeof(Sample) * LOG_MAX, "scan log fits the log");
+LogStore g_store;
 uint8_t g_logCount = 0;
+bool g_scan = false; // the running straight is a scan
+
+// Approach (`m`): the marker / gap detector run live on a slow straight.
+struct ApEvent {
+    int16_t pos;  // array sensing line, mm from where the axle started
+    uint8_t kind; // 0 black 1 white 2 air (a class change), 10 marker, 11 gap, 12 stop
+    uint8_t ir[IR_CHANNEL_COUNT]; // raw / 4
+};
+constexpr uint8_t AP_MAX = 40;
+ApEvent g_ap[AP_MAX];
+uint8_t g_apCount = 0;
+bool g_approach = false;
+FloorPattern g_pat;
+FloorClass g_apLast = FloorClass::Mixed;
+bool g_apMarker = false;
+bool g_apGap = false;
+float g_apMarkerCentre = 0.0f;
+float g_apAfterGapMm = -1.0f; // array position where the floor stopped being air after the gap
+BridgeHandover g_apBridge;
+float g_apFollowMm = 0.0f; // m <v> <mm>: follow the line this far after the handover; 0 = just stop
+bool g_apRun = false;      // this run was started by `m` (its events are printed at the end)
+float g_apHandoverMm = -1.0f;
+float g_scanRestoreV = 0.0f;
+uint16_t g_scanRestoreTimeoutMs = 0;
+int16_t g_holdLeftMs = -1; // < 0: not holding yet
+float g_holdMm = 0.0f;
+float g_holdHeadingDeg = 0.0f;
+uint16_t g_ir[IR_CHANNEL_COUNT];
 
 // ---- Tunables ----------------------------------------------------------------------------
 struct Tune {
@@ -93,6 +162,20 @@ struct Tune {
     float lead = static_cast<float>(WALL_SAMPLE_LEAD_MM);
     float win = static_cast<float>(WALL_SAMPLE_WINDOW_MM);
     float fstop = static_cast<float>(FRONT_STOP_MM);
+    // Line following (`L`). lslow is the slowdown percent, llost the lost-line timeout in ms.
+    float kpl = 0.0f;       // deg of heading offset per mm of line error
+    float kdl = 0.0f;       // ... per mm/s
+    float lsmax = 15.0f;    // clamp on that offset, deg
+    float lv = 100.0f;      // speed on the line, mm/s
+    float lacc = 300.0f;    // its acceleration
+    float lslow = 60.0f;    // speed kept at the largest error, percent
+    float lslowerr = 20.0f; // the error at which that is reached, mm
+    float lsearch = 60.0f;  // spin rate when the line is lost, deg/s
+    float llost = 3000.0f;  // lost-line timeout, ms
+    float lendlost = 80.0f; // no line (white) this far after it was seen = the line has ended, mm
+    float lramp =
+        0.0f; // tilt above which an all-white array is ignored (the lifted array), deg; 0 = never
+    float lsspeed = 0.0f; // forward speed while the line is out of sight, mm/s; 0 = stop
 };
 Tune g_tune;
 WallSteer g_steer;
@@ -128,6 +211,18 @@ const Name g_names[] = {
     {"lead", &g_tune.lead},
     {"win", &g_tune.win},
     {"fstop", &g_tune.fstop},
+    {"kpl", &g_tune.kpl},
+    {"kdl", &g_tune.kdl},
+    {"lsmax", &g_tune.lsmax},
+    {"lv", &g_tune.lv},
+    {"lacc", &g_tune.lacc},
+    {"lslow", &g_tune.lslow},
+    {"lslowerr", &g_tune.lslowerr},
+    {"lsearch", &g_tune.lsearch},
+    {"llost", &g_tune.llost},
+    {"lendlost", &g_tune.lendlost},
+    {"lramp", &g_tune.lramp},
+    {"lsspeed", &g_tune.lsspeed},
 };
 
 void tuneDefaults()
@@ -184,7 +279,7 @@ bool g_imuPresent = false;
 GyroBias g_bias;
 Heading g_heading;
 
-enum class Mode : uint8_t { Idle, Open, Straight, Turn, Cell };
+enum class Mode : uint8_t { Idle, Open, Straight, Turn, Cell, Line };
 Mode g_mode = Mode::Idle;
 
 MotionControl g_mc;
@@ -192,6 +287,25 @@ Straight g_straight;
 Turn g_turn;
 StepCell g_cell;
 bool g_cellReported = false;
+LineFollow g_line;
+uint8_t g_lineEvery = LINE_EVERY_DEFAULT;
+float g_lineLimitMm = 0.0f; // L <mm>: stop the run after this much travel; 0 = no limit
+LineStatus g_lineStatus = LineStatus::Following;
+LineCalibration g_cal;
+bool g_capturing = false;
+uint16_t g_flatSkipped = 0; // sweeps of a capture that looked like an unpowered array
+// Static calibration: W and B average the array over 1.5 s standing still on white and on black.
+constexpr uint16_t STATIC_TICKS = 150;
+char g_staticWhich = 0; // 'W', 'B', or 0 = not measuring
+uint16_t g_staticN = 0;
+uint32_t g_staticSum[IR_CHANNEL_COUNT];
+uint32_t g_staticSumSq[IR_CHANNEL_COUNT];
+uint16_t g_meanW[IR_CHANNEL_COUNT];
+uint16_t g_meanB[IR_CHANNEL_COUNT];
+bool g_haveW = false;
+bool g_haveB = false;
+bool g_calDrive = false; // the running straight is a calibration drive (K)
+float g_calRestoreV = 0.0f;
 int16_t g_openL = 0;
 int16_t g_openR = 0;
 uint16_t g_openMs = 0;
@@ -284,8 +398,11 @@ void printTunables()
 
 void help()
 {
-    Serial.println(
-        F("# h | p | w | c | set <name> <v> | b | o <L> <R> <ms> | s <mm> | t <deg> | x"));
+    Serial.println(F(
+        "# h | p | w | i | k | f | K <mm> [v] | m [v] [mm] | L [mm] | c | r <mm> [v] | set <name> "
+        "<v> | b | o <L> "
+        "<R> <ms> | s <mm> "
+        "| t <deg> | x"));
     Serial.println(
         F("# names: kpd kid kdd kpt kit kdt ffv ffd v acc rate tacc stol ttol minl minr"));
 }
@@ -303,9 +420,131 @@ StepCellParams cellParams()
     return p;
 }
 
+// A real calibration has a white level well above the ambient-only ~130 and channels that differ
+// from each other by tens of counts; eight identical low whites is an array without its emitter
+// supply.
+bool calibrationLooksReal(const LineCalibration &cal)
+{
+    uint16_t lo = 0xFFFF;
+    uint16_t hi = 0;
+    uint8_t usable = 0;
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        lo = cal.white[k] < lo ? cal.white[k] : lo;
+        hi = cal.white[k] > hi ? cal.white[k] : hi;
+        usable = static_cast<uint8_t>(usable + (cal.scale[k] != 0 ? 1 : 0));
+    }
+    return usable > 0 && lo >= 400 && (hi - lo) >= 15;
+}
+
+// The two means are in: build the calibration from them, check it, save it.
+void buildStaticCalibration()
+{
+    // A channel that has not seen black (the 24 mm line only covers about 3 channels at a time)
+    // takes the typical black of this robot: the tape reads 1005-1020, the black area 1016-1023.
+    constexpr uint16_t DEFAULT_BLACK = 1020;
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        g_cal.white[k] = g_meanW[k];
+        g_cal.black[k] = g_meanB[k] > g_meanW[k] + 50u ? g_meanB[k] : DEFAULT_BLACK;
+        g_cal.scale[k] = 0;
+    }
+    const uint8_t usable = lineCalibrationFinish(g_cal);
+    if (!calibrationLooksReal(g_cal)) {
+        Serial.println(F("# REJECTED: whites too low or alike, or no range - measure again"));
+        return;
+    }
+    perceiverSetCalibration(g_perceiver, g_cal);
+    lineCalSave(g_cal);
+    Serial.println(F("# calibration from the two means (saved to EEPROM): ch,white,black,range"));
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        Serial.print(k);
+        Serial.print(',');
+        Serial.print(g_cal.white[k]);
+        Serial.print(',');
+        Serial.print(g_cal.black[k]);
+        Serial.print(',');
+        Serial.println(static_cast<int>(g_cal.black[k]) - static_cast<int>(g_cal.white[k]));
+    }
+    Serial.print(F("# usable mask 0x"));
+    Serial.println(usable, HEX);
+}
+
+void finishStatic()
+{
+    const char which = g_staticWhich;
+    g_staticWhich = 0;
+    uint16_t means[IR_CHANNEL_COUNT];
+    uint16_t lo = 0xFFFF;
+    uint16_t hi = 0;
+    float worstSd = 0.0f;
+    Serial.print(F("# "));
+    Serial.print(which == 'W' ? F("white") : F("black"));
+    Serial.print(F(" means:"));
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        const float mean = static_cast<float>(g_staticSum[k]) / static_cast<float>(g_staticN);
+        const float var =
+            static_cast<float>(g_staticSumSq[k]) / static_cast<float>(g_staticN) - mean * mean;
+        const float sd = var > 0.0f ? sqrtf(var) : 0.0f;
+        worstSd = sd > worstSd ? sd : worstSd;
+        means[k] = static_cast<uint16_t>(mean + 0.5f);
+        lo = means[k] < lo ? means[k] : lo;
+        hi = means[k] > hi ? means[k] : hi;
+        Serial.print(' ');
+        Serial.print(means[k]);
+    }
+    Serial.print(F("   worst sd "));
+    Serial.println(worstSd, 1);
+    if (worstSd > 6.0f) {
+        Serial.println(F("# NOT STILL: the readings moved by more than 6 counts - measure again"));
+        return;
+    }
+    if (which == 'W') {
+        if (lo < 400) {
+            Serial.println(F("# REJECTED: white this low means the array is unpowered or covered"));
+            return;
+        }
+        g_haveW = true;
+    } else {
+        // Keep the highest mean each channel has shown over the black measurements so far.
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            g_meanB[k] = means[k] > g_meanB[k] ? means[k] : g_meanB[k];
+        }
+        g_haveB = true;
+    }
+    if (which == 'W') {
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            g_meanW[k] = means[k];
+        }
+    }
+    if (g_haveW && g_haveB) {
+        buildStaticCalibration();
+    } else {
+        Serial.println(g_haveW ? F("# now measure BLACK (B)") : F("# now measure WHITE (W)"));
+    }
+}
+
+LineParams lineParams()
+{
+    LineParams p;
+    p.kp = g_tune.kpl;
+    p.kd = g_tune.kdl;
+    p.steerMaxDeg = g_tune.lsmax;
+    p.speedMmS = g_tune.lv;
+    p.accelMmS2 = g_tune.lacc;
+    p.slowdownErrMm = g_tune.lslowerr;
+    p.slowdownPct = static_cast<uint8_t>(
+        g_tune.lslow < 0.0f ? 0.0f : (g_tune.lslow > 100.0f ? 100.0f : g_tune.lslow));
+    p.searchRateDps = g_tune.lsearch;
+    p.lostTimeoutMs = static_cast<uint16_t>(g_tune.llost);
+    p.endLostMm = g_tune.lendlost;
+    p.rampTiltDeg = g_tune.lramp;
+    p.searchSpeedMmS = g_tune.lsspeed;
+    return p;
+}
+
 void beginMove(Mode mode)
 {
     g_cellReported = false;
+    g_scan = false;
     motionControlReset(g_mc);
     wallSteerReset(g_steer);
     g_logCount = 0;
@@ -318,20 +557,87 @@ void beginMove(Mode mode)
     motorsEnable(true);
 }
 
+void handleLine(char *line);
+
+constexpr float AP_STOP_AFTER_GAP_MM = 8.0f; // the array has been off the gap this far
+constexpr float AP_NO_GAP_MM = 300.0f;       // a marker with no gap this far past its centre
+
+void apRecord(float pos, uint8_t kind)
+{
+    if (g_apCount >= AP_MAX) {
+        return;
+    }
+    ApEvent &e = g_ap[g_apCount++];
+    e.pos = static_cast<int16_t>(pos);
+    e.kind = kind;
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        e.ir[k] = static_cast<uint8_t>(g_ir[k] >> 2);
+    }
+}
+
+void apReport()
+{
+    Serial.print(F("# marker "));
+    Serial.print(g_apMarker ? F("FOUND, box centre at ") : F("not found"));
+    if (g_apMarker) {
+        Serial.print(g_apMarkerCentre, 0);
+        Serial.print(F(" mm"));
+    }
+    Serial.print(F("   gap "));
+    Serial.println(g_apGap ? F("FOUND") : F("not found"));
+    Serial.println(F("# events: array_pos_mm,kind,ir0..ir7 (raw/4)  kind 0 black 1 white 2 air "
+                     "10 marker 11 gap 12 stop 13 handover"));
+    for (uint8_t i = 0; i < g_apCount; ++i) {
+        Serial.print(g_ap[i].pos);
+        Serial.print(',');
+        Serial.print(g_ap[i].kind);
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(',');
+            Serial.print(g_ap[i].ir[k]);
+        }
+        Serial.println();
+    }
+}
+
 void endMove(const char *reason)
 {
     motorSet(Motor::Left, 0);
     motorSet(Motor::Right, 0);
     motorsEnable(false);
     const Mode was = g_mode;
+    const bool wasScan = g_scan;
+    const bool wasCal = g_calDrive;
+    if (g_calDrive) {
+        g_tune.vMax = g_calRestoreV;
+        g_tune.plan.moveTimeoutMs = g_scanRestoreTimeoutMs;
+        g_calDrive = false;
+    }
     g_mode = Mode::Idle;
     g_reason = reason;
+    if (was == Mode::Line) {
+        g_tune.plan.moveTimeoutMs = g_scanRestoreTimeoutMs;
+    }
+    if (g_scan) {
+        g_tune.vMax = g_scanRestoreV;
+        g_tune.plan.moveTimeoutMs = g_scanRestoreTimeoutMs;
+        g_scan = false;
+    }
+    const bool wasApproach = g_apRun;
+    if (g_apRun) {
+        g_tune.vMax = g_scanRestoreV;
+        g_tune.plan.moveTimeoutMs = g_scanRestoreTimeoutMs;
+        g_approach = false;
+        g_apRun = false;
+    }
+    g_lineEvery = LINE_EVERY_DEFAULT;
 
     Serial.print(F("# end "));
     Serial.print(was == Mode::Open
                      ? F("open")
-                     : (was == Mode::Straight ? F("straight")
-                                              : (was == Mode::Cell ? F("cell") : F("turn"))));
+                     : (was == Mode::Straight
+                            ? F("straight")
+                            : (was == Mode::Cell ? F("cell")
+                                                 : (was == Mode::Line ? F("line") : F("turn")))));
     Serial.print(F(" reason="));
     Serial.print(reason);
     Serial.print(F(" ms="));
@@ -344,11 +650,66 @@ void endMove(const char *reason)
     Serial.print(g_state.encoderCountL);
     Serial.print(F(" encR="));
     Serial.println(g_state.encoderCountR);
+    if (was == Mode::Line) {
+        if (wasApproach) {
+            apReport();
+            Serial.print(F("# handover at array position "));
+            Serial.print(g_apHandoverMm, 0);
+            Serial.println(F(" mm"));
+        }
+        Serial.println(F("# line dist_mm,err_mm,speed,mask,line,black,white,air,mode,tilt"));
+        for (uint8_t i = 0; i < g_logCount; ++i) {
+            const LineSample &c = g_store.l[i];
+            Serial.print(c.dist);
+            Serial.print(',');
+            Serial.print(c.err / 10.0f, 1);
+            Serial.print(',');
+            Serial.print(c.speed);
+            Serial.print(',');
+            for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+                Serial.print(((c.mask >> k) & 1u) ? '#' : '.');
+            }
+            Serial.print(',');
+            Serial.print(c.flags & 1u);
+            Serial.print(',');
+            Serial.print((c.flags >> 1) & 1u);
+            Serial.print(',');
+            Serial.print((c.flags >> 2) & 1u);
+            Serial.print(',');
+            Serial.print((c.flags >> 3) & 1u);
+            Serial.print(',');
+            Serial.print((c.flags >> 4) & 7u);
+            Serial.print(',');
+            Serial.println(c.tilt10 / 10.0f, 1);
+        }
+        Serial.println(F("# done"));
+        return;
+    }
+    if (wasApproach && was != Mode::Line) {
+        apReport();
+        Serial.println(F("# done"));
+        return;
+    }
+    if (was == Mode::Straight && wasScan) {
+        Serial.println(F("# scan dist_mm,ir0..ir7 (raw counts / 4),tilt (deg), one row per 30 ms"));
+        for (uint8_t i = 0; i < g_logCount; ++i) {
+            const ScanSample &c = g_store.c[i];
+            Serial.print(c.dist / 10.0f, 1);
+            for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+                Serial.print(',');
+                Serial.print(c.ir[k]);
+            }
+            Serial.print(',');
+            Serial.println(c.tilt10 / 10.0f, 1);
+        }
+        Serial.println(F("# done"));
+        return;
+    }
     Serial.println(
         F("# t_ms,dist,distRef,speed,speedRef,hdg,hdgRef,yaw,dutyL,dutyR,left,right,trim "
           "(dist/hdg/yaw/trim x10)"));
     for (uint8_t i = 0; i < g_logCount; ++i) {
-        const Sample &s = g_log[i];
+        const Sample &s = g_store.s[i];
         Serial.print(static_cast<uint16_t>(i) * LOG_EVERY * CONTROL_LOOP_PERIOD_MS);
         Serial.print(',');
         Serial.print(s.dist);
@@ -376,6 +737,10 @@ void endMove(const char *reason)
         Serial.println(s.trim);
     }
     Serial.println(F("# done"));
+    if (wasCal) {
+        char finish[] = "f"; // end the capture the drive was making
+        handleLine(finish);
+    }
 }
 
 void logSample(const MotionTarget &t, int16_t dutyL, int16_t dutyR, float trimDeg)
@@ -383,7 +748,7 @@ void logSample(const MotionTarget &t, int16_t dutyL, int16_t dutyR, float trimDe
     if (g_tick % LOG_EVERY != 0 || g_logCount >= LOG_MAX) {
         return;
     }
-    Sample &s = g_log[g_logCount++];
+    Sample &s = g_store.s[g_logCount++];
     s.dist = toTenths(g_per.motion.distMm - g_startDistMm);
     s.distRef = toTenths(t.distRefMm - g_startDistMm);
     s.speed = static_cast<int16_t>(g_per.motion.speedMmS);
@@ -401,14 +766,19 @@ void logSample(const MotionTarget &t, int16_t dutyL, int16_t dutyR, float trimDe
 // Returns a reason to stop, or nullptr.
 const char *hardLimit(int16_t dutyL, int16_t dutyR)
 {
-    if (g_elapsedMs >= MOVE_MAX_MS) {
-        return "time-cap";
+    // A line run has no time or distance cap: it runs until the follower reports the end or the
+    // line lost (or the front-wall / duty / pushed-but-still cut-offs below, or `x`).
+    const bool line = g_mode == Mode::Line;
+    if (!line) {
+        if (g_elapsedMs >= ((g_scan || g_approach || g_calDrive) ? SCAN_MAX_MS : MOVE_MAX_MS)) {
+            return "time-cap";
+        }
+        const float travelled = g_per.motion.distMm - g_startDistMm;
+        if (travelled > DIST_CAP_MM || travelled < -DIST_CAP_MM) {
+            return "dist-cap";
+        }
     }
-    const float travelled = g_per.motion.distMm - g_startDistMm;
-    if (travelled > DIST_CAP_MM || travelled < -DIST_CAP_MM) {
-        return "dist-cap";
-    }
-    if (g_mode == Mode::Straight && (g_state.usValid & 1u) != 0 &&
+    if ((g_mode == Mode::Straight || g_mode == Mode::Line) && (g_state.usValid & 1u) != 0 &&
         g_state.distFrontMm <= FRONT_CUT_MM && g_per.motion.speedMmS > 20.0f) {
         return "front-wall";
     }
@@ -469,7 +839,82 @@ void stepMove()
                 const WallParams wp = wallParams();
                 trim = wallSteerTrim(g_steer, wallView(g_state, wp), wp, CONTROL_LOOP_PERIOD_MS);
             }
-            st = straightStep(g_straight, g_tune.plan, fb, trim, CONTROL_LOOP_PERIOD_MS, target);
+            if (g_scan && g_holdLeftMs >= 0) {
+                // The scan is over: hold this position, so the robot does not roll on a slope.
+                target.distRefMm = g_holdMm;
+                target.headingRefDeg = g_holdHeadingDeg;
+                g_holdLeftMs = static_cast<int16_t>(g_holdLeftMs - CONTROL_LOOP_PERIOD_MS);
+                st = g_holdLeftMs <= 0 ? MoveStatus::Done : MoveStatus::Running;
+            } else {
+                st =
+                    straightStep(g_straight, g_tune.plan, fb, trim, CONTROL_LOOP_PERIOD_MS, target);
+                if (g_approach && reason == nullptr) {
+                    const float pos = fb.distMm - g_startDistMm + IR_ARRAY_FORWARD_OFFSET_MM;
+                    float centre = 0.0f;
+                    const PatternEvent ev =
+                        floorPatternStep(g_pat, g_per.floor, pos, specPattern(), centre);
+                    if (g_per.floor != FloorClass::Mixed && g_per.floor != g_apLast) {
+                        g_apLast = g_per.floor;
+                        apRecord(pos, static_cast<uint8_t>(g_per.floor));
+                    }
+                    if (ev == PatternEvent::Marker) {
+                        g_apMarker = true;
+                        g_apMarkerCentre = centre;
+                        apRecord(pos, 10);
+                    } else if (ev == PatternEvent::Gap) {
+                        g_apGap = true;
+                        apRecord(pos, 11);
+                    }
+                    if (g_apFollowMm > 0.0f &&
+                        bridgeHandoverStep(g_apBridge, g_apGap, g_per.floor, g_per.line, pos,
+                                           BRIDGE_HANDOVER_MIN_MM)) {
+                        // The line is in view past the gap: the line follower takes over,
+                        // mid-stride.
+                        apRecord(pos, 13);
+                        g_apHandoverMm = pos;
+                        g_approach = false;
+                        g_mode = Mode::Line;
+                        g_lineEvery = 8;
+                        g_logCount = 0;
+                        g_lineLimitMm = (fb.distMm - g_startDistMm) + g_apFollowMm;
+                        lineFollowBegin(g_line, fb, true);
+                        const bool blockedNow =
+                            (g_state.usValid & 1u) != 0 && g_state.distFrontMm <= FRONT_CUT_MM;
+                        g_lineStatus =
+                            lineFollowStep(g_line, lineParams(), fb, g_per.line, g_per.tiltDeg,
+                                           blockedNow, CONTROL_LOOP_PERIOD_MS, target);
+                        st = MoveStatus::Running;
+                    } else if (g_apGap && g_apFollowMm <= 0.0f) {
+                        if (g_per.floor == FloorClass::Air) {
+                            g_apAfterGapMm = -1.0f;
+                        } else if (g_apAfterGapMm < 0.0f) {
+                            g_apAfterGapMm = pos;
+                        } else if (pos - g_apAfterGapMm >= AP_STOP_AFTER_GAP_MM) {
+                            apRecord(pos, 12);
+                            reason = "gap-done";
+                        }
+                    } else if (g_apMarker && pos - g_apMarkerCentre >= AP_NO_GAP_MM) {
+                        apRecord(pos, 12);
+                        reason = g_apGap ? "no-line-after-gap" : "no-gap";
+                    }
+                }
+                if (g_scan && st == MoveStatus::Done) {
+                    g_holdLeftMs = SCAN_HOLD_MS;
+                    g_holdMm = target.distRefMm;
+                    g_holdHeadingDeg = target.headingRefDeg;
+                    st = MoveStatus::Running;
+                }
+            }
+        } else if (g_mode == Mode::Line) {
+            const bool blocked = (g_state.usValid & 1u) != 0 && g_state.distFrontMm <= FRONT_CUT_MM;
+            g_lineStatus = lineFollowStep(g_line, lineParams(), fb, g_per.line, g_per.tiltDeg,
+                                          blocked, CONTROL_LOOP_PERIOD_MS, target);
+            st = MoveStatus::Running;
+            if (g_lineStatus == LineStatus::Ended) {
+                st = MoveStatus::Done;
+            } else if (g_lineStatus == LineStatus::Lost) {
+                st = MoveStatus::Timeout;
+            }
         } else {
             st = turnStep(g_turn, g_tune.plan, fb, CONTROL_LOOP_PERIOD_MS, target);
         }
@@ -478,16 +923,53 @@ void stepMove()
         l = clampDuty(out.left);
         r = clampDuty(out.right);
         if (st == MoveStatus::Done) {
-            reason = "arrived";
+            reason = g_mode == Mode::Line ? "line-ended" : "arrived";
         } else if (st == MoveStatus::Timeout) {
-            reason = "move-timeout";
+            reason = g_mode == Mode::Line ? "line-lost" : "move-timeout";
         }
     }
 
+    if (reason == nullptr && g_mode == Mode::Line && g_lineLimitMm > 0.0f &&
+        (g_per.motion.distMm - g_startDistMm) >= g_lineLimitMm) {
+        reason = "dist-limit";
+    }
     if (reason == nullptr) {
         reason = hardLimit(l, r);
     }
-    logSample(target, l, r, trim);
+    if (g_mode == Mode::Line) {
+        if (g_tick % g_lineEvery == 0) {
+            if (g_logCount >= SCAN_MAX) { // a long run keeps the LAST samples
+                memmove(&g_store.l[0], &g_store.l[1], sizeof(LineSample) * (SCAN_MAX - 1));
+                --g_logCount;
+            }
+            LineSample &c = g_store.l[g_logCount++];
+            const float mm = g_per.motion.distMm - g_startDistMm;
+            c.dist =
+                static_cast<int16_t>(mm > 32000.0f ? 32000.0f : (mm < -32000.0f ? -32000.0f : mm));
+            c.err = toTenths(g_per.line.errMm);
+            c.speed = static_cast<int16_t>(g_per.motion.speedMmS);
+            c.mask = g_perceiver.mask;
+            const uint8_t mode = static_cast<uint8_t>(g_line.mode);
+            c.flags = static_cast<uint8_t>(
+                (g_per.line.onLine ? 1u : 0u) | (g_per.line.allBlack ? 2u : 0u) |
+                (g_per.line.allWhite ? 4u : 0u) | (g_per.floor == FloorClass::Air ? 8u : 0u) |
+                (mode << 4));
+            const float t10 = g_per.tiltDeg * 10.0f;
+            c.tilt10 = static_cast<int8_t>(t10 > 127.0f ? 127.0f : t10);
+        }
+    } else if (g_scan) {
+        if (g_tick % SCAN_EVERY == 0 && g_logCount < SCAN_MAX) {
+            ScanSample &c = g_store.c[g_logCount++];
+            c.dist = toTenths(g_per.motion.distMm - g_startDistMm);
+            const float t10 = g_per.tiltDeg * 10.0f;
+            c.tilt10 = static_cast<int8_t>(t10 > 127.0f ? 127.0f : (t10 < -127.0f ? -127.0f : t10));
+            for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+                c.ir[k] = static_cast<uint8_t>(g_ir[k] >> 2);
+            }
+        }
+    } else {
+        logSample(target, l, r, trim);
+    }
     ++g_tick;
     if (reason != nullptr) {
         endMove(reason);
@@ -620,6 +1102,191 @@ void handleLine(char *line)
         Serial.print(target, 1);
         Serial.print(F(" sweep "));
         Serial.println(sweep, 1);
+    } else if (strcmp(cmd, "k") == 0) {
+        lineCalibrationReset(g_cal);
+        g_flatSkipped = 0;
+        g_capturing = true;
+        Serial.println(F("# capturing: slide over a large white AND a large black area, then f"));
+    } else if (strcmp(cmd, "W") == 0 || strcmp(cmd, "B") == 0) {
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            g_staticSum[k] = 0;
+            g_staticSumSq[k] = 0;
+        }
+        g_staticN = 0;
+        g_staticWhich = cmd[0];
+        Serial.print(F("# measuring "));
+        Serial.print(cmd[0] == 'W' ? F("WHITE") : F("BLACK"));
+        Serial.println(F(": hold still, array flat over the surface (1.5 s)"));
+    } else if (strcmp(cmd, "P") == 0) {
+        Serial.println(F("# calibration in use: ch,white,black,scale"));
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(k);
+            Serial.print(',');
+            Serial.print(g_perceiver.cal.white[k]);
+            Serial.print(',');
+            Serial.print(g_perceiver.cal.black[k]);
+            Serial.print(',');
+            Serial.println(g_perceiver.cal.scale[k]);
+        }
+        Serial.print(F("# usable=0x"));
+        Serial.print(g_perceiver.usable, HEX);
+        Serial.print(F(" norm now:"));
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(' ');
+            Serial.print(g_perceiver.norm[k]);
+        }
+        Serial.println();
+    } else if (strcmp(cmd, "K") == 0) {
+        // Calibrate by driving: a slow closed-loop straight over the white floor and onto black,
+        // capturing as it goes (wheels down, constant height), then the capture is finished.
+        const char *a = strtok(nullptr, " \t");
+        const char *b = strtok(nullptr, " \t");
+        if (a == nullptr || !needHeading()) {
+            return;
+        }
+        float mm = static_cast<float>(atof(a));
+        mm = mm < 50.0f ? 50.0f : (mm > 400.0f ? 400.0f : mm);
+        const float v = b != nullptr ? static_cast<float>(atof(b)) : 40.0f;
+        lineCalibrationReset(g_cal);
+        g_flatSkipped = 0;
+        g_capturing = true;
+        g_calRestoreV = g_tune.vMax;
+        g_scanRestoreTimeoutMs = g_tune.plan.moveTimeoutMs;
+        g_tune.plan.moveTimeoutMs = SCAN_TIMEOUT_MS;
+        g_tune.vMax = v < 20.0f ? 20.0f : (v > 100.0f ? 100.0f : v);
+        beginMove(Mode::Straight);
+        g_calDrive = true;
+        straightBegin(g_straight, g_per.motion, mm, g_tune.vMax, 0.0f, g_per.motion.headingDeg);
+        Serial.print(F("# calibration drive "));
+        Serial.print(mm, 0);
+        Serial.print(F(" mm at "));
+        Serial.print(g_tune.vMax, 0);
+        Serial.println(F(" mm/s"));
+    } else if (strcmp(cmd, "f") == 0) {
+        if (!g_capturing) {
+            Serial.println(F("# no capture running (k first)"));
+            return;
+        }
+        g_capturing = false;
+        const uint8_t usable = lineCalibrationFinish(g_cal);
+        Serial.print(F("# sweeps ignored as an unpowered array: "));
+        Serial.println(g_flatSkipped);
+        if (!calibrationLooksReal(g_cal)) {
+            Serial.println(
+                F("# REJECTED: the whites are too low or all alike - not saved. Check the "
+                  "array has power, keep it over the floor, and repeat."));
+            lineCalibrationReset(g_cal);
+            return;
+        }
+        perceiverSetCalibration(g_perceiver, g_cal);
+        lineCalSave(g_cal);
+        Serial.println(
+            F("# calibration (saved to EEPROM): ch,white(low),black(high),range,usable"));
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(k);
+            Serial.print(',');
+            Serial.print(g_cal.white[k]);
+            Serial.print(',');
+            Serial.print(g_cal.black[k]);
+            Serial.print(',');
+            Serial.print(static_cast<int>(g_cal.black[k]) - static_cast<int>(g_cal.white[k]));
+            Serial.print(',');
+            Serial.println((usable >> k) & 1u);
+        }
+        Serial.print(F("# usable mask 0x"));
+        Serial.println(usable, HEX);
+    } else if (strcmp(cmd, "L") == 0) {
+        // Follow the line with the real follower, with live-settable parameters.
+        if (!needHeading()) {
+            return;
+        }
+        if (g_perceiver.usable == 0) {
+            Serial.println(F("# refused: no line calibration (k, slide, f first)"));
+            return;
+        }
+        const char *limit = strtok(nullptr, " \t");
+        g_lineLimitMm = limit != nullptr ? static_cast<float>(atof(limit)) : 0.0f;
+        g_scanRestoreTimeoutMs = g_tune.plan.moveTimeoutMs;
+        g_tune.plan.moveTimeoutMs = 0; // the follower has its own limits
+        beginMove(Mode::Line);
+        lineFollowBegin(g_line, g_per.motion, true);
+        g_lineStatus = LineStatus::Following;
+        Serial.println(F("# line follow"));
+    } else if (strcmp(cmd, "i") == 0) {
+        Serial.print(F("# ir"));
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(' ');
+            Serial.print(g_ir[k]);
+        }
+        Serial.print(F(" | mask "));
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            Serial.print(((g_perceiver.mask >> k) & 1u) ? '#' : '.');
+        }
+        Serial.print(F(" | "));
+        Serial.print(g_per.floor == FloorClass::Air
+                         ? F("air")
+                         : (g_per.line.allBlack
+                                ? F("allBlack")
+                                : (g_per.line.allWhite ? F("allWhite") : F("onLine"))));
+        Serial.print(F(" err="));
+        Serial.print(g_per.line.errMm, 1);
+        Serial.print(F(" usable=0x"));
+        Serial.println(g_perceiver.usable, HEX);
+    } else if (strcmp(cmd, "r") == 0) {
+        // Scan: a slow closed-loop straight that logs the odometer with the 8 IR channels.
+        const char *a = strtok(nullptr, " \t");
+        const char *b = strtok(nullptr, " \t");
+        if (a == nullptr || !needHeading()) {
+            return;
+        }
+        float mm = static_cast<float>(atof(a));
+        mm = mm > DIST_CAP_MM ? DIST_CAP_MM : (mm < 0.0f ? 0.0f : mm);
+        const float v = b != nullptr ? static_cast<float>(atof(b)) : 60.0f;
+        g_scanRestoreV = g_tune.vMax;
+        g_scanRestoreTimeoutMs = g_tune.plan.moveTimeoutMs;
+        g_tune.plan.moveTimeoutMs = SCAN_TIMEOUT_MS;
+        g_holdLeftMs = -1;
+        g_tune.vMax = v < 20.0f ? 20.0f : (v > 150.0f ? 150.0f : v);
+        beginMove(Mode::Straight);
+        g_scan = true;
+        straightBegin(g_straight, g_per.motion, mm, g_tune.vMax, 0.0f, g_per.motion.headingDeg);
+        Serial.print(F("# scan "));
+        Serial.print(mm, 0);
+        Serial.print(F(" mm at "));
+        Serial.print(g_tune.vMax, 0);
+        Serial.println(F(" mm/s"));
+    } else if (strcmp(cmd, "m") == 0) {
+        // Approach: drive slowly forward and watch for the marker, then the gap.
+        const char *a = strtok(nullptr, " \t");
+        if (!needHeading() || g_perceiver.usable == 0) {
+            Serial.println(F("# need a heading and a line calibration"));
+            return;
+        }
+        const float v = a != nullptr ? static_cast<float>(atof(a)) : 70.0f;
+        const char *f = strtok(nullptr, " \t");
+        g_apFollowMm = f != nullptr ? static_cast<float>(atof(f)) : 0.0f;
+        g_apFollowMm =
+            g_apFollowMm > 2500.0f ? 2500.0f : (g_apFollowMm < 0.0f ? 0.0f : g_apFollowMm);
+        g_apHandoverMm = -1.0f;
+        bridgeHandoverReset(g_apBridge);
+        g_lineLimitMm = 0.0f;
+        g_scanRestoreV = g_tune.vMax;
+        g_scanRestoreTimeoutMs = g_tune.plan.moveTimeoutMs;
+        g_tune.plan.moveTimeoutMs = SCAN_TIMEOUT_MS;
+        g_tune.vMax = v < 40.0f ? 40.0f : (v > 120.0f ? 120.0f : v);
+        g_apCount = 0;
+        g_apMarker = false;
+        g_apGap = false;
+        g_apAfterGapMm = -1.0f;
+        g_apLast = FloorClass::Mixed;
+        floorPatternReset(g_pat);
+        beginMove(Mode::Straight);
+        g_approach = true;
+        g_apRun = true;
+        straightBegin(g_straight, g_per.motion, 700.0f, g_tune.vMax, 0.0f, g_per.motion.headingDeg);
+        Serial.print(F("# approach at "));
+        Serial.print(g_tune.vMax, 0);
+        Serial.println(F(" mm/s"));
     } else if (strcmp(cmd, "t") == 0) {
         const char *a = strtok(nullptr, " \t");
         if (a == nullptr || !needHeading()) {
@@ -678,7 +1345,19 @@ void setup()
     tuneDefaults();
     g_pp.mmPerCount = MM_PER_ENCODER_COUNT;
     g_pp.dtMs = CONTROL_LOOP_PERIOD_MS;
+    g_pp.irPitchMm = IR_SENSOR_PITCH_MM;
+    g_pp.irD1OnRight = IR_D1_ON_RIGHT;
+    g_pp.irAirCounts = IR_AIR_COUNTS;
+    g_pp.irAirChannels = IR_AIR_CHANNELS;
+    lineCalibrationReset(g_cal);
     perceiverReset(g_perceiver);
+    if (lineCalLoad(g_cal) && calibrationLooksReal(g_cal)) {
+        perceiverSetCalibration(g_perceiver, g_cal);
+        Serial.println(F("# line calibration loaded from EEPROM"));
+    } else {
+        lineCalibrationReset(g_cal);
+        Serial.println(F("# no usable line calibration stored: k, slide, f"));
+    }
     Serial.println(F("# motion probe ready - motors off. h for help"));
     printTunables();
 }
@@ -691,6 +1370,38 @@ void loop()
         return;
     }
     g_state.timestampMs = nowMs;
+    lineSensorsRead(g_ir);
+    for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+        g_state.irRaw[k] =
+            g_ir[k]; // what perceive() reads: the line view, the mask, the floor class
+    }
+    if (g_staticWhich != 0) {
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            g_staticSum[k] += g_ir[k];
+            g_staticSumSq[k] += static_cast<uint32_t>(g_ir[k]) * g_ir[k];
+        }
+        if (++g_staticN >= STATIC_TICKS) {
+            finishStatic();
+        }
+    }
+    if (g_capturing) {
+        // A sweep where every channel reads (nearly) the same low value is not a surface: the real
+        // channels differ from each other by tens of counts. It is the array without its emitter
+        // supply, seeing only the room light, and one such sweep would ruin the white level.
+        uint16_t lo = 0xFFFF;
+        uint16_t hi = 0;
+        uint32_t sum = 0;
+        for (uint8_t k = 0; k < IR_CHANNEL_COUNT; ++k) {
+            lo = g_ir[k] < lo ? g_ir[k] : lo;
+            hi = g_ir[k] > hi ? g_ir[k] : hi;
+            sum += g_ir[k];
+        }
+        if ((hi - lo) < 8 && (sum / IR_CHANNEL_COUNT) < 600) {
+            ++g_flatSkipped;
+        } else {
+            lineCalibrationAccumulate(g_cal, g_ir);
+        }
+    }
     readSensors();
     perceive(g_perceiver, g_state, g_pp, g_per);
     pollSerial();

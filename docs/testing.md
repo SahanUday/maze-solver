@@ -270,6 +270,7 @@ mission build and CI does not run them (it only compiles `env:mega`).
 |---|---|
 | `env:probe_sensors` | streams every sensor as CSV at 10 Hz; the motors stay off |
 | `env:probe_motion` | serial-driven motion tests on the real controller code; the motors stay off until a command starts a move, and any byte received aborts it. Duty, time, distance, front-wall and pushed-but-still limits apply whatever the controller does |
+| `env:probe_ir` | the IR array with the motors off: per-channel statistics, a calibration capture the way the mission takes it, and a live view of the line view |
 
 Build and upload with `pio run -e probe_motion -t upload`, then talk to it over serial at
 250000 baud (`h` lists the commands).
