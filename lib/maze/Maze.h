@@ -208,6 +208,18 @@ inline bool explorerAdvance(Explorer &e)
     return true;
 }
 
+// Undo one explorerAdvance(): back one tile, the way it came. False off the map. Not the way to
+// leave a cell (that is a turn and an advance); for a move that did not happen.
+inline bool explorerRetreat(Explorer &e)
+{
+    uint8_t back = 0;
+    if (!neighbour(e.pos, opposite(e.heading), back)) {
+        return false;
+    }
+    e.pos = back;
+    return true;
+}
+
 // A wall sits ~120 mm from a centred robot's centreline, an open side 370 mm or more: one tile
 // pitch is midway. `heard` is the ultrasonic valid bit; silence is not a measurement.
 constexpr bool wallDetected(bool heard, uint16_t distMm)

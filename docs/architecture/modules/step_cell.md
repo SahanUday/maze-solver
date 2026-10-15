@@ -11,7 +11,9 @@ Drive from one cell centre to the next, reading its walls on the way. Pure logic
 - `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
 - `stepCellContinue(sc, params)` - the next cell is straight on: roll through this centre.
-- `sc.wallsReady`, `sc.walls` (`CellWalls`: front, left, right, `unreliable`).
+- `sc.wallsReady`, `sc.walls` (`CellWalls`: front, left, right, and `frontHeard`, `leftHeard`,
+  `rightHeard`, `unreliable`). A sensor that was not heard is reported as a wall; the flags keep
+  "not heard" apart from "open" for a caller that records only what it heard.
 - `sc.blocked` - the move ended short of its cell. `Done` with `blocked` is not an arrival.
   `stepCellCells()` gives the cells covered (from the odometer; after a stop on a wall's stop
   point, the cell it is in) and `stepCellRemainingMm()` the distance to the planned centre;
@@ -27,8 +29,8 @@ pitch and the robot rolls through; **no answer stops it on the centre**, so a ca
 answers is merely slow. Straight cells run without stopping and only turns stop.
 
 A vote is present / open / no-echo per sensor. A wall is present when seen at least as often as
-open; a sensor that heard no echo all window counts as present and sets `unreliable` (a few
-missed echoes among heard ones do not).
+open. A sensor is heard when it had at least one present or open vote; one that heard no echo all
+window counts as present and sets `unreliable` (a few missed echoes among heard ones do not).
 
 ### The wall ahead
 

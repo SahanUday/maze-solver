@@ -129,6 +129,9 @@ static void test_walls_are_ready_before_the_centre()
     TEST_ASSERT_TRUE(r.sc.walls.left);
     TEST_ASSERT_FALSE(r.sc.walls.right);
     TEST_ASSERT_FALSE(r.sc.walls.unreliable);
+    TEST_ASSERT_TRUE(r.sc.walls.frontHeard);
+    TEST_ASSERT_TRUE(r.sc.walls.leftHeard);
+    TEST_ASSERT_TRUE(r.sc.walls.rightHeard);
 }
 
 static void test_open_front_is_reported_open()
@@ -308,6 +311,27 @@ static void test_silent_sensors_read_as_walls_and_unreliable()
     TEST_ASSERT_TRUE(r.sc.walls.front);
     TEST_ASSERT_TRUE(r.sc.walls.left);
     TEST_ASSERT_TRUE(r.sc.walls.right);
+    TEST_ASSERT_TRUE(r.sc.walls.unreliable);
+    TEST_ASSERT_FALSE(r.sc.walls.frontHeard);
+    TEST_ASSERT_FALSE(r.sc.walls.leftHeard);
+    TEST_ASSERT_FALSE(r.sc.walls.rightHeard);
+}
+
+static void test_only_the_silent_sensor_is_not_heard()
+{
+    Rig r;
+    r.world.wallX = 250.0f + 125.0f;
+    r.world.frontDeadMm = 1000.0f; // the front hears nothing at any distance
+    r.p.blindMs = 0;               // go on by the odometer
+    r.begin();
+    for (int i = 0; i < 600 && !r.sc.wallsReady; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.sc.wallsReady);
+    TEST_ASSERT_FALSE(r.sc.walls.frontHeard);
+    TEST_ASSERT_TRUE(r.sc.walls.front); // reported as a wall, the safe answer
+    TEST_ASSERT_TRUE(r.sc.walls.leftHeard);
+    TEST_ASSERT_TRUE(r.sc.walls.rightHeard);
     TEST_ASSERT_TRUE(r.sc.walls.unreliable);
 }
 
@@ -670,6 +694,7 @@ int main()
     RUN_TEST(test_follows_a_single_wall);
     RUN_TEST(test_no_walls_holds_the_gyro_heading);
     RUN_TEST(test_silent_sensors_read_as_walls_and_unreliable);
+    RUN_TEST(test_only_the_silent_sensor_is_not_heard);
     RUN_TEST(test_verdict_follows_the_majority);
     RUN_TEST(test_vote_counters_saturate);
     RUN_TEST(test_the_wall_bias_survives_into_the_next_cell);
