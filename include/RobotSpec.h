@@ -13,10 +13,11 @@
 // ---- Competition geometry --------------------------------- [FROM SPEC] --
 constexpr uint16_t TILE_PITCH_MM = 250; // centre-to-centre tile spacing
 constexpr uint16_t WALL_HEIGHT_MM = 100;
-constexpr uint16_t USABLE_CORRIDOR_MM = 235;  // tile pitch minus wall thickness
-constexpr uint8_t SECTION_A_SIZE_TILES = 4;   // 4x4
-constexpr uint8_t SECTION_B_SIZE_TILES = 9;   // 9x9
-constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30; // 3 cm black line
+constexpr uint16_t USABLE_CORRIDOR_MM = 235; // tile pitch minus wall thickness
+constexpr uint8_t SECTION_A_SIZE_TILES = 4;  // 4x4
+constexpr uint8_t SECTION_B_SIZE_TILES = 9;  // 9x9
+constexpr uint16_t BRIDGE_LINE_WIDTH_MM =
+    24; // black line; measured on the arena line (sheet: 3 cm)
 
 // ---- Competition timing ------------------------------------ [FROM SPEC] --
 constexpr uint32_t RUN_LIMIT_MS = 8UL * 60UL * 1000UL;         // 8 minutes per trial
@@ -171,10 +172,40 @@ static_assert(static_cast<uint32_t>(LINE_CAL_MIN_SPAN_COUNTS) *
                   6u * ADC_NOISE_COUNTS,
               "LINE_CAL_MIN_SPAN_COUNTS is too small for the hysteresis band against ADC noise");
 
-// ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
-// Sensor face to floor at the final mount; the signal falls steeply with height.
-constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
-constexpr float IR_SENSOR_PITCH_MM = 0.0f; // channel to channel; 0 = LineView::errMm reads 0
+// ---- IR array mounting ---------------------------------------- [MEASURED] --
+// Fixed by the chassis. Measured on the robot (PR #28, 2026-10-14/15).
+// Sensor face to floor: the signal falls steeply with height.
+constexpr float IR_RIDE_HEIGHT_MM = 7.0f;
+constexpr float IR_SENSOR_PITCH_MM = 8.0f;          // channel to channel
+constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 86.0f; // wheel axle to the array's sensing line
+// Channel 0 is D1 (pin A0), and D1 is the robot's RIGHT end: a black card under only the right end
+// saturated channels 0 and 1, under only the left end channels 6 and 7.
+constexpr bool IR_D1_ON_RIGHT = true;
+
+// ---- Marker and gap on the floor ------------------------------- [MEASURED] --
+// What the array sees along the path out of the maze (include/FloorPattern.h). The approach marker
+// is a white frame around a black box; crossing it along its middle the array saw (three scans on
+// the robot): white 36-42 mm, black 116-119 mm, white 37-41 mm. Then ~20 mm of black strip and the
+// gap before the ramp: every channel at 1016-1023 for ~21 mm (the gap is ~37 mm; its edges blur).
+constexpr float MARKER_FRAME_MIN_MM = 25.0f; // each white frame
+constexpr float MARKER_FRAME_MAX_MM = 55.0f;
+// The far frame counts once this much of it is under the array: with the array 86 mm ahead of the
+// axle, a robot at the tile's centre has only ~27 mm of it, and one 10 mm short has 17.
+constexpr float MARKER_FAR_FRAME_MIN_MM = 12.0f;
+constexpr float MARKER_CENTRE_MIN_MM = 95.0f; // the black box between them
+constexpr float MARKER_CENTRE_MAX_MM = 140.0f;
+constexpr float GAP_MIN_MM = 12.0f;     // air for this long = the gap
+constexpr float FLOOR_GLITCH_MM = 4.0f; // a change shorter than this is noise
+// Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. The black floor reads 976-1013
+// and the black tape up to 1023 on the few channels it covers, so the whole array has to be
+// saturated at once. The margin is thin (a few counts); 0 turns the detection off.
+constexpr uint16_t IR_AIR_COUNTS = 1010;
+constexpr uint8_t IR_AIR_CHANNELS = 7;
+// A stored calibration is only believed if it looks like this array on this floor: the whites read
+// at least this high (lower is an array without its emitter supply) and differ from each other by
+// at least IR_CAL_WHITE_SPREAD_COUNTS (eight identical whites is the same fault).
+constexpr uint16_t IR_CAL_WHITE_MIN_COUNTS = 400;
+constexpr uint16_t IR_CAL_WHITE_SPREAD_COUNTS = 15;
 
 // ---- Ultrasonic sensing ------------------------------------------------ --
 // HC-SR04 x3, round-robin. See decisions/0007-*.md.
@@ -322,6 +353,9 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
+// A step that makes no progress (a stiction stop short of its target) this close to the target,
+// standing still, is taken as arrived instead of a fault.
+constexpr float SECTION_A_STUCK_ACCEPT_MM = 20.0f;
 // No start button is fitted: the run begins by itself, RUN_START_DELAY_MS after the loop starts
 // (the gyro has been zeroed by then, with the robot held still), so the power switch is the start.
 // With a button fitted, set this true and the run waits for a press.
@@ -329,8 +363,6 @@ constexpr bool RUN_START_BUTTON_FITTED = false;
 constexpr uint16_t RUN_START_DELAY_MS = 1000; // time to take the hands off after the zeroing
 // The start button must read pressed this many ticks in a row (a bounce is shorter).
 constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;
-// White under the array this long (past the tile edge, before the centre is decided) is the tile.
-constexpr uint16_t SECTION_A_FINISH_WHITE_MS = 100;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.

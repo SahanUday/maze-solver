@@ -38,6 +38,6 @@ changes. The error LED follows `Fault`.
 
 ## Status
 
-Host tests, including a whole run from power-on to the white tile through the raw sensors in the
+Host tests, including a whole run from power-on to the marker through the raw sensors in the
 simulated arena. Not run on the robot. No IR calibration is stored yet, so `main.cpp` passes none
 and the run is walls only: it explores every reachable tile and stops (`Done`).

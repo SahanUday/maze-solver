@@ -117,6 +117,15 @@ inline void markWall(Explorer &e, uint8_t idx, Dir d)
     }
 }
 
+// The cell ahead has been entered: its walls were all looked at from inside, so the edge between
+// the two is settled whatever the front sensor says from here (a silent front may be a wall in
+// its dead zone, or an exit with nothing beyond).
+inline bool explorerAheadVisited(const Explorer &e)
+{
+    uint8_t other = 0;
+    return neighbour(e.pos, e.heading, other) && (e.cell[other] & kVisited) != 0;
+}
+
 // Walls seen from the current cell. A side that was not heard is passed as false: nothing is
 // recorded, and the edge is looked at when the robot faces it.
 inline void explorerObserve(Explorer &e, bool frontWall, bool leftWall, bool rightWall)

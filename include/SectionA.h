@@ -1,5 +1,6 @@
 // ============================================================================
-//  SectionA.h  --  the Section A mission: explore from any tile until the white tile, stop on it.
+//  SectionA.h  --  the Section A mission: explore from any tile until the approach marker, stop on
+//  its tile.
 //  No hardware, no Arduino.h - testable under env:native.
 //
 //    WaitStart -> Sense -> Turn -> Sense -> Step -> ... -> Done
@@ -7,8 +8,9 @@
 //
 //  Sense stands still and reads the cell's three walls; the planner (lib/maze) picks the next
 //  tile; Turn faces it; Step drives it, reading the walls of the tile ahead on the way and rolling
-//  on through the centre when the next tile is straight on. Done is where the robot has reached the
-//  white tile and holds: the hand-over point for what comes after Section A.
+//  on through the centre when the next tile is straight on. The marker (white frame, black box,
+//  white frame under the array) ends the search: the robot brakes to a stop on its tile. Done is
+//  where it holds: the hand-over point for what comes after Section A.
 //  docs/architecture/modules/section_a.md
 // ============================================================================
 
@@ -17,12 +19,16 @@
 #include <stdint.h>
 
 #include "DriveCommand.h"
+#include "FloorPattern.h"
 #include "Maze.h"
 #include "MotionControl.h"
 #include "MotionPrimitives.h"
 #include "Perception.h"
 #include "RobotSpec.h"
 #include "StepCell.h"
+
+constexpr float MARKER_STILL_MM_S = 5.0f; // below this the robot has stopped
+constexpr uint16_t MARKER_STILL_MS = 150; // ... for this long
 
 enum class SectionAPhase : uint8_t { WaitStart, Sense, Turn, Step, Done, Fault };
 
@@ -46,13 +52,11 @@ struct SectionAParams {
     uint8_t resumes = SECTION_A_RESUMES;
     uint8_t turnRetries = SECTION_A_TURN_RETRIES;
     uint8_t maxBlocked = SECTION_A_MAX_BLOCKED;
-    uint16_t finishWhiteMs = SECTION_A_FINISH_WHITE_MS;
-    // The white tile is told by the floor sensor; without it (the array not calibrated) the run
+    float stuckAcceptMm = SECTION_A_STUCK_ACCEPT_MM;
+    PatternParams pattern;
+    // The marker is told by the floor sensor; without it (the array not calibrated) the run
     // explores every reachable tile and stops (Done).
     bool wallsOnly = false;
-    // A run that begins on a white tile is finished at once. The competition's start tile is white
-    // too and must be left, so this is off by default.
-    bool finishAtStart = false;
     uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
 };
 
@@ -90,6 +94,14 @@ inline SectionAParams sectionAParams()
     c.stallTimeMs = STALL_TIME_MS;
     c.stallMinSpeedMmS = STALL_MIN_SPEED_MM_S;
     c.stallMinYawDps = STALL_MIN_YAW_DPS;
+
+    p.pattern.frameMinMm = MARKER_FRAME_MIN_MM;
+    p.pattern.frameMaxMm = MARKER_FRAME_MAX_MM;
+    p.pattern.farFrameMinMm = MARKER_FAR_FRAME_MIN_MM;
+    p.pattern.centreMinMm = MARKER_CENTRE_MIN_MM;
+    p.pattern.centreMaxMm = MARKER_CENTRE_MAX_MM;
+    p.pattern.gapMinMm = GAP_MIN_MM;
+    p.pattern.glitchMm = FLOOR_GLITCH_MM;
     return p;
 }
 
@@ -108,6 +120,18 @@ struct SectionA {
     uint8_t votes[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
     uint16_t senseMs = 0;
     bool frontHeard = false;
+    bool frontEverHeard = false; // the front sensor has heard a wall in this run: it works
+    // Edges of the cell the robot is in (bit = maze::Dir) that a sensor heard open on the way in.
+    // Standing, a silent front is ambiguous (a wall inside the dead zone is silent too); an edge
+    // that a side sensor measured on the approach is not.
+    uint8_t openHeard = 0;
+    // Edges of this cell a side sensor was turned to look at (peeked), and those it found open.
+    // A side sensor has no dead zone: it settles a silent front, and costs a quarter turn.
+    uint8_t peekTried = 0;
+    uint8_t peekedOpen = 0;
+    bool peeking = false;
+    maze::Dir peekEdge = maze::Dir::North;
+    bool sideEverHeard = false; // a side sensor has heard a wall in this run: they work
 
     maze::Dir turnTo = maze::Dir::North;
     uint8_t turnTries = 0;
@@ -122,8 +146,11 @@ struct SectionA {
     bool decided = false;
     bool resumeNext = false;
     bool afterStop = false;  // standing after a step cut short: decide what stopped it
-    bool finishHere = false; // the tile ahead is white: stop on its centre
-    uint16_t whiteMs = 0;
+    bool finishHere = false; // the marker has been seen: stop on this tile
+    bool brakingAtMarker = false;
+    uint16_t markerStillMs = 0; // standing still since braking on the marker
+    FloorPattern floor;
+    float markerCentreMm = 0.0f; // the black box's middle, on the odometer of the array's line
 
     float headingFixDeg = 0.0f;
     uint16_t moves = 0;
@@ -202,6 +229,20 @@ inline void observeVotes(SectionA &ms)
     const bool f = step_detail::verdict(ms.votes[0], unreliable);
     const bool l = step_detail::verdict(ms.votes[1], unreliable);
     const bool r = step_detail::verdict(ms.votes[2], unreliable);
+    ms.frontEverHeard = ms.frontEverHeard || step_detail::heard(ms.votes[0]);
+    if (ms.peeking) {
+        // The edge was turned to the right-hand sensor (the robot turned left): a wall it heard, or
+        // an answer from far, or silence from a sensor that is known to work, all say what is
+        // there.
+        ms.peeking = false;
+        const bool heard = step_detail::heard(ms.votes[2]);
+        if (!(heard && r) && (heard || ms.sideEverHeard)) {
+            ms.peekedOpen =
+                static_cast<uint8_t>(ms.peekedOpen | (1u << static_cast<uint8_t>(ms.peekEdge)));
+        }
+    }
+    ms.sideEverHeard =
+        ms.sideEverHeard || step_detail::heard(ms.votes[1]) || step_detail::heard(ms.votes[2]);
     observe(ms, f, step_detail::heard(ms.votes[0]), l, step_detail::heard(ms.votes[1]), r,
             step_detail::heard(ms.votes[2]));
 }
@@ -263,7 +304,24 @@ inline void planNext(SectionA &ms, const SectionAParams &p, const MotionFeedback
             ms.phase = SectionAPhase::Turn;
             return;
         }
-        if (!ms.frontHeard) {
+        const uint8_t headBit = static_cast<uint8_t>(1u << static_cast<uint8_t>(ms.map.heading));
+        const bool openOnApproach = ((ms.openHeard | ms.peekedOpen) & headBit) != 0;
+        if (!ms.frontHeard && !openOnApproach && !maze::explorerAheadVisited(ms.map)) {
+            if (ms.sideEverHeard && (ms.peekTried & headBit) == 0) {
+                // Silent: a wall inside the front sensor's dead zone, or nothing for metres (the
+                // maze's exit). Turn a quarter left so the right-hand sensor, which has no dead
+                // zone, looks at this edge.
+                ms.peekTried = static_cast<uint8_t>(ms.peekTried | headBit);
+                ms.peekEdge = ms.map.heading;
+                ms.peeking = true;
+                const Dir left = turnLeft(ms.map.heading);
+                const float target = gridHeading(ms, left);
+                ms.turnTo = left;
+                ms.turnTries = 0;
+                turnBegin(ms.turn, fb, target, sweepTo(fb.headingDeg, target, 3));
+                ms.phase = SectionAPhase::Turn;
+                return;
+            }
             // A front that is not heard may be a wall in the sensor's dead zone: look again, and
             // after enough tries take it as one.
             if (++ms.frontTries < p.frontTries) {
@@ -277,11 +335,11 @@ inline void planNext(SectionA &ms, const SectionAParams &p, const MotionFeedback
         }
         ms.frontTries = 0;
         stepCellBegin(ms.step, p.step, fb, gridHeading(ms, ms.map.heading));
+        ms.step.openAhead = openOnApproach || maze::explorerAheadVisited(ms.map);
         ms.entered = false;
         ms.advanced = 0;
         ms.decided = false;
         ms.resumeNext = false;
-        ms.finishHere = false;
         ms.phase = SectionAPhase::Step;
         return;
     }
@@ -300,12 +358,35 @@ inline void onWallsReady(SectionA &ms, const SectionAParams &p)
         ++ms.advanced;
         ++ms.moves;
     }
-    observeWalls(ms, ms.step.walls);
-    ms.finishHere = !p.wallsOnly && ms.whiteMs >= p.finishWhiteMs && ms.map.pos != maze::kStartCell;
+    CellWalls w = ms.step.walls;
+    ms.frontEverHeard = ms.frontEverHeard || w.frontHeard;
+    if (!w.frontHeard && ms.frontEverHeard) {
+        // The window opens a wall's distance ahead of its tile (167-197 mm from the axle, past the
+        // sensor's dead zone) and nothing answered: the tile is open to beyond the sensor's range,
+        // as at the maze's exit. Standing at a centre this is ambiguous (a wall inside the dead
+        // zone is silent too), which is why Sense takes an unheard front for a wall.
+        w.front = false;
+        w.frontHeard = true;
+    }
+    observeWalls(ms, w);
+    ms.sideEverHeard = ms.sideEverHeard || w.leftHeard || w.rightHeard;
+    ms.peekTried = 0;
+    ms.peekedOpen = 0;
+    {
+        const uint8_t h = static_cast<uint8_t>(ms.map.heading);
+        ms.openHeard = 0;
+        ms.openHeard =
+            static_cast<uint8_t>(ms.openHeard | ((w.frontHeard && !w.front ? 1u : 0u) << h));
+        ms.openHeard = static_cast<uint8_t>(
+            ms.openHeard | ((w.rightHeard && !w.right ? 1u : 0u) << ((h + 1) & 3)));
+        ms.openHeard = static_cast<uint8_t>(ms.openHeard |
+                                            ((w.leftHeard && !w.left ? 1u : 0u) << ((h + 3) & 3)));
+    }
     maze::Dir next = ms.map.heading;
     if (!ms.finishHere && maze::explorerPlan(ms.map, next) && next == ms.map.heading &&
         ms.frontHeard) {
         stepCellContinue(ms.step, p.step); // the next tile is straight on: no stop
+        ms.step.openAhead = ms.step.openAhead || (w.frontHeard && !w.front && !ms.finishHere);
         ms.entered = false;
         return;
     }
@@ -325,12 +406,18 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
         ms.phase == SectionAPhase::WaitStart ? fb.headingDeg : gridHeading(ms, ms.map.heading);
     target.newMove = true;
 
-    // White under the array, for how long.
-    const bool white = !p.wallsOnly && pc.line.valid && !pc.line.allBlack;
-    if (!white) {
-        ms.whiteMs = 0;
-    } else if (ms.whiteMs < UINT16_MAX - p.dtMs) {
-        ms.whiteMs = static_cast<uint16_t>(ms.whiteMs + p.dtMs);
+    // The marker: white, black, white under the array along the path. The event comes as the far
+    // frame is crossed, which puts the robot's axle about at the tile's centre.
+    // Only while stepping: the pattern is a length along the path, and a pivot at a centre sweeps
+    // the array across the frame with the odometer standing still (or creeping by a wheel's slip).
+    if (!p.wallsOnly && !ms.finishHere && ms.phase == SectionAPhase::Step) {
+        float centre = 0.0f;
+        if (floorPatternStep(ms.floor, pc.floor, fb.distMm + IR_ARRAY_FORWARD_OFFSET_MM, p.pattern,
+                             centre) == PatternEvent::Marker) {
+            ms.markerCentreMm = centre;
+            ms.finishHere = true;
+            ms.decided = true; // no wall or planner decides this centre any more
+        }
     }
 
     DriveCommand cmd;
@@ -367,12 +454,7 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
                 }
             } else if (ms.senseMs >= p.senseMs) {
                 observeVotes(ms);
-                if (p.finishAtStart && !p.wallsOnly && ms.moves == 0 && ms.turns == 0 &&
-                    ms.whiteMs >= p.finishWhiteMs) {
-                    ms.phase = SectionAPhase::Done;
-                } else {
-                    planNext(ms, p, fb);
-                }
+                planNext(ms, p, fb);
             }
             cmd.enable = ms.phase != SectionAPhase::Fault;
             break;
@@ -406,20 +488,54 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
                 stepCellResume(ms.step, p.step, fb, gridHeading(ms, ms.map.heading));
                 ms.resumeNext = false;
             }
-            const MoveStatus st = stepCellStep(ms.step, p.step, fb, pc.walls, p.dtMs, target);
+            MoveStatus st = stepCellStep(ms.step, p.step, fb, pc.walls, p.dtMs, target);
             ms.headingFixDeg += stepCellTakeHeadingFix(ms.step);
-            if (ms.step.wallsReady && !ms.decided && !ms.step.blocked) {
+            if (ms.finishHere && ms.phase == SectionAPhase::Step && !ms.brakingAtMarker) {
+                // On the marker's tile: stop as soon as the wheels can, wherever the step was
+                // going (rolling on through the centre, or stopping on it).
+                reconcile(ms, p.step, fb); // the tile the odometer says it is on
+                ms.brakingAtMarker = true;
+                straightRetarget(ms.step.straight, fb.distMm, 0.0f, p.step.plan.accelMmS2);
+            }
+            if (ms.brakingAtMarker) {
+                // Where it stops does not matter, only that it has: a wheel that sticks a little
+                // short of the braking point is not a stuck step.
+                const bool still = ms.step.straight.refSpeedMmS == 0.0f &&
+                                   fb.speedMmS < MARKER_STILL_MM_S &&
+                                   fb.speedMmS > -MARKER_STILL_MM_S;
+                ms.markerStillMs = still ? static_cast<uint16_t>(ms.markerStillMs + p.dtMs) : 0;
+                if (ms.markerStillMs >= MARKER_STILL_MS) {
+                    ms.phase = SectionAPhase::Done;
+                    DriveCommand hold;
+                    hold.enable = true; // zero duty with the driver enabled holds the wheels
+                    return hold;
+                }
+            }
+            if (ms.step.wallsReady && !ms.decided && !ms.step.blocked && !ms.finishHere) {
                 onWallsReady(ms, p);
                 if (ms.phase == SectionAPhase::Fault) {
                     return DriveCommand{};
                 }
             }
-            if (st == MoveStatus::Stuck) {
+            if (st == MoveStatus::Stuck && !ms.brakingAtMarker) {
+                // Wheels that stuck a little short of the stop point, outside the arrival
+                // tolerance, are an arrival: the next move starts from where it stands, and the
+                // walls put the centre right again.
+                float err = ms.step.straight.targetMm - fb.distMm;
+                err = err < 0.0f ? -err : err;
+                if (err <= p.stuckAcceptMm && fb.speedMmS < MARKER_STILL_MM_S &&
+                    fb.speedMmS > -MARKER_STILL_MM_S) {
+                    st = MoveStatus::Done;
+                }
+            }
+            if (st == MoveStatus::Stuck && !ms.brakingAtMarker) {
                 sectionAFail(ms, SectionAFault::StuckStep);
                 return DriveCommand{};
             }
             if (st == MoveStatus::Done) {
-                if (ms.step.blocked) {
+                if (ms.finishHere) {
+                    ms.phase = SectionAPhase::Done;
+                } else if (ms.step.blocked) {
                     ++ms.blocked;
                     if (ms.blocked > p.maxBlocked) {
                         sectionAFail(ms, SectionAFault::TooManyStops);
@@ -432,11 +548,7 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
                     beginSense(ms);
                 } else {
                     ms.resumes = 0;
-                    if (ms.finishHere) {
-                        ms.phase = SectionAPhase::Done;
-                    } else {
-                        planNext(ms, p, fb);
-                    }
+                    planNext(ms, p, fb);
                 }
             }
             break;

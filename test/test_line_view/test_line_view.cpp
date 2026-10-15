@@ -104,6 +104,15 @@ static void test_one_usable_channel_is_enough_to_be_valid()
     TEST_ASSERT_TRUE(lineView(s.norm, s.mask, 0x01, PITCH).valid);
 }
 
+static void test_d1_on_the_right_flips_the_sign()
+{
+    const Sweep s = sweep(0b00000001); // channel 0 = D1
+    const LineView left = lineView(s.norm, s.mask, 0xFF, PITCH, false);
+    const LineView right = lineView(s.norm, s.mask, 0xFF, PITCH, true);
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 35.0f, left.errMm);
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, -35.0f, right.errMm); // the robot's right end: negative
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -116,5 +125,6 @@ int main()
     RUN_TEST(test_unusable_channels_are_ignored);
     RUN_TEST(test_no_usable_channels_reports_nothing);
     RUN_TEST(test_one_usable_channel_is_enough_to_be_valid);
+    RUN_TEST(test_d1_on_the_right_flips_the_sign);
     return UNITY_END();
 }

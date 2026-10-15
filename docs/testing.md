@@ -169,7 +169,7 @@ register code isn't.
 
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
-`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`,
+`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`, `test_floor_pattern`,
 `test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`, `test_motion_profile`,
 `test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
 `test_step_cell`, `test_maze`, `test_section_a` and `test_run_loop`. A test file looks like this

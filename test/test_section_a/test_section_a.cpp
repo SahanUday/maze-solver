@@ -49,8 +49,8 @@ static Outcome run(World &w, SectionA &ms, const SectionAParams &p, uint32_t max
     out.phase = ms.phase;
     out.fault = ms.fault;
     out.visited = visitedCells(ms);
-    const float dx = static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.whiteI);
-    const float dy = static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.whiteJ);
+    const float dx = static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
+    const float dy = static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
     out.tileOffsetMm = sqrtf(dx * dx + dy * dy);
     return out;
 }
@@ -75,7 +75,7 @@ static void photoWorld(World &w)
 }
 
 // ---- Photo maze ----------------------------------------------------------------------------
-static void test_every_start_tile_and_heading_reaches_the_white_tile()
+static void test_every_start_tile_and_heading_reaches_the_marker()
 {
     int reentered = 0;
     int runs = 0;
@@ -123,11 +123,11 @@ static void test_a_walls_only_run_explores_every_tile_and_stops()
     TEST_ASSERT_EQUAL(16, o.visited);
 }
 
-static void test_without_a_white_tile_the_run_ends_in_no_route()
+static void test_without_a_marker_the_run_ends_in_no_route()
 {
     World w;
     photoWorld(w);
-    w.arena.whiteI = -1;
+    w.arena.markerI = -1;
     w.start(2, 0, 1);
     SectionA ms;
     sectionAReset(ms);
@@ -138,30 +138,41 @@ static void test_without_a_white_tile_the_run_ends_in_no_route()
     TEST_ASSERT_EQUAL_UINT8(p.rescans, ms.rescans);
 }
 
-static void test_the_start_tile_is_left_when_it_is_white_unless_told_otherwise()
+// The exit looks like a wall in the front sensor's dead zone: silent. Down a straight corridor to
+// it the way is open for the whole run, and the robot tells that from the sides: a side sensor
+// turned to look, the sides it measured on the way in, and cells it has already been in.
+static void corridorToTheExit(World &w)
 {
-    World w;
-    photoWorld(w);
-    w.start(0, 3, 3); // on the white tile, facing south
-    SectionA ms;
-    sectionAReset(ms);
-    const Outcome o = run(w, ms, sectionAParams(), 400);
-    TEST_ASSERT_TRUE(o.phase != SectionAPhase::Done);
-    TEST_ASSERT_TRUE(ms.moves > 0 || ms.turns > 0 || ms.phase == SectionAPhase::Sense);
+    for (int j = 0; j < world::N; ++j) {
+        w.arena.vw[0 * world::N + j] = true;
+        w.arena.vw[world::N * world::N + j] = j != 3; // the marker tile's east edge is open
+    }
+    for (int i = 0; i < world::N; ++i) {
+        w.arena.hw[0 * world::N + i] = true;
+        w.arena.hw[world::N * world::N + i] = true;
+        w.arena.hw[3 * world::N + i] = true; // the corridor is row 3
+    }
+    w.arena.markerI = 3;
+    w.arena.markerJ = 3;
+    w.arena.build();
 }
 
-static void test_a_run_that_begins_on_the_white_tile_can_finish_there()
+static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start()
 {
-    World w;
-    photoWorld(w);
-    w.start(0, 3, 3);
-    SectionA ms;
-    sectionAReset(ms);
-    SectionAParams p = sectionAParams();
-    p.finishAtStart = true;
-    const Outcome o = run(w, ms, p);
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_EQUAL_UINT16(0, ms.moves);
+    for (int i = 0; i < 3; ++i) {
+        for (int facing = 0; facing < 4; ++facing) {
+            World w;
+            corridorToTheExit(w);
+            w.start(i, 3, facing);
+            SectionA ms;
+            sectionAReset(ms);
+            const Outcome o = run(w, ms, sectionAParams());
+            TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
+                                      static_cast<int>(o.phase), "did not reach the marker");
+            TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the marker");
+            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+        }
+    }
 }
 
 static void test_it_holds_still_once_done()
@@ -441,11 +452,10 @@ static void test_the_default_parameters_are_the_spec()
 int main()
 {
     UNITY_BEGIN();
-    RUN_TEST(test_every_start_tile_and_heading_reaches_the_white_tile);
+    RUN_TEST(test_every_start_tile_and_heading_reaches_the_marker);
     RUN_TEST(test_a_walls_only_run_explores_every_tile_and_stops);
-    RUN_TEST(test_without_a_white_tile_the_run_ends_in_no_route);
-    RUN_TEST(test_the_start_tile_is_left_when_it_is_white_unless_told_otherwise);
-    RUN_TEST(test_a_run_that_begins_on_the_white_tile_can_finish_there);
+    RUN_TEST(test_without_a_marker_the_run_ends_in_no_route);
+    RUN_TEST(test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start);
     RUN_TEST(test_it_holds_still_once_done);
     RUN_TEST(test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall);
     RUN_TEST(test_a_stop_no_wall_explains_is_resumed_to_the_centre);

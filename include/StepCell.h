@@ -78,7 +78,11 @@ struct StepCell {
     float anchorMm = 0.0f; // the stop, smoothed over the agreeing echoes
     bool haveAnchor = false;
     uint16_t blindMs = 0; // time spent waiting at the start for the front sensor
-    uint16_t sameMs = 0;  // how long the front reading has stood unchanged
+    // The caller knows the way ahead is open to beyond the sensor's range (a side sensor measured
+    // it): silence from the front is then no sign of a wall in the dead zone, and the move does
+    // not wait for an echo.
+    bool openAhead = false;
+    uint16_t sameMs = 0; // how long the front reading has stood unchanged
     // Heading correction owed to the caller, and the stretch it is measured over: the lateral
     // error against the odometer along one wall mode (a least-squares line), and the mean heading.
     float snapDeg = 0.0f;
@@ -123,6 +127,7 @@ inline void begin(StepCell &sc, const StepCellParams &p, const MotionFeedback &f
     sc.haveWall = false;
     sc.frontAgreed = false;
     sc.blindMs = 0;
+    sc.openAhead = false;
     sc.sameMs = 0;
     step_detail::trackReset(sc);
     sc.lastDistMm = fb.distMm;
@@ -256,7 +261,7 @@ inline bool frontLogic(StepCell &sc, const StepCellParams &p, const MotionFeedba
         // No pair of echoes agree yet. An echo well clear of the stop point is enough to go on; if
         // not, wait at rest for one, and if none comes the wall is in the dead zone.
         const bool clear = sc.haveFront && sc.lastFrontMm > p.frontStopMm + p.sampleLeadMm;
-        if (clear || p.blindMs == 0) {
+        if (clear || p.blindMs == 0 || sc.openAhead) {
             return false;
         }
         if (sc.blindMs < UINT16_MAX - dtMs) {

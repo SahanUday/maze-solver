@@ -312,6 +312,71 @@ static void test_without_a_calibration_the_line_view_reports_nothing()
     TEST_ASSERT_FALSE(r.out.line.onLine);
 }
 
+// Calibrated on white 600 and black 1000 on every channel.
+static void calibrate(Rig &r)
+{
+    LineCalibration cal;
+    lineCalibrationReset(cal);
+    uint16_t counts[IR_CHANNEL_COUNT];
+    for (auto &c : counts) {
+        c = 600;
+    }
+    lineCalibrationAccumulate(cal, counts);
+    for (auto &c : counts) {
+        c = 1000;
+    }
+    lineCalibrationAccumulate(cal, counts);
+    lineCalibrationFinish(cal);
+    perceiverSetCalibration(r.pc, cal);
+}
+
+static void test_the_floor_is_black_white_or_mixed_by_the_line_view()
+{
+    Rig r;
+    calibrate(r);
+    for (auto &c : r.s.irRaw) {
+        c = 1000;
+    }
+    r.tick();
+    r.tick();
+    TEST_ASSERT_EQUAL(static_cast<int>(FloorClass::Black), static_cast<int>(r.out.floor));
+    for (auto &c : r.s.irRaw) {
+        c = 600;
+    }
+    for (int i = 0; i < 4; ++i) {
+        r.tick(); // the mask has hysteresis: it needs a few sweeps to settle
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(FloorClass::White), static_cast<int>(r.out.floor));
+    r.s.irRaw[0] = 1000; // one end on black
+    r.tick();
+    TEST_ASSERT_EQUAL(static_cast<int>(FloorClass::Mixed), static_cast<int>(r.out.floor));
+}
+
+static void test_a_saturated_array_is_air_even_with_no_calibration()
+{
+    Rig r;
+    for (auto &c : r.s.irRaw) {
+        c = 1020;
+    }
+    r.tick();
+    TEST_ASSERT_EQUAL(static_cast<int>(FloorClass::Air), static_cast<int>(r.out.floor));
+}
+
+static void test_the_array_end_that_is_d1_gives_the_sign_of_the_error()
+{
+    Rig r;
+    calibrate(r);
+    for (auto &c : r.s.irRaw) {
+        c = 600;
+    }
+    r.s.irRaw[0] = 1000; // D1, the robot's right end
+    for (int i = 0; i < 4; ++i) {
+        r.tick();
+    }
+    TEST_ASSERT_TRUE(r.out.line.onLine);
+    TEST_ASSERT_TRUE(r.out.line.errMm < 0.0f); // positive is left; D1 is on the right
+}
+
 static void test_the_start_button_is_passed_through()
 {
     Rig r;
@@ -359,6 +424,9 @@ int main()
     RUN_TEST(test_a_captured_level_replaces_the_bench_value);
     RUN_TEST(test_a_calibration_marks_its_usable_channels);
     RUN_TEST(test_without_a_calibration_the_line_view_reports_nothing);
+    RUN_TEST(test_the_floor_is_black_white_or_mixed_by_the_line_view);
+    RUN_TEST(test_a_saturated_array_is_air_even_with_no_calibration);
+    RUN_TEST(test_the_array_end_that_is_d1_gives_the_sign_of_the_error);
     RUN_TEST(test_the_start_button_is_passed_through);
     RUN_TEST(test_reset_forgets_the_run);
     return UNITY_END();

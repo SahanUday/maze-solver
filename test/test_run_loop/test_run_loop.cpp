@@ -142,7 +142,7 @@ static void test_the_run_limit_ends_the_run()
 
 // The whole thing in the simulated arena: power-up delay, perception from raw sensors, mission,
 // motors.
-static void test_a_run_from_power_on_to_the_white_tile()
+static void test_a_run_from_power_on_to_the_marker()
 {
     for (int facing : {0, 2}) {
         World w;
@@ -170,9 +170,9 @@ static void test_a_run_from_power_on_to_the_white_tile()
         TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done),
                           static_cast<int>(rl.mission.phase));
         const float dx =
-            static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.whiteI);
+            static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
         const float dy =
-            static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.whiteJ);
+            static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
         TEST_ASSERT_TRUE(dx * dx + dy * dy < 40.0f * 40.0f);
         TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
     }
@@ -189,6 +189,6 @@ int main()
     RUN_TEST(test_no_gyro_means_no_run);
     RUN_TEST(test_without_a_line_calibration_the_run_is_walls_only);
     RUN_TEST(test_the_run_limit_ends_the_run);
-    RUN_TEST(test_a_run_from_power_on_to_the_white_tile);
+    RUN_TEST(test_a_run_from_power_on_to_the_marker);
     return UNITY_END();
 }

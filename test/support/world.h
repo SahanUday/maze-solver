@@ -31,10 +31,14 @@ struct Lcg {
 
 constexpr int N = 4;
 constexpr float PITCH = 250.0f;
-constexpr float WALL_T = 17.0f;         // wall thickness
-constexpr float NOSE_MM = 89.0f;        // axle to the front of the body (assumed)
-constexpr float BODY_HALF_MM = 90.0f;   // axle half width over the tyres
-constexpr float ARRAY_AHEAD_MM = 60.0f; // IR array ahead of the axle (assumed)
+constexpr float WALL_T = 17.0f;       // wall thickness
+constexpr float NOSE_MM = 89.0f;      // axle to the front of the body (assumed)
+constexpr float BODY_HALF_MM = 90.0f; // axle half width over the tyres
+constexpr float ARRAY_AHEAD_MM = IR_ARRAY_FORWARD_OFFSET_MM; // IR array ahead of the axle
+constexpr float MARKER_OUTER_MM = 191.0f; // white frame, 36.5 mm each side of the black box
+constexpr float MARKER_BOX_MM = 118.0f;
+constexpr int16_t WHITE_COUNTS = 500; // channel k reads this + 6k on white
+constexpr int16_t BLACK_COUNTS = 990; // the maze floor reads 976-1013
 
 struct Rect {
     float x0, x1, y0, y1;
@@ -46,8 +50,8 @@ struct Arena {
     bool hw[N * (N + 1)] = {}; // hw[j * N + i]: a wall on the south side of row j
     Rect rect[(N + 1) * N + N * (N + 1)];
     int rects = 0;
-    int whiteI = -1; // the white tile; -1 = none
-    int whiteJ = -1;
+    int markerI = -1; // the tile with the approach marker; -1 = none
+    int markerJ = -1;
 
     void build()
     {
@@ -74,7 +78,8 @@ struct Arena {
         }
     }
 
-    // The team's Section A maze (the photo), with the white tile at its top-left corner.
+    // The team's Section A maze (the photo): the marker tile is its top-left corner, closed on
+    // both sides and open to the north, where the line leaves the maze.
     // `row` counts from the top of the photo.
     void photo()
     {
@@ -84,7 +89,7 @@ struct Arena {
         }
         for (int i = 0; i < N; ++i) {
             hw[0 * N + i] = true;
-            hw[N * N + i] = true;
+            hw[N * N + i] = i != 0;
         }
         const struct {
             int row, col;
@@ -99,8 +104,8 @@ struct Arena {
                 hw[j * N + e.col] = true;
             }
         }
-        whiteI = 0;
-        whiteJ = N - 1;
+        markerI = 0;
+        markerJ = N - 1;
         build();
     }
 
@@ -231,18 +236,18 @@ struct World {
         state.startButtonPressed = true;
     }
 
-    // The IR array's calibration: white 100, black 900 on every channel.
+    // The IR array's calibration: the white and black of arrayCounts().
     static LineCalibration calibration()
     {
         LineCalibration cal;
         lineCalibrationReset(cal);
         uint16_t counts[IR_CHANNEL_COUNT];
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = 100;
+            counts[ch] = static_cast<uint16_t>(WHITE_COUNTS + 6 * ch);
         }
         lineCalibrationAccumulate(cal, counts);
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = 900;
+            counts[ch] = BLACK_COUNTS;
         }
         lineCalibrationAccumulate(cal, counts);
         lineCalibrationFinish(cal);
@@ -286,16 +291,32 @@ struct World {
         held[slot] = static_cast<uint16_t>(mm < 0.0f ? 0.0f : mm);
     }
 
-    bool whiteUnderArray() const
+    // The floor under a point: white on the marker's frame, black everywhere else.
+    bool whiteAt(float px, float py) const
     {
-        if (arena.whiteI < 0) {
+        if (arena.markerI < 0) {
             return false;
         }
+        const float dx = fabsf(px - PITCH * arena.markerI);
+        const float dy = fabsf(py - PITCH * arena.markerJ);
+        const float o = MARKER_OUTER_MM / 2;
+        const float b = MARKER_BOX_MM / 2;
+        return dx < o && dy < o && !(dx < b && dy < b);
+    }
+
+    // The eight channels of the array: ahead of the axle, D1 at the robot's right end.
+    void arrayCounts(uint16_t (&out)[IR_CHANNEL_COUNT]) const
+    {
         const float a = static_cast<float>(yawDeg) * 0.0174533f;
-        const float px = static_cast<float>(x) + ARRAY_AHEAD_MM * cosf(a);
-        const float py = static_cast<float>(y) + ARRAY_AHEAD_MM * sinf(a);
-        return fabsf(px - PITCH * arena.whiteI) < PITCH / 2 &&
-               fabsf(py - PITCH * arena.whiteJ) < PITCH / 2;
+        const float cx = static_cast<float>(x) + ARRAY_AHEAD_MM * cosf(a);
+        const float cy = static_cast<float>(y) + ARRAY_AHEAD_MM * sinf(a);
+        for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+            const float across = (static_cast<float>(ch) - 3.5f) * IR_SENSOR_PITCH_MM *
+                                 (IR_D1_ON_RIGHT ? 1.0f : -1.0f); // positive to the left
+            const float px = cx - across * sinf(a);
+            const float py = cy + across * cosf(a);
+            out[ch] = static_cast<uint16_t>(whiteAt(px, py) ? WHITE_COUNTS + 6 * ch : BLACK_COUNTS);
+        }
     }
 
     // What the robot senses this tick, as the firmware's Perception.
@@ -314,10 +335,7 @@ struct World {
         state.distLeftMm = held[1];
         state.distRightMm = held[2];
         state.usValid = valid;
-        const uint16_t level = whiteUnderArray() ? 100 : 900;
-        for (auto &c : state.irRaw) {
-            c = level;
-        }
+        arrayCounts(state.irRaw);
         Perception out;
         perceive(pc, state, pp, out);
         return out;

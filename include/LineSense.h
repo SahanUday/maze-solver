@@ -56,6 +56,21 @@ inline uint8_t lineCalibrationUsable(const LineCalibration &cal)
     return usable;
 }
 
+// A calibration from this array on this floor reads like one: some channels usable, the whites
+// high (a lit emitter) and not all alike. A blank or damaged store, or an array without its supply,
+// does not.
+inline bool lineCalibrationLooksReal(const LineCalibration &cal)
+{
+    uint16_t lo = UINT16_MAX;
+    uint16_t hi = 0;
+    for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+        lo = cal.white[ch] < lo ? cal.white[ch] : lo;
+        hi = cal.white[ch] > hi ? cal.white[ch] : hi;
+    }
+    return lineCalibrationUsable(cal) != 0 && lo >= IR_CAL_WHITE_MIN_COUNTS &&
+           static_cast<uint16_t>(hi - lo) >= IR_CAL_WHITE_SPREAD_COUNTS;
+}
+
 // End the run. This is the only division; lineNormalize() multiplies. Returns the usable
 // channels. A range under LINE_CAL_MIN_SPAN_COUNTS is not.
 inline uint8_t lineCalibrationFinish(LineCalibration &cal)

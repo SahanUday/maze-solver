@@ -195,11 +195,12 @@ in `include/RobotSpec.h`. The line view has not been run on the robot (the IR ar
 | Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
 | Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
 | Cell step | `include/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
-| Section A mission | `include/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the white tile, stop on it |
+| Section A mission | `include/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the approach marker, stop on its tile |
 | Run loop | `include/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
 | Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
 | Incline | `include/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
 | Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
+| Floor pattern | `include/FloorPattern.h` | the IR array's floor class (black, white, air, mixed) along the path: the approach marker and the gap before the ramp |
 
 ## Dual build target
 

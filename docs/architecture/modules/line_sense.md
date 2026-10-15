@@ -51,3 +51,7 @@ both come with the first consumer.
 
 Still to check: the response to a 30 mm line (which sets `LINE_MASK_ON_PCT` and
 `LINE_MASK_OFF_PCT`), tilt on the bridge incline, and a change of mount height.
+
+`lineCalibrationLooksReal(cal)` - some channel usable, the whites at least `IR_CAL_WHITE_MIN_COUNTS`
+(a lit emitter) and not all alike (`IR_CAL_WHITE_SPREAD_COUNTS`). `main.cpp` believes a stored
+calibration (`src/line_cal_store.*`, EEPROM, same layout the probe writes) only if it passes.

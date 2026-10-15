@@ -3,8 +3,8 @@
 //  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
 //  Hardware is reached only through src/hal/* drivers - see RobotState.h.
 //  The algorithm is the Section A run (include/RunLoop.h): after the gyro is zeroed at power-up
-//  the robot explores from where it stands until the white tile, or every reachable tile without
-//  a line calibration.
+//  the robot explores from where it stands until the approach marker, or every reachable tile
+//  without a line calibration.
 // ============================================================================
 
 #include <Arduino.h>
@@ -20,6 +20,7 @@
 #include "hal/line_sensors.h"
 #include "hal/motors.h"
 #include "hal/ultrasonic.h"
+#include "line_cal_store.h"
 
 static RobotState g_state;
 static RunLoop g_run;
@@ -92,11 +93,18 @@ void setup()
         pinMode(PIN_BTN_START, INPUT_PULLUP);
     }
     pinMode(PIN_LED_ERROR, OUTPUT);
-    // No IR calibration is stored yet, so the run reads walls only: it explores every reachable
-    // tile and stops. A calibration passed here makes it stop on the white tile.
-    runLoopInit(g_run, g_imuPresent, nullptr);
-    Serial.println(g_imuPresent ? F("run: starts by itself (walls only: no line calibration)")
-                                : F("run: no gyro, will not start"));
+    // The IR calibration is taken once per lighting with the probe and kept in EEPROM
+    // (line_cal_store.h). Without one that looks real the run reads walls only: it explores every
+    // reachable tile and stops, and cannot see the marker.
+    LineCalibration cal;
+    const bool haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
+    runLoopInit(g_run, g_imuPresent, haveCal ? &cal : nullptr);
+    if (!g_imuPresent) {
+        Serial.println(F("run: no gyro, will not start"));
+    } else {
+        Serial.println(haveCal ? F("run: starts by itself, line calibration loaded")
+                               : F("run: starts by itself (walls only: no line calibration)"));
+    }
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
 
