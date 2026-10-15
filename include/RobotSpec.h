@@ -313,6 +313,13 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
+// No start button is fitted: the run begins by itself, RUN_START_DELAY_MS after the loop starts
+// (the gyro has been zeroed by then, with the robot held still), so the power switch is the start.
+// With a button fitted, set this true and the run waits for a press.
+constexpr bool RUN_START_BUTTON_FITTED = false;
+constexpr uint16_t RUN_START_DELAY_MS = 1000; // time to take the hands off after the zeroing
+// The start button must read pressed this many ticks in a row (a bounce is shorter).
+constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;
 // White under the array this long (past the tile edge, before the centre is decided) is the tile.
 constexpr uint16_t SECTION_A_FINISH_WHITE_MS = 100;
 

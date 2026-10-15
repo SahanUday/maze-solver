@@ -223,6 +223,13 @@ struct World {
         }
         gyroBiasFinish(bias);
 
+        perceiverSetCalibration(pc, calibration());
+        state.startButtonPressed = true;
+    }
+
+    // The IR array's calibration: white 100, black 900 on every channel.
+    static LineCalibration calibration()
+    {
         LineCalibration cal;
         lineCalibrationReset(cal);
         uint16_t counts[IR_CHANNEL_COUNT];
@@ -235,8 +242,7 @@ struct World {
         }
         lineCalibrationAccumulate(cal, counts);
         lineCalibrationFinish(cal);
-        perceiverSetCalibration(pc, cal);
-        state.startButtonPressed = true;
+        return cal;
     }
 
     int16_t gyroCounts(double rateDps)
