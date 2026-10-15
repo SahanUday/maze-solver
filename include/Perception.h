@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include "FloorPattern.h"
 #include "LineSense.h"
 #include "LineView.h"
 #include "MotionTypes.h"
@@ -28,6 +29,7 @@ struct Perception {
     // reads far and is valid; this is a sensor failure, for the mission to act on.
     uint16_t sideBlindMs = 0;
     LineView line;
+    FloorClass floor = FloorClass::Black; // the line view, and "nothing under the array"
     bool startPressed = false;
 };
 
@@ -39,6 +41,9 @@ struct PerceiveParams {
     float frontFrozenMm = FRONT_FROZEN_MM; // an unchanging front reading over this travel is frozen
     WallParams wall;
     float irPitchMm = IR_SENSOR_PITCH_MM;
+    bool irD1OnRight = IR_D1_ON_RIGHT;
+    uint16_t irAirCounts = IR_AIR_COUNTS; // see classifyFloor(); 0 = no air detection
+    uint8_t irAirChannels = IR_AIR_CHANNELS;
 };
 
 // The last three distinct echoes of one side sensor. A reading that is not the median of its
@@ -174,7 +179,8 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);
     pc.mask = lineMaskUpdate(pc.norm, pc.mask);
-    out.line = lineView(pc.norm, pc.mask, pc.usable, p.irPitchMm);
+    out.line = lineView(pc.norm, pc.mask, pc.usable, p.irPitchMm, p.irD1OnRight);
+    out.floor = classifyFloor(out.line, state.irRaw, p.irAirCounts, p.irAirChannels);
 
     out.startPressed = state.startButtonPressed;
 }

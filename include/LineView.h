@@ -24,8 +24,10 @@ struct LineView {
 };
 
 // `usable` = bit per channel the calibration accepted; `mask` = bit per black channel.
+// `d1OnRight`: channel 0 is the robot's right end (IR_D1_ON_RIGHT); the error is positive to the
+// left either way.
 inline LineView lineView(const uint8_t (&norm)[IR_CHANNEL_COUNT], uint8_t mask, uint8_t usable,
-                         float pitchMm)
+                         float pitchMm, bool d1OnRight = false)
 {
     LineView v;
     const uint8_t black = static_cast<uint8_t>(mask & usable);
@@ -40,9 +42,10 @@ inline LineView lineView(const uint8_t (&norm)[IR_CHANNEL_COUNT], uint8_t mask, 
         if ((black & (1u << ch)) == 0) {
             continue;
         }
-        // Channel 0 is the leftmost (D1), so it sits at the most positive position.
-        const float pos =
-            (static_cast<float>(IR_CHANNEL_COUNT - 1) * 0.5f - static_cast<float>(ch)) * pitchMm;
+        // Channel 0 (D1) is the leftmost end, or the rightmost when `d1OnRight`.
+        const float fromLeft =
+            static_cast<float>(IR_CHANNEL_COUNT - 1) * 0.5f - static_cast<float>(ch);
+        const float pos = (d1OnRight ? -fromLeft : fromLeft) * pitchMm;
         const float w = static_cast<float>(norm[ch]);
         weight += w;
         moment += w * pos;

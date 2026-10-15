@@ -272,6 +272,42 @@ static void test_a_line_under_the_middle_three_channels_gives_that_mask()
     TEST_ASSERT_EQUAL_UINT8(255, norm[4]);
 }
 
+static void test_a_calibration_from_this_array_looks_real()
+{
+    LineCalibration cal;
+    lineCalibrationReset(cal);
+    uint16_t w[IR_CHANNEL_COUNT] = {620, 640, 600, 610, 650, 630, 615, 625};
+    uint16_t b[IR_CHANNEL_COUNT] = {1010, 1012, 1008, 1011, 1013, 1009, 1010, 1012};
+    lineCalibrationAccumulate(cal, w);
+    lineCalibrationAccumulate(cal, b);
+    lineCalibrationFinish(cal);
+    TEST_ASSERT_TRUE(lineCalibrationLooksReal(cal));
+}
+
+static void test_a_blank_or_unpowered_calibration_does_not_look_real()
+{
+    LineCalibration blank;
+    lineCalibrationReset(blank);
+    TEST_ASSERT_FALSE(lineCalibrationLooksReal(blank)); // no channel usable
+
+    LineCalibration dark; // the emitters off: every white reads low and alike
+    lineCalibrationReset(dark);
+    uint16_t w[IR_CHANNEL_COUNT] = {20, 20, 20, 20, 20, 20, 20, 20};
+    uint16_t b[IR_CHANNEL_COUNT] = {900, 900, 900, 900, 900, 900, 900, 900};
+    lineCalibrationAccumulate(dark, w);
+    lineCalibrationAccumulate(dark, b);
+    lineCalibrationFinish(dark);
+    TEST_ASSERT_FALSE(lineCalibrationLooksReal(dark));
+
+    LineCalibration alike; // high but identical whites: the same fault
+    lineCalibrationReset(alike);
+    uint16_t w2[IR_CHANNEL_COUNT] = {700, 700, 700, 700, 700, 700, 700, 700};
+    lineCalibrationAccumulate(alike, w2);
+    lineCalibrationAccumulate(alike, b);
+    lineCalibrationFinish(alike);
+    TEST_ASSERT_FALSE(lineCalibrationLooksReal(alike));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -291,5 +327,7 @@ int main()
     RUN_TEST(test_a_channel_rising_then_falling_flips_at_the_two_thresholds_not_one);
     RUN_TEST(test_mask_channels_are_independent);
     RUN_TEST(test_a_line_under_the_middle_three_channels_gives_that_mask);
+    RUN_TEST(test_a_calibration_from_this_array_looks_real);
+    RUN_TEST(test_a_blank_or_unpowered_calibration_does_not_look_real);
     return UNITY_END();
 }

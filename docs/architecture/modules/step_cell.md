@@ -90,3 +90,9 @@ since: steps through cells, stops at dead ends and reads the walls correctly, wi
 tolerance. The echo gate, safety stop, blind start and heading fix have only run on the host, and
 `FRONT_AGREE_MM`, `FRONT_BLIND_MS`, `WALL_SNAP_MM` and `WALL_SNAP_GAIN` come from the measured
 jitter and the host model, not from logs of stray echoes or a long run.
+
+## Known-open way
+
+`openAhead` (set by the caller after `stepCellBegin`, or at `stepCellContinue`) says a side sensor has
+measured the way ahead open: a silent front is then an exit with nothing beyond, not a wall in the
+dead zone, and the move does not wait `blindMs` for an echo (which would end blocked).

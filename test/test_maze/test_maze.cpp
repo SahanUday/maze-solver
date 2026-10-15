@@ -453,6 +453,19 @@ static void test_starting_on_the_finish_does_not_move()
     TEST_ASSERT_EQUAL_UINT16(0, res.moves);
 }
 
+static void test_the_cell_ahead_is_visited_once_the_robot_has_been_in_it()
+{
+    maze::Explorer e;
+    maze::explorerInit(e);
+    TEST_ASSERT_FALSE(maze::explorerAheadVisited(e));
+    maze::explorerObserve(e, false, true, true); // the start cell, a corridor to the north
+    TEST_ASSERT_TRUE(maze::explorerAdvance(e));
+    maze::explorerObserve(e, false, true, true);
+    TEST_ASSERT_FALSE(maze::explorerAheadVisited(e)); // the cell to the north is not
+    maze::explorerFace(e, maze::Dir::South);
+    TEST_ASSERT_TRUE(maze::explorerAheadVisited(e)); // the start cell behind it is
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -477,5 +490,6 @@ int main()
     RUN_TEST(test_missed_side_readings_cost_time_not_the_finish);
     RUN_TEST(test_the_start_tile_is_re_entered_only_where_it_cannot_be_avoided);
     RUN_TEST(test_starting_on_the_finish_does_not_move);
+    RUN_TEST(test_the_cell_ahead_is_visited_once_the_robot_has_been_in_it);
     return UNITY_END();
 }

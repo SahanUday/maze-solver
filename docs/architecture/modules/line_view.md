@@ -6,7 +6,7 @@ and the `usable` bit mask of channels the calibration accepted.
 
 ## Interface
 
-`lineView(norm, mask, usable, pitchMm)` returns a `LineView`:
+`lineView(norm, mask, usable, pitchMm, d1OnRight = false)` returns a `LineView`:
 
 - `valid` - at least one usable channel. When false, the three states below are all false.
 - `allBlack` - every usable channel is black: bare maze floor, or the array lifted off it.
@@ -18,14 +18,16 @@ and the `usable` bit mask of channels the calibration accepted.
 ## How it works
 
 Black means the mask bit is set **and** the channel is usable. The centroid weights each black
-channel by its darkness (`norm`); channel 0 (D1) is leftmost, the most positive position.
+channel by its darkness (`norm`); channel 0 (D1) is the leftmost, the most positive position, or
+the rightmost with `d1OnRight`. On this robot D1 is the right end (`IR_D1_ON_RIGHT`, found with a
+black card under one end of the array).
 
 ## Invariants
 
 - With no usable channel (no calibration loaded) the view is not `valid`: it is neither the floor
   nor a white tile, and `errMm` is 0.
 - The maze floor is black, so `allBlack` is the normal state in the maze, not a fault.
-- `pitchMm` comes from `IR_SENSOR_PITCH_MM`, which is 0 until measured; `errMm` is then 0.
+- `pitchMm` comes from `IR_SENSOR_PITCH_MM` (8 mm, measured); 0 would make `errMm` 0.
 
 ## Status
 

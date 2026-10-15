@@ -567,6 +567,35 @@ static void test_a_dead_front_sensor_blocks_unless_waiting_is_turned_off()
     TEST_ASSERT_FLOAT_WITHIN(3.0f, 250.0f, r.sim.distMm);
 }
 
+// A way known to be open (a side sensor measured it) does not wait for a front echo that will
+// never come: the silence is an exit with nothing beyond, not a wall in the dead zone.
+static void test_a_known_open_way_does_not_wait_for_a_front_echo()
+{
+    Rig r;
+    r.world.echoFromTick = 100000; // nothing is ever heard in front
+    r.begin();
+    r.sc.openAhead = true;
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+    TEST_ASSERT_FALSE(r.sc.blocked);
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 250.0f, r.sim.distMm);
+}
+
+static void test_without_that_knowledge_a_silent_front_blocks_the_move()
+{
+    Rig r;
+    r.world.echoFromTick = 100000;
+    r.begin();
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 600 && st == MoveStatus::Running; ++i) {
+        st = r.tick();
+    }
+    TEST_ASSERT_TRUE(r.sc.blocked);
+}
+
 // Centred between both walls the bias the steer learned is the heading frame's error: handed back.
 static void test_the_learned_bias_is_handed_back_as_a_heading_fix()
 {
@@ -717,5 +746,7 @@ int main()
     RUN_TEST(test_cells_covered_and_the_remaining_distance_come_from_the_odometer);
     RUN_TEST(test_a_blocked_move_can_resume_to_its_planned_centre);
     RUN_TEST(test_a_move_that_cannot_start_is_stuck);
+    RUN_TEST(test_a_known_open_way_does_not_wait_for_a_front_echo);
+    RUN_TEST(test_without_that_knowledge_a_silent_front_blocks_the_move);
     return UNITY_END();
 }
