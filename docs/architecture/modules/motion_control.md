@@ -19,6 +19,11 @@ Turns a `MotionTarget` and a `MotionFeedback` into left and right duty. Pure log
 wheel.
 
 - **Linear:** PID on the odometer error + speed feedforward (`ffPwmPerMmS`); D on the speed error.
+- **Friction feedforward:** `ffPwmFriction` is added along the speed reference while its magnitude
+  is above 1 mm/s, and not at a standstill. The wheels need 160 / 250 duty to start but keep
+  rolling on ~110, so without it a move ends short, stands still, and the distance integral takes
+  seconds to break the wheels loose. `RobotSpec.h` `FEEDFORWARD_FRICTION_DUTY` is a host-model
+  value, not measured.
 - **Angular:** PID on the gyro heading error + yaw-rate feedforward (`ffPwmPerDps`); D on the
   yaw-rate error. The gyro closes this loop, so a turn does not depend on the track width.
 - **Heading integral:** `kiTurn` while the target is `pivot`, else `kiHold` (negative = `kiTurn`).
