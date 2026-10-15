@@ -82,6 +82,7 @@ inline SectionAParams sectionAParams()
     c.ffScaleR = FEEDFORWARD_RIGHT_SCALE;
     c.ffPwmPerMmS = FEEDFORWARD_PWM_PER_MM_S;
     c.ffPwmPerDps = FEEDFORWARD_PWM_PER_DPS;
+    c.ffPwmFriction = FEEDFORWARD_FRICTION_DUTY;
     c.minPwmL = CONTROL_MIN_PWM_L;
     c.minPwmR = CONTROL_MIN_PWM_R;
     c.pwmTop = MOTOR_PWM_TOP;

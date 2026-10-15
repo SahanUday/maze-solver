@@ -177,7 +177,11 @@ struct World {
     double pos[2] = {0, 0};
     double x = 0, y = 0, yawDeg = 0;
     double yawRateDps = 0;
-    float sticking = 0.4f; // scales the start-from-rest duty thresholds
+    // Wheels: a stopped one needs MOTOR_MIN_PWM_* x `sticking` duty to start (1 = the values
+    // measured on the floor), a rolling one `sustain` x (`sustainRight` for the right) to go on.
+    float sticking = 1.0f;
+    double sustain = 110.0; // the wheels kept going down to duty 100-120 on the stand
+    double sustainRight = 1.0;
 
     RobotState state;
     Perceiver pc;
@@ -333,8 +337,9 @@ struct World {
                 const double a = fabs(duty[w]);
                 const double sgn = duty[w] >= 0 ? 1.0 : -1.0;
                 double ss = 0.0;
-                if (a >= 80.0 && (fabs(v[w]) > 2.0 || a >= start[w])) {
-                    ss = sgn * (a - 80.0) / k[w];
+                const double keep = sustain * (w == 1 ? sustainRight : 1.0);
+                if (a >= keep && (fabs(v[w]) > 2.0 || a >= start[w])) {
+                    ss = sgn * (a - keep) / k[w];
                 }
                 v[w] += (ss - v[w]) * (0.001 / 0.02);
                 // The body is stopped by the wall in front of it.

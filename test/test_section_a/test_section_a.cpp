@@ -257,8 +257,65 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
     TEST_ASSERT_TRUE(w.minSideMm > world::BODY_HALF_MM - 15.0f);
 }
 
+// Wheels that need the measured duty to start and more to keep rolling than the model's
+// default: a move that ends short stands still, and only the friction feedforward carries the
+// profile's last millimetres.
+static void test_every_start_finishes_on_wheels_that_roll_hard()
+{
+    for (int i = 0; i < world::N; ++i) {
+        for (int j = 0; j < world::N; ++j) {
+            if (i == 0 && j == world::N - 1) {
+                continue;
+            }
+            for (int facing = 0; facing < 4; ++facing) {
+                World w;
+                photoWorld(w);
+                w.sticking = 1.0f;
+                w.sustain = 130.0;
+                w.sustainRight = 1.25;
+                w.rng.s = 777u + static_cast<uint32_t>(i * 31 + j * 7 + facing);
+                w.start(i, j, facing);
+                SectionA ms;
+                sectionAReset(ms);
+                const Outcome o = run(w, ms, sectionAParams());
+                TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
+                                          static_cast<int>(o.phase), "did not finish");
+                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+            }
+        }
+    }
+}
+
+// The gyro's scale error turns every pivot short or long; the walls take it out while it stays
+// under about 1%. The measured chip reads 0.1 to 0.2% high.
+static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
+{
+    for (const float scale : {0.995f, 1.005f}) {
+        for (int i = 0; i < world::N; ++i) {
+            for (int j = 0; j < world::N; ++j) {
+                if (i == 0 && j == world::N - 1) {
+                    continue;
+                }
+                World w;
+                photoWorld(w);
+                w.faults.gyroScale = scale;
+                w.rng.s = 31u + static_cast<uint32_t>(i * 5 + j);
+                w.start(i, j, (i + 2 * j) & 3);
+                SectionA ms;
+                sectionAReset(ms);
+                const Outcome o = run(w, ms, sectionAParams());
+                TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Done),
+                                          static_cast<int>(o.phase), "did not finish");
+                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > world::BODY_HALF_MM - 15.0f,
+                                         "rubbed a wall");
+            }
+        }
+    }
+}
+
 // ---- Faults --------------------------------------------------------------------------------
-static Outcome runWith(const SectionAParams &p, float sticking = 0.4f, int obstacleFrom = 0,
+static Outcome runWith(const SectionAParams &p, float sticking = 1.0f, int obstacleFrom = 0,
                        int obstacleTo = 0)
 {
     World w;
@@ -308,7 +365,7 @@ static void test_too_many_cut_short_steps_end_the_run()
 {
     SectionAParams p = sectionAParams();
     p.maxBlocked = 0;
-    const Outcome o = runWith(p, 0.4f, 3500, 3750);
+    const Outcome o = runWith(p, 1.0f, 3500, 3750);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::TooManyStops), static_cast<int>(o.fault));
 }
@@ -394,6 +451,8 @@ int main()
     RUN_TEST(test_a_stop_no_wall_explains_is_resumed_to_the_centre);
     RUN_TEST(test_dropped_readings_and_stray_echoes_cost_time_not_the_finish);
     RUN_TEST(test_gyro_scale_and_drift_are_taken_out_by_the_walls);
+    RUN_TEST(test_every_start_finishes_on_wheels_that_roll_hard);
+    RUN_TEST(test_a_gyro_half_a_percent_off_still_finishes_from_every_start);
     RUN_TEST(test_a_step_that_cannot_start_is_a_stuck_step);
     RUN_TEST(test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn);
     RUN_TEST(test_wheels_that_never_break_away_stall_the_motors);

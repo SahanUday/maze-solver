@@ -438,6 +438,34 @@ static void test_the_right_scale_multiplies_only_the_right_command()
     TEST_ASSERT_EQUAL_INT16(240, o.right);
 }
 
+static void test_friction_feedforward_follows_the_direction_of_the_speed_reference()
+{
+    MotionControlParams p = params();
+    p.ffPwmFriction = 60.0f;
+    p.ffScaleR = 1.2f;
+    MotionTarget t;
+    MotionControl mc;
+    t.speedRefMmS = 50.0f;
+    MotionOutput o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(60, o.left);
+    TEST_ASSERT_EQUAL_INT16(72, o.right); // the right wheel's whole command is scaled
+    t.speedRefMmS = -50.0f;
+    o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(-60, o.left);
+    TEST_ASSERT_EQUAL_INT16(-72, o.right);
+}
+
+static void test_friction_feedforward_is_off_at_a_standstill_reference()
+{
+    MotionControlParams p = params();
+    p.ffPwmFriction = 60.0f;
+    MotionTarget t;
+    MotionControl mc;
+    const MotionOutput o = motionControlStep(mc, p, t, MotionFeedback{}, 10);
+    TEST_ASSERT_EQUAL_INT16(0, o.left);
+    TEST_ASSERT_EQUAL_INT16(0, o.right);
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -471,5 +499,7 @@ int main()
     RUN_TEST(test_a_new_move_starts_from_zero_integrals);
     RUN_TEST(test_a_move_in_progress_keeps_its_integrals);
     RUN_TEST(test_a_new_move_keeps_the_stall_latch);
+    RUN_TEST(test_friction_feedforward_follows_the_direction_of_the_speed_reference);
+    RUN_TEST(test_friction_feedforward_is_off_at_a_standstill_reference);
     return UNITY_END();
 }

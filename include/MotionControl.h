@@ -27,6 +27,9 @@ struct MotionControlParams {
     float ffScaleR = 1.0f; // multiplies the whole right command
     float ffPwmPerMmS = 0.0f;
     float ffPwmPerDps = 0.0f;
+    // Duty added along the speed reference while it is non-zero: the friction a moving wheel
+    // must beat. Without it the profile's last mm are the integral's job, which takes seconds.
+    float ffPwmFriction = 0.0f;
     uint16_t minPwmL = 0; // non-zero commands are lifted to this duty; 0 = no lift
     uint16_t minPwmR = 0;
     uint16_t pwmTop = 0;
@@ -49,6 +52,9 @@ struct MotionOutput {
     int16_t left = 0;
     int16_t right = 0;
 };
+
+// The speed reference below this is a stand-still: no friction feedforward.
+constexpr float FRICTION_FF_MIN_SPEED_MM_S = 1.0f;
 
 // Most duty one integral term may contribute (anti-windup).
 constexpr float MOTION_INTEGRAL_MAX_DUTY = 200.0f;
@@ -117,7 +123,11 @@ inline MotionOutput motionControlStep(MotionControl &mc, const MotionControlPara
 
     const float distErr = target.distRefMm - fb.distMm;
     accumulate(mc.distIntegral, distErr, dtS, p.kiDist);
-    const float linear = p.ffPwmPerMmS * target.speedRefMmS + p.kpDist * distErr +
+    const float friction =
+        target.speedRefMmS > FRICTION_FF_MIN_SPEED_MM_S
+            ? p.ffPwmFriction
+            : (target.speedRefMmS < -FRICTION_FF_MIN_SPEED_MM_S ? -p.ffPwmFriction : 0.0f);
+    const float linear = p.ffPwmPerMmS * target.speedRefMmS + friction + p.kpDist * distErr +
                          p.kiDist * mc.distIntegral + p.kdDist * (target.speedRefMmS - fb.speedMmS);
 
     const float headErr = headingWrapDeg(target.headingRefDeg - fb.headingDeg);

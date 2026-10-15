@@ -242,6 +242,15 @@ constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
 constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
 constexpr float FEEDFORWARD_PWM_PER_MM_S = 1.15f; // duty counts per mm/s of wheel speed
 constexpr float FEEDFORWARD_PWM_PER_DPS = 1.3f;   // duty counts per deg/s of yaw rate
+// Friction a rolling wheel must beat, added along the speed reference while it is non-zero. The
+// wheels keep going down to duty ~100-120 on the stand but need 160 / 250 to start, so a move
+// that ends short of its target stands still and the distance integral (2 duty per mm-second)
+// needs seconds to start it again: the host model with those figures stopped 8-12 mm short and
+// ended the run in 8 to 46 of 60 starts. Any value from 60 up finished all 60 in the model for
+// rolling friction from 60 to 150 duty; larger moves the stop further past the target when the
+// wheels roll more freely than assumed. [FROM TESTS] Not measured: log open-loop duty against
+// speed with tools/probe `o` and set it to the intercept.
+constexpr float FEEDFORWARD_FRICTION_DUTY = 60.0f;
 // On the floor the right wheel runs ~20% slower than the left at equal duty (1134 vs 1417
 // encoder counts at duty 340); on a stand they match. Multiplies the whole right command.
 constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
