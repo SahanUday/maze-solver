@@ -41,3 +41,11 @@ changes. The error LED follows `Fault`.
 Host tests, including a whole run from power-on to the marker and onto the line through the raw sensors in the
 simulated arena. Not run on the robot. No IR calibration is stored yet, so `main.cpp` passes none
 and the run is walls only: it explores every reachable tile and stops (`Done`).
+
+## Status line
+
+While the run is going, `src/main.cpp` prints one CSV line every `RUN_LOG_EVERY_MS` (200 ms; 0 =
+off) after a `# status ...` header: time, phase, fault, moves, turns, flags (1 marker seen, 2 gap
+seen, 4 turning to the exit), odometer, speed, heading, the three ultrasonics (0 = no echo), the IR
+floor class (0 black, 1 white, 2 air, 3 mixed), the line error, the eight raw IR counts and the
+drive duty. Integers only. A phase change also prints `run: phase N fault F moves M turns T`.
