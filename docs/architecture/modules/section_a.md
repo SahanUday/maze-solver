@@ -31,9 +31,15 @@ The Section A mission: from any tile, explore until the approach marker and stop
 - **Step:** drive one tile. The step reads the walls of the tile ahead 50 mm before its centre;
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
-- **Done:** the marker has been seen: the step brakes at once and, standing still, the robot holds
-  with the drivers enabled. **This is where what follows Section A takes over** (the line
-  follower, not built yet).
+- **Approach:** the marker has been seen. Straight on at the line speed over the strip and the gap
+  (`straightStep` along the grid heading, `FloorPattern` for the gap). If a wall is ahead on the
+  marker's tile it stops, stands `senseMs` reading both sides, turns to the open side that answers
+  from far or not at all (`medianOf`, a silent reading counted as the sensor's range), then goes.
+- **Line:** the first line view past the gap hands over to `lineFollowStep`
+  ([line_follow](line_follow.md)). Nothing ends it: the robot is powered off at the end of the line,
+  and if not, a lost line is searched for and then `LineLost` cuts the motors.
+- **Done:** only with `followLine` false (stop on the marker's tile, holding with the drivers
+  enabled) or `wallsOnly` (everything explored).
 - **Fault:** motors off, with `fault` saying why.
 
 ### Rules that keep the map true
@@ -54,12 +60,15 @@ The Section A mission: from any tile, explore until the approach marker and stop
 
 ### The finish
 
+Decision: [0010](../decisions/0010-finish-on-the-approach-marker.md), then
+[0011](../decisions/0011-leave-the-maze-onto-the-line-without-stopping.md) for what follows.
+
 The floor sensor tells the marker: white, black, white under the array along the path
 ([floor_pattern](floor_pattern.md)), at the odometer position of the array's sensing line
 (`IR_ARRAY_FORWARD_OFFSET_MM` ahead of the axle). It is fed only in the Step phase. The event comes
 as the far frame reaches `MARKER_FAR_FRAME_MIN_MM`, about 15 mm before the robot's centre is on the
-tile's, and the step brakes (`straightRetarget`) and is done when the speed reference is zero and
-the robot is still. `wallsOnly` skips it: the run explores every reachable tile and stops. A robot
+tile's. A stop short of it still counts (`floorPatternMarkerPending`: near frame and box complete,
+far frame begun). `wallsOnly` skips it: the run explores every reachable tile and stops. A robot
 placed on the marker's own tile cannot finish there. Decision:
 [0010](../decisions/0010-finish-on-the-approach-marker.md).
 
@@ -69,6 +78,8 @@ placed on the marker's own tile cannot finish there. Decision:
 - Map North is the gyro heading at start, and map directions run clockwise where the gyro runs
   counter-clockwise: `gridHeading` is `h0 - 90 * dir`.
 - The explorer's cell and the robot's agree at every stop on a centre: the tests check it.
+- `Approach` and `Line` come last in `SectionAPhase`, so the numbers logged for the older phases
+  are unchanged.
 
 ## Status
 

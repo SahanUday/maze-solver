@@ -266,8 +266,13 @@ constexpr float KD_TURN = 0.5f;
 // ---- Motion limits and feedforward --------------------------- [MEASURED] --
 // Feedforward fit from logged step responses at stepped duty; accelerations are the fastest
 // slip-free ramps.
-constexpr float SEARCH_SPEED_MM_S = 150.0f;       // cruise speed while exploring
-constexpr float LINE_SPEED_MM_S = 0.0f;           // cruise speed on the line; not set
+constexpr float SEARCH_SPEED_MM_S = 150.0f; // cruise speed while exploring
+// On the line the speed is set by feedforward alone (there is no distance error to push on), and
+// it comes out about 20% over the setting on the floor: 130 gave 120-215 mm/s, 170 gave 177-215.
+// 130 with no slowdown took 90-degree bends and an arc; 170 lost the line at the first 90-degree
+// bend. Below ~100 mm/s the wheels do not start. (PR #28, 2026-10-15)
+constexpr float LINE_SPEED_MM_S = 130.0f;         // cruise speed on the line
+constexpr float LINE_ACCEL_MM_S2 = 400.0f;        // its acceleration
 constexpr float ACCEL_MM_S2 = 500.0f;             // linear acceleration and deceleration
 constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
 constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
@@ -292,6 +297,32 @@ constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
 constexpr float KI_WALL = 0.10f;      // deg per mm per second; learns the heading reference error
 constexpr float STEER_MAX_DEG = 8.0f; // clamp on the whole offset
+// Line following (PR #28, 2026-10-15, tools/probe/motion.cpp `L`, a 24 mm black line on a white
+// floor, 50 cm runs from 11 mm off-centre, 170 mm/s). The follower steers by adding a heading
+// offset to the CURRENT heading, so with proportional gain alone the error behaves like an
+// integrator and oscillates: KP_LINE 0.3, no D: +-20 mm swings that did not die away; 0.12, no D:
+// worse (overshoot to +24 mm, the edge of the array), because a lower gain is less damped. Adding
+// D settles it: KP 0.3 + KD 0.15 reached zero in 90-140 mm and held +-5 mm (sd 2.5-3.3 mm) from
+// either side.
+constexpr float KP_LINE = 0.3f;
+constexpr float KD_LINE = 0.15f;
+constexpr float LINE_STEER_MAX_DEG = 15.0f;   // clamp on the heading offset the line may command
+constexpr uint8_t LINE_SLOWDOWN_PCT = 100;    // speed kept at the largest line error (0..100)
+constexpr float LINE_SLOWDOWN_ERR_MM = 20.0f; // line error at which that slowdown is reached
+// A lost line is searched for by turning toward the side it was last seen on, in place at
+// LINE_SEARCH_SPEED_MM_S 0 (recovered the robot at the 90-degree bends of the flat test track),
+// and given up after LINE_LOST_TIMEOUT_MS: the motors are cut (`LineLost`). LINE_END_LOST_MM > 0
+// would end the run when the line has been gone that far; 0 = off: the robot is powered off at the
+// end of the line (or, if it is not, it searches for 3 s and stops).
+constexpr float LINE_SEARCH_RATE_DPS = 60.0f;
+constexpr float LINE_SEARCH_SPEED_MM_S = 0.0f;
+constexpr uint16_t LINE_LOST_TIMEOUT_MS = 3000;
+constexpr float LINE_END_LOST_MM = 0.0f;
+// On the ramp the array may be lifted and read white floor as dark (or dark as white): an all-white
+// view is ignored above this nose-up slope. 6 deg: flat floor reads ~0.8 deg and a hard start or
+// stop fakes a few; the slope itself reads ~12. In accel counts (Tilt.h).
+constexpr int16_t RAMP_INCLINE_COUNTS =
+    static_cast<int16_t>(static_cast<int32_t>(IMU_ACCEL_ONE_G_COUNTS) * 1045 / 10000);
 // The corridor's direction is measured over this much travel along one wall (a fitted line, about
 // 1 degree of noise at 3 mm sensor noise); the heading frame's error against it is taken out of
 // the gyro heading by this share per stretch (stepCellTakeHeadingFix), where the bias integral
@@ -353,6 +384,14 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
+// After the marker the mission drives on (SECTION_A_FOLLOW_LINE) and hands over to the line
+// follower; false stops on the marker's tile instead, for a first run that does not leave the
+// maze. The hand-over is the first line view BRIDGE_HANDOVER_MIN_MM past the end of the gap (the
+// ~8 mm dark patch right after it must not count); no line within APPROACH_NO_LINE_MM of the
+// marker's centre is `NoLine` (marker centre to the ramp's line is ~300 mm).
+constexpr bool SECTION_A_FOLLOW_LINE = true;
+constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
+constexpr float APPROACH_NO_LINE_MM = 400.0f;
 // A step that makes no progress (a stiction stop short of its target) this close to the target,
 // standing still, is taken as arrived instead of a fault.
 constexpr float SECTION_A_STUCK_ACCEPT_MM = 20.0f;

@@ -300,6 +300,43 @@ static void test_a_short_far_frame_counts_when_the_far_minimum_is_set()
     TEST_ASSERT_FLOAT_WITHIN(1.0f, 100.0f + 36.0f + 59.0f, r.markerCentreMm);
 }
 
+static void test_a_marker_still_under_way_is_pending_even_when_the_far_frame_is_short()
+{
+    PatternParams p = params();
+    FloorPattern f;
+    floorPatternReset(f);
+    float centre = 0.0f;
+    float pos = 0.0f;
+    const Seg path[] = {{B, 100}, {W, 36}, {B, 118}, {W, 6}};
+    for (const Seg &seg : path) {
+        for (float x = 0.0f; x < seg.lengthMm; x += 1.0f, pos += 1.0f) {
+            TEST_ASSERT_EQUAL(static_cast<int>(PatternEvent::None),
+                              static_cast<int>(floorPatternStep(f, seg.cls, pos, p, centre)));
+        }
+    }
+    TEST_ASSERT_TRUE(floorPatternMarkerPending(f, p, pos, centre));
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 100.0f + 36.0f + 59.0f, centre);
+}
+
+static void test_nothing_is_pending_before_the_far_frame_or_on_a_bare_floor()
+{
+    PatternParams p = params();
+    FloorPattern f;
+    floorPatternReset(f);
+    float centre = 0.0f;
+    float pos = 0.0f;
+    const Seg path[] = {{B, 100}, {W, 36}, {B, 60}}; // the box is not done yet
+    for (const Seg &seg : path) {
+        for (float x = 0.0f; x < seg.lengthMm; x += 1.0f, pos += 1.0f) {
+            floorPatternStep(f, seg.cls, pos, p, centre);
+        }
+    }
+    TEST_ASSERT_FALSE(floorPatternMarkerPending(f, p, pos, centre));
+    FloorPattern g;
+    floorPatternReset(g);
+    TEST_ASSERT_FALSE(floorPatternMarkerPending(g, p, 10.0f, centre));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -327,5 +364,7 @@ int main()
     RUN_TEST(test_the_dark_patch_after_the_gap_does_not_hand_over_and_the_line_after_it_does);
     RUN_TEST(test_a_line_right_at_the_trailing_edge_waits_for_the_minimum_distance);
     RUN_TEST(test_air_again_restarts_the_wait);
+    RUN_TEST(test_a_marker_still_under_way_is_pending_even_when_the_far_frame_is_short);
+    RUN_TEST(test_nothing_is_pending_before_the_far_frame_or_on_a_bare_floor);
     return UNITY_END();
 }
