@@ -402,6 +402,10 @@ constexpr bool RUN_START_BUTTON_FITTED = false;
 constexpr uint16_t RUN_START_DELAY_MS = 1000; // time to take the hands off after the zeroing
 // The start button must read pressed this many ticks in a row (a bounce is shorter).
 constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;
+// A status line over serial this often while the run is going (phase, odometer, speed, heading,
+// the three ultrasonics, the IR floor class and raw counts, the drive duty). 0 = off. At 250000
+// baud a line is ~4 ms of the 10 ms tick.
+constexpr uint16_t RUN_LOG_EVERY_MS = 200;
 
 // ---- Moves ---------------------------------------------------- [MEASURED] --
 // 40 absolute 90/180 deg turns, both ways: all within 2 deg of target in 1.3-2.7 s.
