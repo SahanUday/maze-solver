@@ -13,10 +13,11 @@
 // ---- Competition geometry --------------------------------- [FROM SPEC] --
 constexpr uint16_t TILE_PITCH_MM = 250; // centre-to-centre tile spacing
 constexpr uint16_t WALL_HEIGHT_MM = 100;
-constexpr uint16_t USABLE_CORRIDOR_MM = 235;  // tile pitch minus wall thickness
-constexpr uint8_t SECTION_A_SIZE_TILES = 4;   // 4x4
-constexpr uint8_t SECTION_B_SIZE_TILES = 9;   // 9x9
-constexpr uint16_t BRIDGE_LINE_WIDTH_MM = 30; // 3 cm black line
+constexpr uint16_t USABLE_CORRIDOR_MM = 235; // tile pitch minus wall thickness
+constexpr uint8_t SECTION_A_SIZE_TILES = 4;  // 4x4
+constexpr uint8_t SECTION_B_SIZE_TILES = 9;  // 9x9
+constexpr uint16_t BRIDGE_LINE_WIDTH_MM =
+    24; // black line; measured on the arena line (the sheet says 3 cm)
 
 // ---- Competition timing ------------------------------------ [FROM SPEC] --
 constexpr uint32_t RUN_LIMIT_MS = 8UL * 60UL * 1000UL;         // 8 minutes per trial
@@ -162,9 +163,14 @@ constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 10;
 constexpr uint8_t LINE_MASK_ON_PCT = 60;
 constexpr uint8_t LINE_MASK_OFF_PCT = 40;
 
-// ---- IR array mounting ------------------------------- <<TBD HARDWARE>> --
-// Sensor face to floor at the final mount; the signal falls steeply with height.
-constexpr float IR_RIDE_HEIGHT_MM = 0.0f;
+// ---- IR array mounting ---------------------------------------- [FIXED] --
+// Sensor face to floor at the final mount; the signal falls steeply with height. Fixed by the
+// chassis (the mount cannot be changed) and the ramp can take it.
+constexpr float IR_RIDE_HEIGHT_MM = 7.0f;
+// Channel 0 is D1 (pin A0). D1 is the robot's RIGHT end: with a black card under only the right end
+// channels 0 and 1 saturate, under only the left end channels 6 and 7 do (2026-10-14). The line
+// view and its steering sign depend on it.
+constexpr bool IR_D1_ON_RIGHT = true;
 
 // ---- Ultrasonic sensing ------------------------------------------------ --
 // HC-SR04 x3, round-robin. See decisions/0007-*.md.
@@ -245,16 +251,22 @@ constexpr uint32_t RUN_AUTOSTART_MS = 5000; // time to put the robot down at the
 constexpr bool RUN_USE_DIP_SWITCHES = false;
 constexpr int8_t RUN_HAND = 1; // +1 prefer left turns on a tie, -1 right
 
-// ---- Navigation geometry ----------------------------- <<TBD HARDWARE>> --
+// ---- Navigation geometry --------------------------------------- [MEASURED] --
 // Measured along the robot's forward axis / across it, from the mount drawing or a ruler.
-constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 0.0f; // wheel axle to the IR array's sensing line
-constexpr float IR_SENSOR_PITCH_MM = 0.0f;         // centre to centre of adjacent IR channels
+constexpr float IR_ARRAY_FORWARD_OFFSET_MM =
+    86.0f;                                 // wheel axle to the IR array's sensing line (measured)
+constexpr float IR_SENSOR_PITCH_MM = 8.0f; // centre to centre of adjacent IR channels (fixed)
 
 // ---- Motion limits and feedforward --------------------------- [MEASURED] --
 // Fit from logged step responses at stepped duty: speed against duty gives the feedforward,
 // the fastest slip-free ramp gives the accelerations.
-constexpr float SEARCH_SPEED_MM_S = 150.0f;       // cruise speed while exploring
-constexpr float LINE_SPEED_MM_S = 0.0f;           // cruise speed on the line
+constexpr float SEARCH_SPEED_MM_S = 150.0f; // cruise speed while exploring
+// On the line the speed is set by feedforward alone (there is no distance error to push on), and
+// it comes out about 20% over the setting on the floor: 130 gave 120-215 mm/s, 170 gave 177-215.
+// 130 with no slowdown took 90-degree bends and an arc; 170 lost the line at the first 90-degree
+// bend.
+constexpr float LINE_SPEED_MM_S = 130.0f;         // cruise speed on the line
+constexpr float LINE_ACCEL_MM_S2 = 400.0f;        // its acceleration
 constexpr float ACCEL_MM_S2 = 500.0f;             // linear acceleration and deceleration
 constexpr float TURN_RATE_MAX_DPS = 120.0f;       // in-place turn peak rate
 constexpr float TURN_ACCEL_DPS2 = 400.0f;         // in-place turn ramp
@@ -277,9 +289,17 @@ constexpr float FEEDFORWARD_RIGHT_SCALE = 1.2f;
 // centre of the corridor. KD_WALL is not used.
 constexpr float KP_WALL = 0.1f;
 constexpr float KD_WALL = 0.0f;
-constexpr float KP_LINE = 0.0f;
-constexpr float KD_LINE = 0.0f;
-constexpr float STEER_MAX_DEG = 8.0f; // clamp on the offset either loop may command
+// Line (2026-10-15, tools/probe/motion.cpp `L`, a 24 mm black line on a white floor, 50 cm runs
+// from 11 mm off-centre, 170 mm/s). The follower steers by adding a heading offset to the CURRENT
+// heading, so with proportional gain alone the error behaves like an integrator and oscillates:
+// KP_LINE 0.3, no D: +-20 mm swings that did not die away; 0.12, no D: worse (overshoot to +24 mm,
+// the edge of the array), because a lower gain is less damped, not more. Adding D settles it:
+// KP 0.3 + KD 0.15 reached zero in 90-140 mm and held +-5 mm (sd 2.5-3.3 mm) from either side.
+// Below ~100 mm/s the wheels do not start (feedforward duty under the ~160 they stick at).
+constexpr float KP_LINE = 0.3f;
+constexpr float KD_LINE = 0.15f;
+constexpr float LINE_STEER_MAX_DEG = 15.0f; // clamp on the heading offset the line may command
+constexpr float STEER_MAX_DEG = 8.0f;       // clamp on the offset either loop may command
 
 // ---- Wall sensing ------------------------------------------- [MEASURED] --
 // Distances are the offset-corrected readings in RobotState, so the reference point of each is
@@ -330,6 +350,28 @@ constexpr int16_t DRIVE_MAX_DUTY = 450;
 // duty, the three ultrasonics, the step target). 0 = off.
 constexpr uint16_t RUN_LOG_EVERY_MS = 200;
 
+// ---- Marker and gap on the floor ------------------------------- [MEASURED] --
+// What the IR array sees along the path out of the maze (include/FloorPattern.h). The approach
+// marker is a white frame around a black box; crossing it along its middle the array saw (three
+// scans, 2026-10-14): white 36-42 mm, black 116-119 mm, white 37-41 mm (the frame is 35.5 mm by
+// measurement; the sensor's footprint widens the 50% crossings a little). Then ~20 mm of black
+// strip and the gap before the ramp: every channel at 1016-1023 for ~21 mm of full saturation (the
+// gap is ~37 mm; its edges blur).
+constexpr float MARKER_FRAME_MIN_MM = 25.0f; // each white frame
+constexpr float MARKER_FRAME_MAX_MM = 55.0f;
+constexpr float MARKER_CENTRE_MIN_MM = 95.0f; // the black box between them
+constexpr float MARKER_CENTRE_MAX_MM = 140.0f;
+// After the gap the follower takes over at the first line view this far past the end of the air.
+// The black patch right after the gap (~8 mm, seen on the robot) must not count.
+constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
+constexpr float GAP_MIN_MM = 12.0f;     // air for this long = the gap
+constexpr float FLOOR_GLITCH_MM = 4.0f; // a change shorter than this is noise
+// Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. The black floor reads 976-1013
+// and the black tape up to 1023 on the few channels it covers, so the whole array has to be
+// saturated at once. The margin is thin (a few counts); 0 turns the detection off.
+constexpr uint16_t IR_AIR_COUNTS = 1010;
+constexpr uint8_t IR_AIR_CHANNELS = 7;
+
 // ---- Line zone ---------------------------------------- <<TBD CALIBRATION>> --
 // The approach marker is a 90 mm white square, so a short run of non-black floor; a line tile
 // is a long one.
@@ -338,23 +380,26 @@ constexpr float MARKER_RUN_MAX_MM = 0.0f;     // a longer run is a line tile, no
 constexpr float LINE_LEAVE_MARGIN_MM = 40.0f; // leaving a white tile, the array this far past its
                                               // edge still on white = going out along the line
 constexpr float LINE_ENTER_RUN_MM = 0.0f;     // non-black this far = the line zone has been entered
-// Bare floor this long under the array = the line zone has ended. Must exceed the 30 mm line,
-// which can cross the array inside a zone.
-constexpr float LINE_END_ZONE_MM = 0.0f;
-// After the line's end the AXLE drives on this far, into Section B, and stops. The end is measured
-// under the array, which is IR_ARRAY_FORWARD_OFFSET_MM ahead of the axle, so without this the robot
-// would stop with its wheels still on the line.
-constexpr float LINE_EXIT_MM = 0.0f;
-// Bare floor must last this far to end a run of white. Wider than the 30 mm line, so a line
+// The line is over when it has been gone (white floor, no line under the array) for this far after
+// it was last seen. The floor after the bridge line is white, so "no line" is a reliable signal;
+// the robot rolls on at LINE_SEARCH_SPEED_MM_S while it checks, then brakes to a stop. 0 = off:
+// today a lost line is searched for (it turns on the spot toward the side it was last seen on)
+// until LINE_LOST_TIMEOUT_MS, then the status is Lost. How the run stops is not decided yet.
+constexpr float LINE_END_LOST_MM = 0.0f;
+constexpr float LINE_SEARCH_SPEED_MM_S =
+    0.0f; // speed while the line is out of sight; 0 = turn on the spot
+// Bare floor must last this far to end a run of white. Wider than the 24 mm line, so a line
 // crossing a white tile does not split it in two; narrower than the 80 mm of floor between the
 // approach marker and the bridge tile, so those stay two runs.
 constexpr float FLOOR_RUN_GAP_MM = 45.0f;
-constexpr uint16_t LINE_LOST_TIMEOUT_MS = 0; // no line this long while searching = fault; 0 = none
-constexpr float LINE_SEARCH_RATE_DPS = 0.0f; // spin rate when the line is lost
-constexpr uint8_t LINE_SLOWDOWN_PCT = 50;    // speed kept at the largest line error (0..100)
-constexpr float LINE_SLOWDOWN_ERR_MM = 0.0f; // line error at which that slowdown is reached
+constexpr uint16_t LINE_LOST_TIMEOUT_MS =
+    3000;                                     // no line this long while searching = fault; 0 = none
+constexpr float LINE_SEARCH_RATE_DPS = 60.0f; // spin rate when the line is lost; 0 = straight on
+constexpr uint8_t LINE_SLOWDOWN_PCT = 100;    // speed kept at the largest line error (0..100)
+constexpr float LINE_SLOWDOWN_ERR_MM = 20.0f; // line error at which that slowdown is reached
 
-// ---- Ramp --------------------------------------------- <<TBD CALIBRATION>> --
+// ---- Ramp ------------------------------------------------------- [FIXED] --
 // Tilt of the gravity vector from the board's Z axis. Above this the IR array may be lifted off
-// the floor, so "all black" no longer means the line zone ended.
-constexpr float RAMP_TILT_DEG = 0.0f;
+// the floor, so "all black" no longer means the line zone ended. 6 deg: the flat floor reads about
+// 0.8 deg, and a hard start or stop can fake a few degrees.
+constexpr float RAMP_TILT_DEG = 6.0f;

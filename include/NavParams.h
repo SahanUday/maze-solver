@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "FloorPattern.h"
 #include "LineFollow.h"
 #include "Mission.h"
 #include "MotionControl.h"
@@ -82,17 +83,28 @@ inline LineParams specLine()
     LineParams p;
     p.kp = KP_LINE;
     p.kd = KD_LINE;
-    p.steerMaxDeg = STEER_MAX_DEG;
+    p.steerMaxDeg = LINE_STEER_MAX_DEG;
     p.speedMmS = LINE_SPEED_MM_S;
-    p.accelMmS2 = ACCEL_MM_S2;
+    p.accelMmS2 = LINE_ACCEL_MM_S2;
     p.slowdownErrMm = LINE_SLOWDOWN_ERR_MM;
     p.slowdownPct = LINE_SLOWDOWN_PCT;
     p.searchRateDps = LINE_SEARCH_RATE_DPS;
     p.lostTimeoutMs = LINE_LOST_TIMEOUT_MS;
-    p.endZoneMm = LINE_END_ZONE_MM;
-    p.arrayAheadMm = IR_ARRAY_FORWARD_OFFSET_MM;
-    p.exitMm = LINE_EXIT_MM;
+    p.searchSpeedMmS = LINE_SEARCH_SPEED_MM_S;
+    p.endLostMm = LINE_END_LOST_MM;
     p.rampTiltDeg = RAMP_TILT_DEG;
+    return p;
+}
+
+inline PatternParams specPattern()
+{
+    PatternParams p;
+    p.frameMinMm = MARKER_FRAME_MIN_MM;
+    p.frameMaxMm = MARKER_FRAME_MAX_MM;
+    p.centreMinMm = MARKER_CENTRE_MIN_MM;
+    p.centreMaxMm = MARKER_CENTRE_MAX_MM;
+    p.gapMinMm = GAP_MIN_MM;
+    p.glitchMm = FLOOR_GLITCH_MM;
     return p;
 }
 
@@ -113,6 +125,9 @@ inline PerceiveParams specPerceive()
     p.dtMs = CONTROL_LOOP_PERIOD_MS;
     p.wall = specWall();
     p.irPitchMm = IR_SENSOR_PITCH_MM;
+    p.irD1OnRight = IR_D1_ON_RIGHT;
+    p.irAirCounts = IR_AIR_COUNTS;
+    p.irAirChannels = IR_AIR_CHANNELS;
     return p;
 }
 

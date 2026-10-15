@@ -64,6 +64,23 @@ static void test_centroid_weights_by_darkness()
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 2.5f, v.errMm); // (255*5 - 85*5) / 340
 }
 
+// This robot's array is mounted with D1 (channel 0) on the RIGHT: the same sweep must read as the
+// line on the other side, and the error must still be positive to the left.
+static void test_channel_0_on_the_right_flips_the_positions()
+{
+    const Sweep s = sweep(0b00000001); // channel 0 only
+    const LineView v = lineView(s.norm, s.mask, 0xFF, PITCH, true);
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, -35.0f, v.errMm); // the right end
+    const Sweep t = sweep(0b10000000);                // channel 7 only
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 35.0f, lineView(t.norm, t.mask, 0xFF, PITCH, true).errMm);
+}
+
+static void test_a_centred_line_is_centred_either_way_round()
+{
+    const Sweep s = sweep(0b00011000);
+    TEST_ASSERT_FLOAT_WITHIN(1e-4f, 0.0f, lineView(s.norm, s.mask, 0xFF, PITCH, true).errMm);
+}
+
 static void test_all_black_is_the_floor()
 {
     const Sweep s = sweep(0xFF);
@@ -262,7 +279,7 @@ static void test_reset_forgets_the_floor()
 // ---- LineFollow, closed loop ----------------------------------------------------
 
 struct LineWorld {
-    float lineEndX = 600.0f; // the line (y = 0) runs from x = 0 to here; bare floor beyond
+    float lineEndX = 600.0f; // the line (y = 0) runs from x = 0 to here; white floor beyond
     float lineHalfMm = 15.0f;
     float tilt = 0.0f;
     bool lift = false;          // array lifted: reads black whatever is below
@@ -279,7 +296,7 @@ struct LineWorld {
         const float ax = x + arrayAheadMm * cosf(h);
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
             const float pos = ay + (3.5f - static_cast<float>(ch)) * PITCH;
-            const bool black = lift || ax > lineEndX || (pos >= -lineHalfMm && pos <= lineHalfMm);
+            const bool black = lift || (ax <= lineEndX && pos >= -lineHalfMm && pos <= lineHalfMm);
             norm[ch] = black ? 255 : 0;
             if (black) {
                 mask = static_cast<uint8_t>(mask | (1u << ch));
@@ -300,9 +317,8 @@ static LineParams lineParams()
     p.slowdownPct = 50;
     p.searchRateDps = 90.0f;
     p.lostTimeoutMs = 0;
-    p.endZoneMm = 40.0f;
-    p.arrayAheadMm = 60.0f;
-    p.exitMm = 80.0f;
+    p.searchSpeedMmS = 100.0f;
+    p.endLostMm = 60.0f;
     p.rampTiltDeg = 15.0f;
     return p;
 }
@@ -369,7 +385,7 @@ static void test_slows_down_for_a_large_error()
     TEST_ASSERT_TRUE(peak < 120.0f); // 200 * 0.5 = 100 at full slowdown
 }
 
-static void test_stops_after_the_zone_ends()
+static void test_stops_when_the_line_ends()
 {
     LineRig r;
     r.world.lineEndX = 300.0f;
@@ -379,68 +395,86 @@ static void test_stops_after_the_zone_ends()
         st = r.tick();
     }
     TEST_ASSERT_EQUAL(asInt(LineStatus::Ended), asInt(st));
-    // The line ends at lineEndX under the array; the axle drives on exitMm past that point, into
-    // Section B, and stops there. (Not at the end of the line: the axle is arrayAheadMm behind
-    // the array, so stopping when the array sees floor would leave the robot on the line.)
-    const float stopAt = r.world.lineEndX + r.p.exitMm;
-    TEST_ASSERT_FLOAT_WITHIN(12.0f, stopAt, r.sim.distMm);
-    TEST_ASSERT_TRUE(r.sim.distMm > r.world.lineEndX + r.p.exitMm * 0.8f);
+    // The array loses the line at lineEndX; the axle is arrayAheadMm (60) behind it. The robot
+    // rolls on endLostMm (60) with no line in sight, then brakes: it stops a little past that
+    // point.
+    const float lost = r.world.lineEndX - r.world.arrayAheadMm;
+    TEST_ASSERT_TRUE(r.sim.distMm > lost + r.p.endLostMm * 0.8f);
+    TEST_ASSERT_TRUE(r.sim.distMm < lost + r.p.endLostMm + 60.0f);
     TEST_ASSERT_TRUE(r.sim.speedMmS < 15.0f);
     // Stays ended.
     TEST_ASSERT_EQUAL(asInt(LineStatus::Ended), asInt(r.tick()));
 }
 
-static void test_exit_is_cut_short_by_something_close_ahead()
+static void test_a_line_that_comes_back_in_time_is_not_the_end()
 {
-    LineRig r;
-    r.world.lineEndX = 300.0f;
-    r.begin();
+    LineParams p = lineParams();
+    LineFollow lf;
+    MotionFeedback fb;
+    fb.speedMmS = 100.0f;
+    lineFollowBegin(lf, fb, true);
+    uint8_t white[IR_CHANNEL_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t on[IR_CHANNEL_COUNT] = {0, 0, 0, 255, 255, 0, 0, 0};
+    MotionTarget t;
     LineStatus st = LineStatus::Following;
-    for (int i = 0; i < 600 && st != LineStatus::Ended; ++i) {
-        uint8_t norm[IR_CHANNEL_COUNT];
-        uint8_t mask = 0;
-        r.world.read(r.sim.distMm, r.sim.yMm, r.sim.headingDeg, norm, mask);
-        const LineView v = lineView(norm, mask, 0xFF, PITCH);
-        // A wall appears right after the line ends.
-        const bool blocked = r.sim.distMm > r.world.lineEndX + 20.0f;
-        MotionTarget t;
-        st = lineFollowStep(r.lf, r.p, r.sim.feedback(), v, 0.0f, blocked, DT_MS, t);
-        r.sim.step(motionControlStep(r.mc, r.cp, t, r.sim.feedback(), DT_MS), DT_S);
+    for (int i = 0; i < 10; ++i) { // 40 mm with no line (endLostMm is 60)
+        fb.distMm += 4.0f;
+        st = lineFollowStep(lf, p, fb, lineView(white, 0x00, 0xFF, PITCH), 0.0f, false, DT_MS, t);
     }
-    TEST_ASSERT_EQUAL(asInt(LineStatus::Ended), asInt(st));
-    TEST_ASSERT_TRUE(r.sim.distMm < r.world.lineEndX + r.p.exitMm - 15.0f); // stopped short
+    TEST_ASSERT_EQUAL(asInt(LineStatus::Searching), asInt(st));
+    fb.distMm += 4.0f;
+    st = lineFollowStep(lf, p, fb, lineView(on, 0b00011000, 0xFF, PITCH), 0.0f, false, DT_MS, t);
+    TEST_ASSERT_EQUAL(asInt(LineStatus::Following), asInt(st));
+    // The count starts again: another 40 mm is still not the end.
+    for (int i = 0; i < 10; ++i) {
+        fb.distMm += 4.0f;
+        st = lineFollowStep(lf, p, fb, lineView(white, 0x00, 0xFF, PITCH), 0.0f, false, DT_MS, t);
+    }
+    TEST_ASSERT_EQUAL(asInt(LineStatus::Searching), asInt(st));
 }
 
-static void test_bare_floor_before_the_line_is_not_the_end()
+static void test_the_end_needs_a_line_to_have_been_seen()
 {
     LineRig r;
-    r.world.lineEndX = -1.0f; // everything is floor: never any line
+    r.world.lineEndX = -1.0f; // all white: there never is a line
     r.begin(false);
     LineStatus st = LineStatus::Following;
     for (int i = 0; i < 300; ++i) {
         st = r.tick();
     }
-    TEST_ASSERT_EQUAL(asInt(LineStatus::Following), asInt(st));
-    TEST_ASSERT_TRUE(r.sim.distMm > 300.0f); // kept driving
+    TEST_ASSERT_TRUE(st != LineStatus::Ended);
 }
 
-static void test_ramp_lift_does_not_end_the_zone()
+static void test_without_a_search_rate_it_goes_straight_on_along_the_last_heading()
+{
+    LineParams p = lineParams();
+    p.searchRateDps = 0.0f;
+    LineFollow lf;
+    MotionFeedback fb;
+    fb.speedMmS = 100.0f;
+    fb.headingDeg = 12.0f;
+    lineFollowBegin(lf, fb, true);
+    uint8_t on[IR_CHANNEL_COUNT] = {0, 0, 0, 255, 255, 0, 0, 0};
+    uint8_t white[IR_CHANNEL_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
+    MotionTarget t;
+    lineFollowStep(lf, p, fb, lineView(on, 0b00011000, 0xFF, PITCH), 0.0f, false, DT_MS, t);
+    fb.headingDeg = 20.0f; // drifted since the line was last in view
+    lineFollowStep(lf, p, fb, lineView(white, 0x00, 0xFF, PITCH), 0.0f, false, DT_MS, t);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 12.0f, t.headingRefDeg);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, t.yawRateRefDps);
+}
+
+static void test_bare_black_floor_is_never_the_end()
 {
     LineRig r;
     r.begin();
-    r.world.lift = true; // array lifted at the crest: reads black
-    r.world.tilt = 30.0f;
+    r.world.lift = true; // black under the whole array (a lifted array, or dark floor)
     LineStatus st = LineStatus::Following;
-    for (int i = 0; i < 300; ++i) {
+    for (int i = 0; i < 400; ++i) {
         st = r.tick();
     }
     TEST_ASSERT_EQUAL(asInt(LineStatus::Following), asInt(st));
-    // Back on the level and still black: now it is the real end.
-    r.world.tilt = 0.0f;
-    for (int i = 0; i < 300 && st != LineStatus::Ended; ++i) {
-        st = r.tick();
-    }
-    TEST_ASSERT_EQUAL(asInt(LineStatus::Ended), asInt(st));
+    TEST_ASSERT_TRUE(r.sim.distMm > 300.0f); // kept driving
 }
 
 static void test_lost_line_searches_toward_the_last_side()
@@ -550,6 +584,30 @@ static void test_derivative_term_acts_on_a_changing_error()
     TEST_ASSERT_TRUE(t.headingRefDeg > 0.0f); // error grew to the left
 }
 
+// With a search speed the robot keeps rolling while it looks for the line; with none it stops.
+static float speedRefAfterLosingTheLine(float searchSpeed)
+{
+    LineParams p = lineParams();
+    p.searchSpeedMmS = searchSpeed;
+    LineFollow lf;
+    MotionFeedback fb;
+    fb.speedMmS = 200.0f;
+    lineFollowBegin(lf, fb, true);
+    LineView white;
+    white.allWhite = true;
+    MotionTarget t;
+    for (int i = 0; i < 100; ++i) { // one second of nothing under the array
+        lineFollowStep(lf, p, fb, white, 0.0f, false, 10, t);
+    }
+    return t.speedRefMmS;
+}
+
+static void test_a_lost_line_stops_the_robot_unless_it_has_a_search_speed()
+{
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 0.0f, speedRefAfterLosingTheLine(0.0f));
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 80.0f, speedRefAfterLosingTheLine(80.0f));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -557,6 +615,9 @@ int main()
     RUN_TEST(test_line_to_the_left_is_positive);
     RUN_TEST(test_line_to_the_right_is_negative);
     RUN_TEST(test_centroid_weights_by_darkness);
+    RUN_TEST(test_channel_0_on_the_right_flips_the_positions);
+    RUN_TEST(test_a_centred_line_is_centred_either_way_round);
+    RUN_TEST(test_a_lost_line_stops_the_robot_unless_it_has_a_search_speed);
     RUN_TEST(test_all_black_is_the_floor);
     RUN_TEST(test_all_white);
     RUN_TEST(test_unusable_channels_are_ignored);
@@ -574,10 +635,11 @@ int main()
     RUN_TEST(test_converges_onto_the_line);
     RUN_TEST(test_converges_from_the_other_side_too);
     RUN_TEST(test_slows_down_for_a_large_error);
-    RUN_TEST(test_stops_after_the_zone_ends);
-    RUN_TEST(test_exit_is_cut_short_by_something_close_ahead);
-    RUN_TEST(test_bare_floor_before_the_line_is_not_the_end);
-    RUN_TEST(test_ramp_lift_does_not_end_the_zone);
+    RUN_TEST(test_stops_when_the_line_ends);
+    RUN_TEST(test_a_line_that_comes_back_in_time_is_not_the_end);
+    RUN_TEST(test_the_end_needs_a_line_to_have_been_seen);
+    RUN_TEST(test_without_a_search_rate_it_goes_straight_on_along_the_last_heading);
+    RUN_TEST(test_bare_black_floor_is_never_the_end);
     RUN_TEST(test_lost_line_searches_toward_the_last_side);
     RUN_TEST(test_lost_on_the_right_spins_clockwise);
     RUN_TEST(test_search_resumes_when_the_line_returns);

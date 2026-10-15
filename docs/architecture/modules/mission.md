@@ -17,9 +17,9 @@ against a simulated arena, plus two glue files in `src/` that are not host-testa
 - **Explore** - [step_cell](step_cell.md) to the next cell; at each cell the map is updated and
   [explorer](explorer.md) picks the move. Straight cells are not stopped for; a turn stops on the centre
   first.
-- **LineFollow** - [line_follow](line_follow.md) until the line ends, then on into Section B by `LINE_EXIT_MM` past
-  the end; then **Done** (driver enabled with zero duty - it holds the wheels). The full-arena test checks the
-  axle stops past the line's end, not on it.
+- **LineFollow** - [line_follow](line_follow.md) until the line has been gone for `LINE_END_LOST_MM`; then **Done**
+  (driver enabled with zero duty - it holds the wheels). The full-arena test checks the robot stops on the
+  line's axis, past the bridge tile.
 - **Fault** - motors off and the error LED on. Codes: `NoImu`, `NoLineCal`, `MoveTimeout`, `Stall`, `LineLost`,
   `NoRoute`, `Aborted`.
 

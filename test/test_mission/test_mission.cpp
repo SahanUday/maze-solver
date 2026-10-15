@@ -114,8 +114,13 @@ struct Arena {
         const float uy = static_cast<float>(maze::kDy[bridgeDir]);
         const float along = (x - bx) * ux + (y - by) * uy;
         const float lateral = fabsf((x - bx) * (-uy) + (y - by) * ux);
-        if (along >= -TILE / 2 && along <= TILE / 2 + lineLength && lateral <= TILE / 2) {
-            return lateral <= 15.0f;
+        if (along >= -TILE / 2 && lateral <= TILE / 2) {
+            if (along <= TILE / 2 + lineLength) {
+                return lateral <= 15.0f;
+            }
+            if (along <= TILE / 2 + lineLength + 400.0f) {
+                return false; // the line is over: plain white floor beyond it
+            }
         }
         return true;
     }
@@ -253,11 +258,10 @@ static MissionParams missionParams()
     p.line.accelMmS2 = 1000.0f;
     p.line.slowdownErrMm = 30.0f;
     p.line.slowdownPct = 60;
-    p.line.searchRateDps = 90.0f;
+    p.line.searchRateDps = 0.0f; // the line just ends: straight on, then stop
     p.line.lostTimeoutMs = 3000;
-    p.line.endZoneMm = 40.0f;
-    p.line.arrayAheadMm = IR_AHEAD;
-    p.line.exitMm = 100.0f;
+    p.line.searchSpeedMmS = 100.0f;
+    p.line.endLostMm = 60.0f;
     p.line.rampTiltDeg = 15.0f;
 
     p.floor.markerMinMm = 60.0f;

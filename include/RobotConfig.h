@@ -70,8 +70,9 @@ constexpr uint8_t PIN_US_LEFT_ECHO = A11;
 constexpr uint8_t PIN_US_RIGHT_ECHO = A12;
 
 // ---- 8-element IR array ----------------------------------------- [FIXED] --
-// Left to right, D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7. line_sensors drives the ADC
-// directly, so keep all 8 channels on ADC0-7 in order. See decisions/0005-*.md.
+// D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7 (D1 is the robot's RIGHT end, IR_D1_ON_RIGHT).
+// line_sensors drives the ADC directly, so keep all 8 channels on ADC0-7 in order. See
+// decisions/0005-*.md.
 constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
 // Emitter enable. Pin 36 is PC1. HIGH = emitters on, LOW = off.

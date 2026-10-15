@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include "FloorPattern.h"
 #include "Heading.h"
 #include "LineFollow.h"
 #include "LineSense.h"
@@ -27,6 +28,7 @@ struct Perception {
     float tiltDeg = 0.0f;
     WallView walls;
     LineView line;
+    FloorClass floor = FloorClass::Black; // the line view plus "nothing under the array"
     bool startPressed = false;
 };
 
@@ -35,6 +37,9 @@ struct PerceiveParams {
     uint16_t dtMs = 10;
     WallParams wall;
     float irPitchMm = 0.0f;
+    bool irD1OnRight = false; // channel 0 is the robot's right end (IR_D1_ON_RIGHT)
+    uint16_t irAirCounts = 0; // see classifyFloor(); 0 = no air detection
+    uint8_t irAirChannels = IR_CHANNEL_COUNT;
 };
 
 struct Perceiver {
@@ -92,7 +97,8 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);
     pc.mask = lineMaskUpdate(pc.norm, pc.mask);
-    out.line = lineView(pc.norm, pc.mask, pc.usable, p.irPitchMm);
+    out.line = lineView(pc.norm, pc.mask, pc.usable, p.irPitchMm, p.irD1OnRight);
+    out.floor = classifyFloor(out.line, state.irRaw, p.irAirCounts, p.irAirChannels);
 
     out.startPressed = state.startButtonPressed;
 }
