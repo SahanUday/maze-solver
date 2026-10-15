@@ -1,7 +1,8 @@
 // ============================================================================
 //  test_mission.cpp  --  the whole control stack against a simulated arena: a 4x4 maze with
 //  walls, ultrasonic rays (one sensor read per 20 ms slot, like the real driver), encoders, an
-//  IR array over a painted floor (start tile, approach marker, bridge tile with its line), and
+//  IR array over a painted floor (start tile, the approach marker, the strip and gap after it, the
+//  ramp's line), and
 //  a plant with a little wheel lag. The mission runs through RobotState -> Perception ->
 //  missionStep -> DriveCommand exactly as main.cpp does. No hardware needed.
 //
@@ -19,8 +20,8 @@ constexpr float TILE = 250.0f;
 constexpr float RAD = 0.0174533f;
 constexpr uint16_t DT_MS = 10;
 constexpr float DT_S = 0.01f;
-constexpr float IR_AHEAD = 70.0f;
-constexpr float IR_PITCH = 9.0f;
+constexpr float IR_AHEAD = IR_ARRAY_FORWARD_OFFSET_MM; // as on the robot
+constexpr float IR_PITCH = IR_SENSOR_PITCH_MM;
 constexpr float MM_PER_COUNT = 0.2f;
 
 struct Wall {
@@ -32,10 +33,14 @@ struct Wall {
 struct Arena {
     uint8_t open[4][4] = {}; // bit per abs dir: a passage out of that cell
     int8_t startX = 0, startY = 0;
-    int8_t markerX = 0, markerY = 0;
-    int8_t bridgeX = 0, bridgeY = 0;
-    uint8_t bridgeDir = 0; // abs dir the bridge leaves in (through the outer wall)
+    int8_t markerX = 0, markerY = 0; // the marker cell: two openings, the one it is entered by and
+    int8_t bridgeX = 0, bridgeY = 0; // the one straight across, which leaves the maze
+    uint8_t bridgeDir = 0;           // abs dir the exit leaves in (through the outer wall)
     float lineLength = 600.0f;
+    bool startWhite = true;    // the start tile is white (false: black like the rest)
+    bool exitOpen = true;      // false: a wall where the exit should be
+    bool ramp = true;          // false: nothing but black floor beyond the marker
+    bool markerPainted = true; // false: the marker's frames and box are not on the floor
 
     void link(int8_t ax, int8_t ay, char to)
     {
@@ -48,7 +53,7 @@ struct Arena {
 
     bool isOpen(int8_t ax, int8_t ay, uint8_t d) const
     {
-        const bool bridgeSide = ax == bridgeX && ay == bridgeY && d == bridgeDir;
+        const bool bridgeSide = exitOpen && ax == bridgeX && ay == bridgeY && d == bridgeDir;
         return bridgeSide || (open[ay][ax] & (1u << d)) != 0;
     }
 
@@ -97,32 +102,43 @@ struct Arena {
         return best;
     }
 
-    // Is the floor black at (x, y)?
-    bool floorBlack(float x, float y) const
+    // What the IR array reads at (x, y), in raw counts. Measured on the robot: the marker is a
+    // white frame (36 mm), a black box (118 mm, with a short bar of tape that reads a little
+    // higher), a white frame (37 mm), then a 20 mm black strip, ~22 mm of nothing under the array
+    // (the gap, every channel at the top of the scale) and the ramp: white with a 24 mm black line.
+    uint16_t floorRaw(float x, float y) const
     {
+        const uint16_t white = 150, black = 1000, tape = 1015, air = 1023;
         const float sx = TILE * (startX + 0.5f), sy = TILE * (startY + 0.5f);
-        if (fabsf(x - sx) <= TILE / 2 && fabsf(y - sy) <= TILE / 2) {
-            return false; // the START tile is plain white
+        if (startWhite && fabsf(x - sx) <= TILE / 2 && fabsf(y - sy) <= TILE / 2) {
+            return white;
         }
         const float mx = TILE * (markerX + 0.5f), my = TILE * (markerY + 0.5f);
-        if (fabsf(x - mx) <= 45.0f && fabsf(y - my) <= 45.0f) {
-            return fabsf(x - mx) <= 15.0f && fabsf(y - my) <= 15.0f; // white 90, black 30
-        }
-        // Bridge tile and the corridor beyond: white with a black line along the bridge axis.
-        const float bx = TILE * (bridgeX + 0.5f), by = TILE * (bridgeY + 0.5f);
         const float ux = static_cast<float>(maze::kDx[bridgeDir]);
         const float uy = static_cast<float>(maze::kDy[bridgeDir]);
-        const float along = (x - bx) * ux + (y - by) * uy;
-        const float lateral = fabsf((x - bx) * (-uy) + (y - by) * ux);
-        if (along >= -TILE / 2 && lateral <= TILE / 2) {
-            if (along <= TILE / 2 + lineLength) {
-                return lateral <= 15.0f;
+        const float along = (x - mx) * ux + (y - my) * uy;
+        const float lateral = fabsf((x - mx) * (-uy) + (y - my) * ux);
+        if (markerPainted && lateral <= 95.5f && along >= -95.5f && along <= 96.5f) {
+            if (along < -59.5f || along > 59.5f) {
+                return white;
             }
-            if (along <= TILE / 2 + lineLength + 400.0f) {
-                return false; // the line is over: plain white floor beyond it
+            return (lateral <= 14.0f && along >= -20.0f && along <= 5.0f) ? tape : black;
+        }
+        if (ramp && lateral <= 150.0f && along > 96.5f) {
+            if (along <= 116.5f) {
+                return black; // the strip
+            }
+            if (along <= 138.5f) {
+                return air; // the gap
+            }
+            if (along <= 138.5f + lineLength) {
+                return lateral <= 12.0f ? black : white; // the ramp and its line
+            }
+            if (along <= 138.5f + lineLength + 400.0f) {
+                return white; // the line is over: plain white floor beyond it
             }
         }
-        return true;
+        return black;
     }
 };
 
@@ -208,7 +224,7 @@ struct Robot {
             const float lat = (3.5f - static_cast<float>(ch)) * IR_PITCH; // + = left
             const float px = ax + lat * -cosf(th);
             const float py = ay + lat * -sinf(th);
-            s.irRaw[ch] = arena.floorBlack(px, py) ? 1000 : 150;
+            s.irRaw[ch] = arena.floorRaw(px, py);
         }
         s.startButtonPressed = startPressed;
         return s;
@@ -264,14 +280,17 @@ static MissionParams missionParams()
     p.line.endLostMm = 60.0f;
     p.line.rampTiltDeg = 15.0f;
 
-    p.floor.markerMinMm = 60.0f;
-    p.floor.markerMaxMm = 120.0f;
-    p.floor.lineEnterMm = 160.0f;
-    p.floor.gapMm = 45.0f;
+    p.pattern.frameMinMm = MARKER_FRAME_MIN_MM;
+    p.pattern.frameMaxMm = MARKER_FRAME_MAX_MM;
+    p.pattern.reportMm = MARKER_FRAME_REPORT_MM;
+    p.pattern.centreMinMm = MARKER_CENTRE_MIN_MM;
+    p.pattern.centreMaxMm = MARKER_CENTRE_MAX_MM;
+    p.pattern.gapMinMm = GAP_MIN_MM;
+    p.pattern.glitchMm = FLOOR_GLITCH_MM;
+    p.bridgeMinLineMm = BRIDGE_HANDOVER_MIN_MM;
+    p.bridgeMaxMm = BRIDGE_MAX_MM;
 
     p.senseMs = 100;
-    p.leaveMarginMm = 40.0f;
-    p.irAheadMm = IR_AHEAD;
     p.dtMs = DT_MS;
     return p;
 }
@@ -283,6 +302,8 @@ static PerceiveParams perceiveParams(const MissionParams &mp)
     p.dtMs = DT_MS;
     p.wall = mp.step.wall;
     p.irPitchMm = IR_PITCH;
+    p.irAirCounts = IR_AIR_COUNTS;
+    p.irAirChannels = IR_AIR_CHANNELS;
     return p;
 }
 
@@ -353,20 +374,66 @@ static int asInt(Phase p)
     return static_cast<int>(p);
 }
 
-static void makeBridge(Arena &a, int8_t bx, int8_t by, uint8_t outward)
+// The marker cell (mx, my) has exactly two openings: the one it is entered by and the one straight
+// across, which leaves the maze through the outer wall. Its other two sides are walls.
+static void makeBridge(Arena &a, int8_t mx, int8_t my, uint8_t outward)
 {
-    a.bridgeX = bx;
-    a.bridgeY = by;
+    a.bridgeX = a.markerX = mx;
+    a.bridgeY = a.markerY = my;
     a.bridgeDir = outward;
-    // The marker is the tile just before the bridge tile along the bridge axis.
     const uint8_t back = static_cast<uint8_t>((outward + 2) & 3);
-    a.markerX = static_cast<int8_t>(bx + maze::kDx[back]);
-    a.markerY = static_cast<int8_t>(by + maze::kDy[back]);
-    // ...and the two are connected.
-    if (!a.isOpen(bx, by, back)) {
-        a.link(a.markerX < bx || a.markerY < by ? a.markerX : bx,
-               a.markerX < bx || a.markerY < by ? a.markerY : by, a.markerX != bx ? 'E' : 'N');
+    for (uint8_t d = 0; d < 4; ++d) {
+        if (d == outward) {
+            continue;
+        }
+        const int8_t nx = static_cast<int8_t>(mx + maze::kDx[d]);
+        const int8_t ny = static_cast<int8_t>(my + maze::kDy[d]);
+        const bool inside = nx >= 0 && nx < 4 && ny >= 0 && ny < 4;
+        const uint8_t bit = static_cast<uint8_t>(1u << d);
+        const uint8_t nbit = static_cast<uint8_t>(1u << ((d + 2) & 3));
+        if (d == back) { // the way in
+            a.open[my][mx] = static_cast<uint8_t>(a.open[my][mx] | bit);
+            if (inside) {
+                a.open[ny][nx] = static_cast<uint8_t>(a.open[ny][nx] | nbit);
+            }
+        } else { // the sides: walls
+            a.open[my][mx] = static_cast<uint8_t>(a.open[my][mx] & ~bit);
+            if (inside) {
+                a.open[ny][nx] = static_cast<uint8_t>(a.open[ny][nx] & ~nbit);
+            }
+        }
     }
+}
+
+// Can every cell be reached from (sx, sy) through the maze's own openings?
+static bool allReachable(const Arena &a, int8_t sx, int8_t sy)
+{
+    bool seen[4][4] = {};
+    int8_t stackX[16], stackY[16];
+    int n = 0;
+    stackX[n] = sx;
+    stackY[n++] = sy;
+    seen[sy][sx] = true;
+    int count = 1;
+    while (n > 0) {
+        --n;
+        const int8_t x = stackX[n], y = stackY[n];
+        for (uint8_t d = 0; d < 4; ++d) {
+            if ((a.open[y][x] & (1u << d)) == 0) {
+                continue;
+            }
+            const int8_t nx = static_cast<int8_t>(x + maze::kDx[d]);
+            const int8_t ny = static_cast<int8_t>(y + maze::kDy[d]);
+            if (nx < 0 || nx > 3 || ny < 0 || ny > 3 || seen[ny][nx]) {
+                continue;
+            }
+            seen[ny][nx] = true;
+            stackX[n] = nx;
+            stackY[n++] = ny;
+            ++count;
+        }
+    }
+    return count == 16;
 }
 
 // ---- The run, end to end ----------------------------------------------------------------
@@ -375,7 +442,7 @@ static void test_finds_the_bridge_and_follows_the_line_to_its_end()
 {
     Robot r;
     r.arena = ringArena();
-    makeBridge(r.arena, 3, 3, 0); // the bridge leaves north through the top-right tile
+    makeBridge(r.arena, 3, 3, 0); // the marker cell is the top-right corner; the exit is north
     r.place(0, 0, 0);
     const Outcome o = runMission(r, missionParams());
     TEST_ASSERT_EQUAL(asInt(Phase::Done), asInt(o.phase));
@@ -386,43 +453,46 @@ static void test_finds_the_bridge_and_follows_the_line_to_its_end()
 }
 
 // Every corner, both outward directions, from many starts and headings, with either hand.
-static void sweep(Arena (*make)())
+// `minRuns`: a marker cell with only two openings splits some mazes, and those placements are
+// skipped. `painted` false: the marker is not seen at all, so the exit has to come from the map.
+static void sweep(Arena (*make)(), int minRuns, bool painted = true)
 {
     int failures = 0;
     int touched = 0;
     int runs = 0;
-    const int8_t corners[4][2] = {{0, 0}, {3, 0}, {0, 3}, {3, 3}};
-    for (int8_t c = 0; c < 4; ++c) {
-        for (uint8_t out = 0; out < 4; ++out) {
-            const int8_t bx = corners[c][0], by = corners[c][1];
-            // The bridge leaves through an OUTER wall of the corner tile.
-            const int8_t ox = static_cast<int8_t>(bx + maze::kDx[out]);
-            const int8_t oy = static_cast<int8_t>(by + maze::kDy[out]);
-            if (ox >= 0 && ox < 4 && oy >= 0 && oy < 4) {
-                continue;
-            }
-            int idx = 0;
-            for (int8_t sy = 0; sy < 4; ++sy) {
-                for (int8_t sx = 0; sx < 4; ++sx, ++idx) {
-                    Robot r;
-                    r.arena = make();
-                    makeBridge(r.arena, bx, by, out);
-                    if ((sx == r.arena.bridgeX && sy == r.arena.bridgeY) ||
-                        (sx == r.arena.markerX && sy == r.arena.markerY)) {
-                        continue;
+    for (int8_t by = 0; by < 4; ++by) {
+        for (int8_t bx = 0; bx < 4; ++bx) {
+            for (uint8_t out = 0; out < 4; ++out) {
+                // The exit leaves through an OUTER wall of the marker cell.
+                const int8_t ox = static_cast<int8_t>(bx + maze::kDx[out]);
+                const int8_t oy = static_cast<int8_t>(by + maze::kDy[out]);
+                if (ox >= 0 && ox < 4 && oy >= 0 && oy < 4) {
+                    continue;
+                }
+                int idx = 0;
+                for (int8_t sy = 0; sy < 4; ++sy) {
+                    for (int8_t sx = 0; sx < 4; ++sx, ++idx) {
+                        Robot r;
+                        r.arena = make();
+                        makeBridge(r.arena, bx, by, out);
+                        if ((sx == bx && sy == by) || !allReachable(r.arena, sx, sy)) {
+                            continue;
+                        }
+                        r.arena.startWhite = (idx & 2) == 0; // a white or a black start tile
+                        r.arena.markerPainted = painted;
+                        r.place(sx, sy, static_cast<uint8_t>((idx + bx + by + out) & 3));
+                        MissionParams mp = missionParams();
+                        mp.hand = (idx & 1) ? 1 : -1;
+                        const Outcome o = runMission(r, mp);
+                        ++runs;
+                        failures += o.phase == Phase::Done ? 0 : 1;
+                        touched += o.touchedWall ? 1 : 0;
                     }
-                    r.place(sx, sy, static_cast<uint8_t>((idx + c + out) & 3));
-                    MissionParams mp = missionParams();
-                    mp.hand = (idx & 1) ? 1 : -1;
-                    const Outcome o = runMission(r, mp);
-                    ++runs;
-                    failures += o.phase == Phase::Done ? 0 : 1;
-                    touched += o.touchedWall ? 1 : 0;
                 }
             }
         }
     }
-    TEST_ASSERT_TRUE(runs > 60);
+    TEST_ASSERT_TRUE(runs >= minRuns);
     TEST_ASSERT_EQUAL(0, failures);
     TEST_ASSERT_EQUAL(0, touched);
 }
@@ -448,12 +518,19 @@ static Arena makeSnake()
 
 static void test_ring_arena_from_every_start_and_heading()
 {
-    sweep(makeRing);
+    sweep(makeRing, 150);
+}
+
+// The robot stopped short of seeing the far frame, or the marker is faded: the walls alone give the
+// exit once everything is explored, and the robot goes there and takes it.
+static void test_without_a_marker_the_exit_comes_from_the_map()
+{
+    sweep(makeRing, 150, false);
 }
 
 static void test_snake_arena_from_every_start_and_heading()
 {
-    sweep(makeSnake);
+    sweep(makeSnake, 40);
 }
 
 // ---- Walls only: no floor sensing -------------------------------------------------------------
@@ -478,6 +555,9 @@ static void test_walls_only_explores_and_stops_inside_the_maze_from_every_start(
                 Robot r;
                 r.arena = ringArena();
                 makeBridge(r.arena, 3, 3, 0);
+                // Walls only cannot tell the open exit from an unexplored cell inside the maze (the
+                // bounds are not known yet), so this test walls it.
+                r.arena.exitOpen = false;
                 if ((sx == r.arena.bridgeX && sy == r.arena.bridgeY) ||
                     (sx == r.arena.markerX && sy == r.arena.markerY)) {
                     continue;
@@ -788,134 +868,60 @@ static void test_a_lost_line_is_a_fault_not_a_spin_for_ever()
 
 // ---- The marker's cell -------------------------------------------------------------------------
 
-static Mission markerSetup()
+// Exploring never needs the map's marker: the pattern finds it, and the way out is straight on.
+static void test_no_ramp_after_the_marker_is_no_bridge()
 {
+    Robot r;
+    r.arena = ringArena();
+    makeBridge(r.arena, 3, 3, 0);
+    r.arena.ramp = false; // the marker, then plain black floor: no strip, no gap, no line
+    r.place(0, 0, 0);
+    const Outcome o = runMission(r, missionParams());
+    TEST_ASSERT_EQUAL(asInt(Phase::Fault), asInt(o.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(FaultCode::NoBridge), static_cast<int>(o.fault));
+    // It did not drive far out looking for the line: the marker centre plus the bridge limit.
+    TEST_ASSERT_TRUE(r.y < TILE * 3.5f + BRIDGE_MAX_MM + 60.0f);
+}
+
+static void test_a_wall_where_the_exit_should_be_is_no_bridge()
+{
+    Robot r;
+    r.arena = ringArena();
+    makeBridge(r.arena, 3, 3, 0);
+    r.arena.exitOpen = false; // the marker is there, but the way straight on is walled
+    r.place(0, 0, 0);
+    const Outcome o = runMission(r, missionParams());
+    TEST_ASSERT_EQUAL(asInt(Phase::Fault), asInt(o.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(FaultCode::NoBridge), static_cast<int>(o.fault));
+    TEST_ASSERT_FALSE(o.touchedWall);
+}
+
+static void test_the_bridge_phase_is_entered_and_handed_over_to_the_line_follower()
+{
+    Robot r;
+    r.arena = ringArena();
+    makeBridge(r.arena, 3, 3, 0);
+    r.place(0, 0, 0);
+    const MissionParams mp = missionParams();
     Mission ms;
     missionReset(ms);
-    ms.facing = maze::Dir::North;
-    // The run of white began on a step from (3,3) toward (3,4), whose centre is at 1000 mm.
-    ms.haveRun = true;
-    ms.runFromX = 3;
-    ms.runFromY = 3;
-    ms.runToX = 3;
-    ms.runToY = 4;
-    ms.runFacing = maze::Dir::North;
-    ms.runTargetMm = 1000.0f;
-    return ms;
-}
-
-static void test_marker_seen_as_the_array_crosses_the_target_centre_is_in_the_target_cell()
-{
-    Mission ms = markerSetup();
-    MissionParams mp = missionParams();
-    // The array passes the target's centre when the axle is irAhead short of it.
-    mission_detail::onMarker(ms, mp, 1000.0f - IR_AHEAD);
-    TEST_ASSERT_TRUE(ms.map.hasMarker);
-    TEST_ASSERT_EQUAL(3, ms.map.markerX);
-    TEST_ASSERT_EQUAL(4, ms.map.markerY);
-}
-
-static void test_marker_seen_a_cell_behind_the_target_is_the_previous_cell()
-{
-    Mission ms = markerSetup();
-    MissionParams mp = missionParams();
-    // The run began on a step whose target is (3,4); the array saw the marker's centre one pitch
-    // short of that centre.
-    mission_detail::onMarker(ms, mp, 1000.0f - TILE - IR_AHEAD + 10.0f);
-    TEST_ASSERT_EQUAL(3, ms.map.markerX);
-    TEST_ASSERT_EQUAL(3, ms.map.markerY);
-}
-
-static void test_marker_one_cell_ahead_of_the_target()
-{
-    Mission ms = markerSetup();
-    mission_detail::onMarker(ms, missionParams(), 1000.0f + TILE - IR_AHEAD);
-    TEST_ASSERT_EQUAL(3, ms.map.markerX);
-    TEST_ASSERT_EQUAL(5, ms.map.markerY);
-}
-
-static void test_a_marker_run_with_no_snapshot_is_ignored()
-{
-    Mission ms = markerSetup();
-    ms.haveRun = false; // began near the start tile
-    mission_detail::onMarker(ms, missionParams(), 1000.0f - IR_AHEAD);
-    TEST_ASSERT_FALSE(ms.map.hasMarker);
-}
-
-static void test_run_start_heading_for_the_start_tile_is_not_kept()
-{
-    Mission ms;
-    missionReset(ms); // cell and target are both the start cell
-    mission_detail::onRunStart(ms);
-    TEST_ASSERT_FALSE(ms.haveRun);
-    // Leaving the start for the next cell: a tile beside the start tile may be the marker.
-    ms.tx = maze::kStartX;
-    ms.ty = static_cast<int8_t>(maze::kStartY + 1);
-    mission_detail::onRunStart(ms);
-    TEST_ASSERT_TRUE(ms.haveRun);
-    ms.cx = 2;
-    ms.cy = 3;
-    ms.tx = maze::kStartX; // heading for the start tile
-    ms.ty = maze::kStartY;
-    mission_detail::onRunStart(ms);
-    TEST_ASSERT_FALSE(ms.haveRun);
-}
-
-static void test_line_zone_is_followed_only_when_entered_from_the_marker()
-{
-    Mission ms;
-    missionReset(ms);
-    maze::mapMarkMarker(ms.map, 3, 4);
-    ms.haveRun = true;
-    ms.runFromX = 3;
-    ms.runFromY = 4;
-    ms.runToX = 3;
-    ms.runToY = 5;
-    TEST_ASSERT_TRUE(mission_detail::onLineZone(ms));
-    // The same white tile met from the side: remembered, not followed.
-    ms.haveRun = true;
-    ms.runFromX = 2;
-    ms.runFromY = 5;
-    TEST_ASSERT_FALSE(mission_detail::onLineZone(ms));
-    TEST_ASSERT_TRUE(ms.map.cell[5][3].line);
-    // With no marker known, nothing is followed.
-    Mission none;
-    missionReset(none);
-    none.haveRun = true;
-    none.runToX = 4;
-    none.runToY = 4;
-    TEST_ASSERT_FALSE(mission_detail::onLineZone(none));
-    TEST_ASSERT_TRUE(none.map.cell[4][4].line);
-    // And a run with no snapshot (near the start tile) is nothing at all.
-    none.haveRun = false;
-    TEST_ASSERT_FALSE(mission_detail::onLineZone(none));
-}
-
-static void test_planning_goes_to_the_marker_cell_then_steps_into_the_bridge_tile()
-{
-    using namespace maze;
-    Mission ms;
-    missionReset(ms);
-    MissionParams mp = missionParams();
-    // A straight corridor north: (3,3) start, (3,4), marker (3,5), unvisited (3,6) beyond it.
-    mapObserve(ms.map, 3, 3, Dir::North, false, true, true);
-    mapSetEdge(ms.map, 3, 3, Dir::South, true);
-    mapObserve(ms.map, 3, 4, Dir::North, false, true, true);
-    mapObserve(ms.map, 3, 5, Dir::North, false, true, true);
-    mapMarkMarker(ms.map, 3, 5);
-    // At (3,4) facing north: head for the marker cell.
-    ms.cx = 3;
-    ms.cy = 4;
-    ms.facing = Dir::North;
-    TEST_ASSERT_EQUAL(static_cast<int>(Move::Forward),
-                      static_cast<int>(mission_detail::plan(ms, mp)));
-    // On the marker cell: straight into the neighbour beside it.
-    ms.cx = 3;
-    ms.cy = 5;
-    TEST_ASSERT_EQUAL(static_cast<int>(Move::Forward),
-                      static_cast<int>(mission_detail::plan(ms, mp)));
-    ms.facing = Dir::South; // arrived the other way: turn back round to it
-    TEST_ASSERT_EQUAL(static_cast<int>(Move::Back), static_cast<int>(mission_detail::plan(ms, mp)));
+    Perceiver pc;
+    perceiverReset(pc);
+    perceiverSetCalibration(pc, r.cal);
+    Perception per;
+    bool sawBridge = false, sawLine = false;
+    for (int i = 0; i < 9000 && ms.phase != Phase::Done && ms.phase != Phase::Fault; ++i) {
+        perceive(pc, r.state(i >= 5), perceiveParams(mp), per);
+        r.advance(missionStep(ms, mp, per));
+        sawBridge = sawBridge || ms.phase == Phase::Bridge;
+        if (ms.phase == Phase::LineFollow) {
+            TEST_ASSERT_TRUE(sawBridge); // the line follower only ever follows the bridge
+            sawLine = true;
+        }
+    }
+    TEST_ASSERT_TRUE(sawBridge);
+    TEST_ASSERT_TRUE(sawLine);
+    TEST_ASSERT_EQUAL(asInt(Phase::Done), asInt(ms.phase));
 }
 
 static void test_the_start_tile_is_never_taken_for_the_marker_or_the_line()
@@ -934,6 +940,7 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_finds_the_bridge_and_follows_the_line_to_its_end);
     RUN_TEST(test_ring_arena_from_every_start_and_heading);
+    RUN_TEST(test_without_a_marker_the_exit_comes_from_the_map);
     RUN_TEST(test_snake_arena_from_every_start_and_heading);
     RUN_TEST(test_walls_only_explores_and_stops_inside_the_maze_from_every_start);
     RUN_TEST(test_walls_only_never_follows_the_line);
@@ -951,13 +958,9 @@ int main()
     RUN_TEST(test_a_step_that_never_reads_its_walls_cannot_decide_so_it_is_no_route);
     RUN_TEST(test_done_holds_the_wheels_and_stays_done);
     RUN_TEST(test_a_lost_line_is_a_fault_not_a_spin_for_ever);
-    RUN_TEST(test_marker_seen_as_the_array_crosses_the_target_centre_is_in_the_target_cell);
-    RUN_TEST(test_marker_seen_a_cell_behind_the_target_is_the_previous_cell);
-    RUN_TEST(test_marker_one_cell_ahead_of_the_target);
-    RUN_TEST(test_a_marker_run_with_no_snapshot_is_ignored);
-    RUN_TEST(test_run_start_heading_for_the_start_tile_is_not_kept);
-    RUN_TEST(test_line_zone_is_followed_only_when_entered_from_the_marker);
-    RUN_TEST(test_planning_goes_to_the_marker_cell_then_steps_into_the_bridge_tile);
+    RUN_TEST(test_no_ramp_after_the_marker_is_no_bridge);
+    RUN_TEST(test_a_wall_where_the_exit_should_be_is_no_bridge);
+    RUN_TEST(test_the_bridge_phase_is_entered_and_handed_over_to_the_line_follower);
     RUN_TEST(test_the_start_tile_is_never_taken_for_the_marker_or_the_line);
     return UNITY_END();
 }

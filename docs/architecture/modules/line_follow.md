@@ -43,10 +43,10 @@ channel sees the line again, and gives up with `Lost` after `LINE_LOST_TIMEOUT_M
 that much travel after it was seen is the end of the line (`Ended`, the robot brakes to a stop); it needs a forward
 search speed to accumulate distance, and it is off (0) because how the run stops is not decided.
 
-**On the ramp** (accelerometer tilt above `RAMP_TILT_DEG`) an all-white array is ignored, because a lifted array can
-read white as dark or dark as white. `RAMP_TILT_DEG` is not set yet: the tilt reading spikes above the ramp's own
-slope on flat floor when the robot accelerates or turns, and the dark stretch at the crest happens at 2 to 8
-degrees, before the tilt rises (to ~12 degrees on the slope). Left at 0 ("never"), nothing is ignored.
+**On the ramp** the tilt (accelerometer) could be used to ignore an all-white sweep (`RAMP_TILT_DEG`), but it is off (0):
+the lifted array at the crest reads all black, which never starts a search, and a plain threshold cannot tell the ramp
+(tilt 7 to 12 degrees, with dips to ~1) from the flat floor (0.5 to 5, with spikes of 8 to 10 when accelerating or
+turning). A rule would need a filtered tilt; it is not needed for the runs so far.
 
 ## Invariants
 
@@ -78,5 +78,8 @@ Bends (90 degrees and an arc) were followed at 130 mm/s; at 170 mm/s the line wa
 bend. Switching from the maze to the line was run on the real course (marker, gap, hand over, down the ramp, smooth;
 see [floor_pattern](floor_pattern.md)).
 
-**Not yet tested on the robot:** the end of the line (`LINE_END_LOST_MM`) at the foot of the ramp, and the tilt rule
-for `RAMP_TILT_DEG`.
+The whole mission (explore, marker, bridge, handover, ramp, about 6.7 m of line with bends) ran on the robot from two
+different start cells. At the end of the line the search turns the robot round and it follows the line back; there is
+no stop rule (`LINE_END_LOST_MM` is off), so a run has to be cut by hand.
+
+**Not yet tested on the robot:** a stop at the end of the line, and a tilt rule for `RAMP_TILT_DEG` (off).

@@ -2,14 +2,17 @@
 //  Mission.h  --  the run-phase state machine: find the bridge in Section A, follow
 //  the line across it, stop. No hardware, no Arduino.h - testable under env:native.
 //
-//    WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> LineFollow -> Done
+//    WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> Bridge -> LineFollow -> Done
 //                                                            any -> Fault
 //
 //  Nothing about the layout is assumed: the start cell, its heading and the bridge
 //  corner are discovered. The robot starts by reading the four walls of the start
 //  cell (the turn-round shows the one behind), then explores toward the nearest
-//  unseen cell. The marker redirects it to the cell beside the marker; entering the
-//  line zone hands over to the line follower, which runs until the line ends.
+//  unseen cell. The marker cell has exactly two openings, the side the robot comes in by and
+//  the one straight across; the IR array sees the marker (white, black, white) as the robot
+//  arrives on the cell's centre, and the way out is straight on. Bridge drives straight on
+//  the grid heading, past the marker's far strip and the gap, and hands over to the line
+//  follower at the first line view past the gap.
 //  docs/architecture/modules/mission.md
 // ============================================================================
 
@@ -31,6 +34,7 @@ enum class Phase : uint8_t {
     TurnAround,
     SenseBack, // facing the other way: the same three sensors now show the wall behind
     Explore,
+    Bridge, // the marker was seen: straight on, across the gap, to the first line view
     LineFollow,
     Done,
     Fault,
@@ -44,19 +48,20 @@ enum class FaultCode : uint8_t {
     Stall,       // motors pushed hard and nothing moved
     LineLost,    // searched for the line for LINE_LOST_TIMEOUT_MS
     NoRoute,     // nothing left to explore and no bridge found
+    NoBridge,    // the marker was seen but no line followed the gap, or something blocked the way
     Aborted,     // set by the caller: stopped from the serial line
 };
 
 struct MissionParams {
     StepCellParams step;
     LineParams line;
-    FloorParams floor;
+    PatternParams pattern;        // the marker and the gap
+    float bridgeMinLineMm = 0.0f; // the array off the gap this far before a line view counts
+    float bridgeMaxMm = 0.0f;     // the first line view must come within this far of the marker
     MotionControlParams control;
-    uint16_t senseMs = 0;       // how long to stand and read the start cell's walls
-    float leaveMarginMm = 0.0f; // see LINE_LEAVE_MARGIN_MM
-    int8_t hand = 1;            // +1 prefer left turns on a tie, -1 right
-    bool wallsOnly = false;     // no floor sensing: explore everything, then stop (Done)
-    float irAheadMm = 0.0f;     // IR array ahead of the axle (IR_ARRAY_FORWARD_OFFSET_MM)
+    uint16_t senseMs = 0;   // how long to stand and read the start cell's walls
+    int8_t hand = 1;        // +1 prefer left turns on a tie, -1 right
+    bool wallsOnly = false; // no floor sensing: explore everything, then stop (Done)
     uint16_t dtMs = 10;
 };
 
@@ -83,26 +88,18 @@ struct Mission {
     StepCell step;
     Turn turn;
     LineFollow line;
-    FloorDetector floor;
+    FloorPattern pattern; // the runs of floor class along the current step
+    BridgeHandover handover;
+    Straight bridge;      // the straight drive from the marker to the line
+    bool gapSeen = false; // the gap after the marker has been reported
+
+    // Everything is explored and the marker was not reported: the exit is found from the map
+    // (the one open side that leads out of the 4x4) and the robot goes there and takes it.
+    bool exiting = false;
+    bool bridgeNow = false; // at the exit cell, facing the exit: start the bridge drive
+    int8_t exitX = 0, exitY = 0;
+    maze::Dir exitDir = maze::Dir::North;
     MotionControl control;
-
-    // Where the current run of white floor began: the step it was on then. Marker and line zone are
-    // told apart only after the run ends, by which time the robot may have moved on (or turned), so
-    // they are attributed from this snapshot.
-    bool haveRun = false;
-    int8_t runFromX = 0, runFromY = 0, runToX = 0, runToY = 0;
-    float runTargetMm = 0.0f;
-    maze::Dir runFacing = maze::Dir::North;
-
-    // Leaving a white tile (the start tile, or a line tile met from the side): watch whether the
-    // floor stays white past its edge. From a line tile that means the robot is going out along
-    // the line (the bridge); from the start tile it means the next tile is white too, a line tile
-    // that no run measured because the white began under the start tile. outCenterMm is where the
-    // tile's centre was; outBlack records that bare floor showed up first.
-    enum class Out : uint8_t { None, FromLine, FromStart };
-    Out out = Out::None;
-    bool outBlack = false;
-    float outCenterMm = 0.0f;
 
     uint16_t phaseMs = 0;
     uint8_t votes[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
@@ -113,7 +110,8 @@ inline void missionReset(Mission &ms)
     ms = Mission{};
     maze::mapReset(ms.map);
     motionControlReset(ms.control);
-    floorDetectorReset(ms.floor);
+    floorPatternReset(ms.pattern);
+    bridgeHandoverReset(ms.handover);
 }
 
 // The caller found a precondition missing before the run.
@@ -180,37 +178,29 @@ inline bool frontBlocked(const MissionParams &p, const Perception &pc)
            static_cast<float>(pc.walls.frontMm) <= p.step.frontStopMm;
 }
 
-inline Mission::Out outKind(const Mission &ms)
-{
-    if (ms.cx == maze::kStartX && ms.cy == maze::kStartY) {
-        return Mission::Out::FromStart;
-    }
-    return ms.map.cell[ms.cy][ms.cx].line ? Mission::Out::FromLine : Mission::Out::None;
-}
-
 // Choose the next move from the cell the robot is at. None = nothing left to try.
-// With the marker seen the goal is the bridge-out tile beside it, and the way in is through the
-// marker cell: the line runs along that axis, and met from the side it crosses the robot's path.
 inline maze::Move plan(Mission &ms, const MissionParams &p)
 {
-    using namespace maze;
-    Move mv = Move::None;
-    int8_t gx = 0, gy = 0;
-    if (ms.map.hasMarker && bridgeCandidate(ms.map, ms.facing, gx, gy)) {
-        if (ms.cx == ms.map.markerX && ms.cy == ms.map.markerY) {
-            mv = stepIntoNeighbour(ms.map, ms.facing, gx, gy);
-            if (mv != Move::None) {
-                return mv;
+    maze::Move mv = maze::Move::None;
+    if (maze::exploreMove(ms.map, ms.cx, ms.cy, ms.facing, p.hand, mv)) {
+        return mv;
+    }
+    // Nothing left to explore. The marker was not reported (the robot stopped short of seeing it,
+    // say), but the map still knows the way out: the one open side that leads out of the 4x4.
+    if (!p.wallsOnly && maze::exitCell(ms.map, ms.exitX, ms.exitY, ms.exitDir)) {
+        ms.exiting = true;
+        if (ms.cx == ms.exitX && ms.cy == ms.exitY) {
+            if (ms.facing == ms.exitDir) {
+                ms.bridgeNow = true; // the step stops on this centre; the bridge starts from there
+                return maze::Move::None;
             }
-        } else if (goToMove(ms.map, ms.cx, ms.cy, ms.facing, p.hand, ms.map.markerX, ms.map.markerY,
-                            mv)) {
+            return maze::detail::relativeMove(ms.facing, ms.exitDir);
+        }
+        if (maze::goToMove(ms.map, ms.cx, ms.cy, ms.facing, p.hand, ms.exitX, ms.exitY, mv)) {
             return mv;
         }
     }
-    if (exploreMove(ms.map, ms.cx, ms.cy, ms.facing, p.hand, mv)) {
-        return mv;
-    }
-    return Move::None;
+    return maze::Move::None;
 }
 
 inline void startStep(Mission &ms, const MissionParams &p, const MotionFeedback &fb)
@@ -223,9 +213,7 @@ inline void startStep(Mission &ms, const MissionParams &p, const MotionFeedback 
     stepCellBegin(ms.step, p.step, fb, gridHeading(ms, ms.facing));
     ms.decided = false;
     ms.sub = Mission::Sub::Stepping;
-    ms.out = outKind(ms);
-    ms.outBlack = false;
-    ms.outCenterMm = fb.distMm;
+    floorPatternReset(ms.pattern); // runs of floor are measured along one step
 }
 
 // Stopped on a cell centre with a move chosen: do it.
@@ -270,9 +258,6 @@ inline void onWallsReady(Mission &ms, const MissionParams &p)
     mapSetEdge(ms.map, ms.cx, ms.cy, dirOpposite(ms.facing), false); // the way we came
     const Move mv = plan(ms, p);
     if (mv == Move::Forward) {
-        ms.out = outKind(ms);
-        ms.outBlack = false;
-        ms.outCenterMm = ms.step.straight.targetMm; // this centre, before the target moves on
         stepCellContinue(ms.step, p.step);
         ms.fromX = ms.cx;
         ms.fromY = ms.cy;
@@ -285,57 +270,49 @@ inline void onWallsReady(Mission &ms, const MissionParams &p)
     ms.decided = true;
 }
 
-inline bool atStart(int8_t x, int8_t y)
+// The marker was just reported: the robot is on the marker cell's centre and the way out is
+// straight on, so drive on along the grid heading at line speed, carrying the current speed
+// through. Also used when the gap is seen while exploring with no marker reported (`gapAlready`):
+// the robot is then out of the maze's exit already and only the line past the gap is left to find.
+inline void startBridge(Mission &ms, const MissionParams &p, const MotionFeedback &fb,
+                        bool gapAlready = false)
 {
-    return x == maze::kStartX && y == maze::kStartY;
+    motionControlClearIntegrals(ms.control);
+    bridgeHandoverReset(ms.handover);
+    ms.gapSeen = gapAlready;
+    straightBegin(ms.bridge, fb, p.bridgeMaxMm, p.line.speedMmS, p.line.speedMmS,
+                  gridHeading(ms, ms.facing));
+    ms.phase = Phase::Bridge;
 }
 
-// A run of white floor has just begun under the array: remember which step it is on. The start
-// tile is white and would pass for the marker or the line, so a run that begins as the robot
-// heads for it is not kept. (Leaving it starts no run: the one in progress at power-up is never
-// measured, and a later one began on the way in.)
-inline void onRunStart(Mission &ms)
+// One tick of the bridge drive. False when it failed (the fault is set).
+inline bool bridgeTick(Mission &ms, const MissionParams &p, const Perception &pc,
+                       MotionTarget &target)
 {
-    ms.haveRun = !atStart(ms.tx, ms.ty);
-    ms.runFromX = ms.fromX;
-    ms.runFromY = ms.fromY;
-    ms.runToX = ms.tx;
-    ms.runToY = ms.ty;
-    ms.runTargetMm = ms.step.straight.targetMm;
-    ms.runFacing = ms.facing;
-}
-
-// The marker run ended: which cell was it in? The detector reports where the array saw its centre;
-// the axle was irAheadMm behind that, and the target centre of the step the run began on is known.
-inline void onMarker(Mission &ms, const MissionParams &p, float centerMm)
-{
-    if (!ms.haveRun) {
-        return;
+    const MotionFeedback &fb = pc.motion;
+    float unused = 0.0f;
+    if (floorPatternStep(ms.pattern, pc.floor, fb.distMm, p.pattern, unused) == PatternEvent::Gap) {
+        ms.gapSeen = true;
     }
-    const float feature = centerMm + p.irAheadMm;
-    const float offset = (feature - ms.runTargetMm) / p.step.pitchMm;
-    const int8_t k = offset >= 0.5f ? 1 : (offset <= -0.5f ? -1 : 0);
-    const int8_t mx = static_cast<int8_t>(ms.runToX + k * maze::kDx[maze::dirIndex(ms.runFacing)]);
-    const int8_t my = static_cast<int8_t>(ms.runToY + k * maze::kDy[maze::dirIndex(ms.runFacing)]);
-    if (maze::mapInArray(mx, my)) {
-        maze::mapMarkMarker(ms.map, mx, my);
-    }
-    ms.haveRun = false;
-}
-
-// A white tile with a line: the bridge-out tile only if it was entered from the marker cell. From
-// anywhere else the line crosses the robot's path, so it is noted and left.
-inline bool onLineZone(Mission &ms)
-{
-    if (!ms.haveRun) {
-        return false;
-    }
-    ms.haveRun = false;
-    if (ms.map.hasMarker && ms.runFromX == ms.map.markerX && ms.runFromY == ms.map.markerY) {
+    if (bridgeHandoverStep(ms.handover, ms.gapSeen, pc.floor, pc.line, fb.distMm,
+                           p.bridgeMinLineMm)) {
+        // Hand over mid-stride: the follower starts from the current speed, and runs this very
+        // tick so the drivetrain never sees a gap.
+        lineFollowBegin(ms.line, fb, true);
+        ms.phase = Phase::LineFollow;
+        lineFollowStep(ms.line, p.line, fb, pc.line, pc.tiltDeg, false, p.dtMs, target);
         return true;
     }
-    maze::mapMarkLine(ms.map, ms.runToX, ms.runToY);
-    return false;
+    if (frontBlocked(p, pc)) {
+        missionFail(ms, FaultCode::NoBridge); // a wall where the opening should be
+        return false;
+    }
+    const MoveStatus st = straightStep(ms.bridge, p.step.plan, fb, 0.0f, p.dtMs, target);
+    if (st == MoveStatus::Done || st == MoveStatus::Timeout) {
+        missionFail(ms, FaultCode::NoBridge); // no line came after the gap
+        return false;
+    }
+    return true;
 }
 
 } // namespace mission_detail
@@ -409,6 +386,14 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
             if (ms.sub == Mission::Sub::Turning) {
                 const MoveStatus st = turnStep(ms.turn, p.step.plan, fb, p.dtMs, target);
                 if (st == MoveStatus::Done) {
+                    if (ms.exiting && ms.cx == ms.exitX && ms.cy == ms.exitY &&
+                        ms.facing == ms.exitDir) {
+                        startBridge(ms, p, fb); // turned to face the exit: take it
+                        if (!bridgeTick(ms, p, pc, target)) {
+                            return DriveCommand{};
+                        }
+                        break;
+                    }
                     startStep(ms, p, fb);
                 } else if (st == MoveStatus::Timeout) {
                     missionFail(ms, FaultCode::MoveTimeout);
@@ -417,55 +402,18 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                 break;
             }
 
-            // Stepping. The floor tells us about the marker and the line zone (walls-only: not
-            // read).
-            float center = 0.0f;
-            const FloorEvent ev = p.wallsOnly ? FloorEvent::None
-                                              : floorDetectorStep(ms.floor, pc.line.allBlack,
-                                                                  fb.distMm, p.floor, center);
-            switch (ev) {
-                case FloorEvent::RunStart:
-                    onRunStart(ms);
-                    break;
-                case FloorEvent::Marker:
-                    onMarker(ms, p, center);
-                    break;
-                case FloorEvent::LineZone:
-                    if (!ms.haveRun) {
-                        break; // near the start tile
-                    }
-                    if (onLineZone(ms)) {
-                        // Hand over mid-stride: the follower starts from the current speed, and
-                        // runs this very tick so the drivetrain never sees a gap.
-                        lineFollowBegin(ms.line, fb, true);
-                        ms.phase = Phase::LineFollow;
-                        lineFollowStep(ms.line, p.line, fb, pc.line, pc.tiltDeg,
-                                       frontBlocked(p, pc), p.dtMs, target);
+            // Stepping. The floor tells us about the marker (walls-only: not read). The marker cell
+            // has two openings, the one we came in by and the one straight across: go straight on.
+            if (!p.wallsOnly) {
+                float center = 0.0f;
+                const PatternEvent ev =
+                    floorPatternStep(ms.pattern, pc.floor, fb.distMm, p.pattern, center);
+                if (ev == PatternEvent::Marker || ev == PatternEvent::Gap) {
+                    startBridge(ms, p, fb, ev == PatternEvent::Gap);
+                    if (!bridgeTick(ms, p, pc, target)) {
+                        return DriveCommand{};
                     }
                     break;
-                case FloorEvent::None:
-                    break;
-            }
-            if (ms.phase == Phase::LineFollow) {
-                break;
-            }
-            if (!p.wallsOnly && ms.out != Mission::Out::None) {
-                if (pc.line.allBlack) {
-                    ms.outBlack = true;
-                } else if (!ms.outBlack && fb.distMm - ms.outCenterMm >= p.step.pitchMm * 0.5f -
-                                                                             p.irAheadMm +
-                                                                             p.leaveMarginMm) {
-                    // Still white well past the tile's edge.
-                    if (ms.out == Mission::Out::FromLine) {
-                        // The way out along the line: hand over to the follower.
-                        lineFollowBegin(ms.line, fb, true);
-                        ms.phase = Phase::LineFollow;
-                        lineFollowStep(ms.line, p.line, fb, pc.line, pc.tiltDeg,
-                                       frontBlocked(p, pc), p.dtMs, target);
-                        break;
-                    }
-                    maze::mapMarkLine(ms.map, ms.tx, ms.ty); // beyond the start tile: white too
-                    ms.out = Mission::Out::None;
                 }
             }
 
@@ -483,6 +431,14 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
                     cmd.enable = true;
                     break;
                 }
+                if (ms.bridgeNow) {
+                    ms.bridgeNow = false;
+                    startBridge(ms, p, fb);
+                    if (!bridgeTick(ms, p, pc, target)) {
+                        return DriveCommand{};
+                    }
+                    break;
+                }
                 if (!ms.decided || ms.pending == maze::Move::None) {
                     missionFail(ms, FaultCode::NoRoute);
                     return DriveCommand{};
@@ -491,6 +447,13 @@ inline DriveCommand missionStep(Mission &ms, const MissionParams &p, const Perce
             }
             break;
         }
+
+        case Phase::Bridge:
+            cmd.enable = true;
+            if (!bridgeTick(ms, p, pc, target)) {
+                return DriveCommand{};
+            }
+            break;
 
         case Phase::LineFollow: {
             cmd.enable = true;

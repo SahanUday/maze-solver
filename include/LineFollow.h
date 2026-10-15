@@ -175,7 +175,8 @@ struct LineParams {
     // The robot keeps rolling at searchSpeedMmS while it checks, so the distance can add up; 0 =
     // never.
     float endLostMm = 0.0f;
-    float rampTiltDeg = 0.0f; // above this the array may be lifted; 0 = never
+    float rampTiltDeg =
+        0.0f; // above this an all-white sweep is ignored (a lifted array); 0 = never
 };
 
 enum class LineStatus : uint8_t {

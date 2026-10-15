@@ -89,6 +89,10 @@ enum class PatternEvent : uint8_t {
 struct PatternParams {
     float frameMinMm = 0.0f; // each white frame of the marker
     float frameMaxMm = 0.0f;
+    // The far frame is under way: report the marker once it is this long (0 = frameMinMm). Lower
+    // than the frame's own minimum, because the robot may stop on the cell centre a few mm short,
+    // which leaves the array only ~20 mm into the far frame.
+    float reportMm = 0.0f;
     float centreMinMm = 0.0f; // the black box between them
     float centreMaxMm = 0.0f;
     float gapMinMm = 0.0f;
@@ -187,7 +191,8 @@ inline PatternEvent floorPatternStep(FloorPattern &f, FloorClass seen, float dis
     }
 
     // The far frame is under way and already long enough: white, black, white.
-    if (f.cls == FloorClass::White && !f.markerSent && f.doneCount >= 2 && length >= p.frameMinMm &&
+    const float need = p.reportMm > 0.0f ? p.reportMm : p.frameMinMm;
+    if (f.cls == FloorClass::White && !f.markerSent && f.doneCount >= 2 && length >= need &&
         length <= p.frameMaxMm) {
         const PatternRun &black = f.done[2];
         const PatternRun &near = f.done[1];

@@ -79,6 +79,7 @@ static void test_line_and_floor_params()
     const PatternParams pat = specPattern();
     TEST_ASSERT_EQUAL_FLOAT(MARKER_FRAME_MIN_MM, pat.frameMinMm);
     TEST_ASSERT_EQUAL_FLOAT(MARKER_FRAME_MAX_MM, pat.frameMaxMm);
+    TEST_ASSERT_EQUAL_FLOAT(MARKER_FRAME_REPORT_MM, pat.reportMm);
     TEST_ASSERT_EQUAL_FLOAT(MARKER_CENTRE_MIN_MM, pat.centreMinMm);
     TEST_ASSERT_EQUAL_FLOAT(MARKER_CENTRE_MAX_MM, pat.centreMaxMm);
     TEST_ASSERT_EQUAL_FLOAT(GAP_MIN_MM, pat.gapMinMm);
@@ -109,8 +110,9 @@ static void test_mission_params_and_hand()
     TEST_ASSERT_EQUAL_INT8(1, left.hand);
     TEST_ASSERT_EQUAL_INT8(-1, right.hand);
     TEST_ASSERT_EQUAL(!RUN_USE_FLOOR_SENSING, left.wallsOnly);
-    TEST_ASSERT_EQUAL_FLOAT(IR_ARRAY_FORWARD_OFFSET_MM, left.irAheadMm);
-    TEST_ASSERT_EQUAL_FLOAT(LINE_LEAVE_MARGIN_MM, left.leaveMarginMm);
+    TEST_ASSERT_EQUAL_FLOAT(BRIDGE_HANDOVER_MIN_MM, left.bridgeMinLineMm);
+    TEST_ASSERT_EQUAL_FLOAT(BRIDGE_MAX_MM, left.bridgeMaxMm);
+    TEST_ASSERT_EQUAL_FLOAT(MARKER_FRAME_REPORT_MM, left.pattern.reportMm);
     TEST_ASSERT_EQUAL_UINT16(CONTROL_LOOP_PERIOD_MS, left.dtMs);
 }
 

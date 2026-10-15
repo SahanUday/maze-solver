@@ -8,9 +8,12 @@
 
 #include "FloorPattern.h"
 
+static float g_reportMm = 0.0f; // 0 = report at the frame's minimum width
+
 static PatternParams params()
 {
     PatternParams p;
+    p.reportMm = g_reportMm;
     p.frameMinMm = 25.0f;
     p.frameMaxMm = 55.0f;
     p.centreMinMm = 95.0f;
@@ -124,6 +127,20 @@ static void test_the_measured_marker_is_found_once_with_its_centre()
     TEST_ASSERT_FLOAT_WITHIN(1.5f, 195.0f, r.markerCentreMm);
     // Reported as the far frame reaches its minimum width (25 mm into it).
     TEST_ASSERT_FLOAT_WITHIN(2.0f, 254.0f + 25.0f, r.markerAtMm);
+}
+
+static void test_a_lower_report_length_finds_the_marker_while_the_far_frame_is_short()
+{
+    g_reportMm = 4.0f;
+    // The robot stops on its odometer's cell centre with the array only ~6 mm into the far frame.
+    const Seg path[] = {{B, 100}, {W, 36}, {B, 118}, {W, 6}};
+    const Result r = run(path, 4);
+    TEST_ASSERT_EQUAL(1, r.markers);
+    TEST_ASSERT_FLOAT_WITHIN(2.0f, 254.0f + 4.0f, r.markerAtMm);
+    // Below the report length it is not yet a marker.
+    const Seg shortPath[] = {{B, 100}, {W, 36}, {B, 118}, {W, 2}};
+    TEST_ASSERT_EQUAL(0, run(shortPath, 4).markers);
+    g_reportMm = 0.0f;
 }
 
 static void test_the_marker_is_found_whichever_way_it_is_crossed()
@@ -297,6 +314,7 @@ int main()
     RUN_TEST(test_one_low_channel_does_not_hide_air);
     RUN_TEST(test_air_can_be_switched_off);
     RUN_TEST(test_the_measured_marker_is_found_once_with_its_centre);
+    RUN_TEST(test_a_lower_report_length_finds_the_marker_while_the_far_frame_is_short);
     RUN_TEST(test_the_marker_is_found_whichever_way_it_is_crossed);
     RUN_TEST(test_a_long_white_start_tile_is_not_a_marker);
     RUN_TEST(test_frames_that_are_too_narrow_or_too_wide_are_not_a_marker);

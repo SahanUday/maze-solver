@@ -192,6 +192,36 @@ inline bool goToMove(MazeMap &m, int8_t x, int8_t y, Dir facing, int8_t hand, in
     return detail::plan(m, detail::seedCell(m, tx, ty), x, y, facing, hand, out);
 }
 
+// The cell whose open side leads out of the 4x4: the exit, found from the walls alone. Only a side
+// that was observed open counts, and its neighbour must be outside the cells the 4x4 can still
+// cover, which is only known once the visited extent has pinned both axes down (after the section
+// has been explored). False before that, or if no such side was seen.
+inline bool exitCell(const MazeMap &m, int8_t &ex, int8_t &ey, Dir &ed)
+{
+    for (int8_t y = 0; y < kMapSize; ++y) {
+        for (int8_t x = 0; x < kMapSize; ++x) {
+            if (!m.cell[y][x].visited) {
+                continue;
+            }
+            for (uint8_t d = 0; d < 4; ++d) {
+                const uint8_t bit = static_cast<uint8_t>(1u << d);
+                if ((m.cell[y][x].known & bit) == 0 || (m.cell[y][x].wall & bit) != 0) {
+                    continue;
+                }
+                const int8_t nx = static_cast<int8_t>(x + kDx[d]);
+                const int8_t ny = static_cast<int8_t>(y + kDy[d]);
+                if (!mapInBounds(m, nx, ny)) {
+                    ex = x;
+                    ey = y;
+                    ed = static_cast<Dir>(d);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 // After the marker: pick the neighbour of the marker cell that could be the bridge-out tile: one
 // not entered yet, or one whose white line tile was seen but not followed. It must be reachable
 // through an open edge. Once the visited extent has pinned an axis

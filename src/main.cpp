@@ -147,7 +147,8 @@ void setup()
     if (lineCalLoad(cal)) {
         perceiverSetCalibration(g_perceiver, cal);
     } else if (RUN_USE_FLOOR_SENSING) {
-        Serial.println(F("line cal: none stored - set DIP 4, calibrate, reset"));
+        Serial.println(
+            F("line cal: none stored - calibrate with probe_motion (W on white, B on black)"));
         missionFail(g_mission, FaultCode::NoLineCal);
     } else {
         Serial.println(F("line cal: none stored - not needed, floor sensing is off"));
@@ -238,6 +239,22 @@ static void serialSupervise()
         Serial.print(static_cast<uint8_t>(lastPhase));
         Serial.print(F(" fault "));
         Serial.println(static_cast<uint8_t>(g_mission.fault));
+    }
+    // What the IR array sees: every change of the floor class (black / white / air) with the
+    // odometer and the 8 raw channels (/4), so a marker that goes unreported can be read back.
+    static FloorClass lastFloor = FloorClass::Mixed;
+    if (g_perception.floor != FloorClass::Mixed && g_perception.floor != lastFloor &&
+        g_mission.phase != Phase::WaitStart) {
+        lastFloor = g_perception.floor;
+        Serial.print(F("floor: "));
+        Serial.print(static_cast<uint8_t>(lastFloor));
+        Serial.print(F(" d="));
+        Serial.print(g_perception.motion.distMm, 0);
+        Serial.print(F(" ir="));
+        for (uint8_t i = 0; i < IR_CHANNEL_COUNT; ++i) {
+            Serial.print(g_state.irRaw[i] >> 2);
+            Serial.print(i + 1 < IR_CHANNEL_COUNT ? ',' : '\n');
+        }
     }
     static uint32_t lastLogMs = 0;
     if (RUN_LOG_EVERY_MS > 0 && g_mission.phase != Phase::WaitStart &&

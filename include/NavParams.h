@@ -101,6 +101,7 @@ inline PatternParams specPattern()
     PatternParams p;
     p.frameMinMm = MARKER_FRAME_MIN_MM;
     p.frameMaxMm = MARKER_FRAME_MAX_MM;
+    p.reportMm = MARKER_FRAME_REPORT_MM;
     p.centreMinMm = MARKER_CENTRE_MIN_MM;
     p.centreMaxMm = MARKER_CENTRE_MAX_MM;
     p.gapMinMm = GAP_MIN_MM;
@@ -141,13 +142,13 @@ inline MissionParams specMission(int8_t hand)
     MissionParams p;
     p.step = specStepCell();
     p.line = specLine();
-    p.floor = specFloor();
+    p.pattern = specPattern();
+    p.bridgeMinLineMm = BRIDGE_HANDOVER_MIN_MM;
+    p.bridgeMaxMm = BRIDGE_MAX_MM;
     p.control = specMotionControl();
     p.senseMs = START_SENSE_MS;
-    p.leaveMarginMm = LINE_LEAVE_MARGIN_MM;
     p.hand = hand;
     p.wallsOnly = !RUN_USE_FLOOR_SENSING;
-    p.irAheadMm = IR_ARRAY_FORWARD_OFFSET_MM;
     p.dtMs = CONTROL_LOOP_PERIOD_MS;
     return p;
 }

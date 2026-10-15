@@ -515,6 +515,53 @@ static void test_passes_through_the_start_when_there_is_no_other_way()
     TEST_ASSERT_EQUAL(static_cast<int>(Move::Back), static_cast<int>(mv)); // north, via the start
 }
 
+// ---- The exit, found from the walls ----------------------------------------------------------
+
+static void test_the_exit_is_the_open_side_that_leaves_a_pinned_extent()
+{
+    MazeMap m;
+    // Column x = 3 over y = 3..6 and row y = 6 over x = 3..6 are visited: the 4x4 is pinned. The
+    // cell (6, 6) has its north side open, and north of it is outside.
+    for (int8_t y = 3; y <= 6; ++y) {
+        for (int8_t x = 3; x <= 6; ++x) {
+            mapVisit(m, x, y);
+        }
+    }
+    mapObserve(m, 6, 6, Dir::North, false, true, true); // walls left and right, front open
+    int8_t ex = 0, ey = 0;
+    Dir ed = Dir::South;
+    TEST_ASSERT_TRUE(exitCell(m, ex, ey, ed));
+    TEST_ASSERT_EQUAL(6, ex);
+    TEST_ASSERT_EQUAL(6, ey);
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::North), static_cast<int>(ed));
+}
+
+static void test_no_exit_while_the_extent_is_not_pinned()
+{
+    MazeMap m;
+    // Only part of the section has been entered: an open side may lead to a cell still inside it.
+    mapVisit(m, 3, 3);
+    mapVisit(m, 3, 4);
+    mapObserve(m, 3, 4, Dir::North, false, true, true);
+    int8_t ex = 0, ey = 0;
+    Dir ed = Dir::South;
+    TEST_ASSERT_FALSE(exitCell(m, ex, ey, ed));
+}
+
+static void test_a_wall_is_not_an_exit()
+{
+    MazeMap m;
+    for (int8_t y = 3; y <= 6; ++y) {
+        for (int8_t x = 3; x <= 6; ++x) {
+            mapVisit(m, x, y);
+        }
+    }
+    mapObserve(m, 6, 6, Dir::North, true, true, true); // walled all round
+    int8_t ex = 0, ey = 0;
+    Dir ed = Dir::South;
+    TEST_ASSERT_FALSE(exitCell(m, ex, ey, ed));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -541,5 +588,8 @@ int main()
     RUN_TEST(test_goto_cannot_pass_a_wall);
     RUN_TEST(test_hand_picks_the_side_on_a_tie);
     RUN_TEST(test_passes_through_the_start_when_there_is_no_other_way);
+    RUN_TEST(test_the_exit_is_the_open_side_that_leaves_a_pinned_extent);
+    RUN_TEST(test_no_exit_while_the_extent_is_not_pinned);
+    RUN_TEST(test_a_wall_is_not_an_exit);
     return UNITY_END();
 }

@@ -19,7 +19,8 @@ sensing line.
 
 The marker is a white frame around a black box, so crossing it gives **white, black, white** (measured:
 about 36, 118 and 37 mm). The detector keeps the runs of each class along the path (the last three finished
-and the one in progress). It reports a marker as soon as the far white frame has reached its minimum width and
+and the one in progress). It reports a marker as soon as the far white frame has reached `reportMm` (`MARKER_FRAME_REPORT_MM`, 4 mm; 0 means
+the frame's minimum width of 25) and
 the two runs before it match: a black box of the right size, preceded by a white frame of the right size. The
 event carries the middle of the black box. A long white run (the START tile) never matches, because each
 frame has to be 25 to 55 mm.
@@ -30,6 +31,13 @@ on the ramp) never changes the run in progress, so a robot crossing at an angle 
 The gap is air for at least `gapMinMm`, reported once per run. The array reads 1016 to 1023 on every channel
 over the gap. The black floor reads 976 to 1013 and the black tape up to 1023 on the few channels it covers, so
 air needs most of the array saturated at once; the margin is a few counts.
+
+## Bridge handover
+
+`bridgeHandoverStep` decides when the approach hands over to the line follower. After the gap has been reported it
+waits until the array has been off the air for `BRIDGE_HANDOVER_MIN_MM` (4 mm; air again restarts the wait), then
+takes the first line view (`onLine`). The ~8 mm of dark floor just past the gap (seen on the robot) reads all
+black, not a line, so it cannot trigger it. [mission](mission.md) uses it in the Bridge phase.
 
 ## Invariants
 

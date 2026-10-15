@@ -243,7 +243,7 @@ constexpr float KD_TURN = 0.5f;
 // the robot run in a walls-only maze with no IR calibration, no START button and no DIP switches.
 // Floor sensing: the IR array finds the approach marker and the bridge line. Off = the robot
 // explores every cell and stops (Phase::Done); the line calibration is not required.
-constexpr bool RUN_USE_FLOOR_SENSING = false;
+constexpr bool RUN_USE_FLOOR_SENSING = true;
 // START button on PIN_BTN_START. Off = the run starts RUN_AUTOSTART_MS after boot finishes.
 constexpr bool RUN_USE_START_BUTTON = false;
 constexpr uint32_t RUN_AUTOSTART_MS = 5000; // time to put the robot down at the start cell
@@ -359,11 +359,19 @@ constexpr uint16_t RUN_LOG_EVERY_MS = 200;
 // gap is ~37 mm; its edges blur).
 constexpr float MARKER_FRAME_MIN_MM = 25.0f; // each white frame
 constexpr float MARKER_FRAME_MAX_MM = 55.0f;
+// The far frame this long = the marker is reported. The white-black pair before it already
+// identifies the marker, so this is just the glitch length. A robot that stops on the odometer's
+// cell centre can be ~25 mm short of the marker's real centre (seen after 6.8 m of driving): then
+// the array is only ~5 mm into the far frame.
+constexpr float MARKER_FRAME_REPORT_MM = 4.0f;
 constexpr float MARKER_CENTRE_MIN_MM = 95.0f; // the black box between them
 constexpr float MARKER_CENTRE_MAX_MM = 140.0f;
 // After the gap the follower takes over at the first line view this far past the end of the air.
 // The black patch right after the gap (~8 mm, seen on the robot) must not count.
 constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
+// From the marker (reported with the axle on the cell centre) the first line view past the gap came
+// 50-58 mm of travel later in three runs; the drive faults if it takes more than this.
+constexpr float BRIDGE_MAX_MM = 200.0f;
 constexpr float GAP_MIN_MM = 12.0f;     // air for this long = the gap
 constexpr float FLOOR_GLITCH_MM = 4.0f; // a change shorter than this is noise
 // Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. The black floor reads 976-1013
@@ -376,10 +384,8 @@ constexpr uint8_t IR_AIR_CHANNELS = 7;
 // The approach marker is a 90 mm white square, so a short run of non-black floor; a line tile
 // is a long one.
 constexpr float MARKER_RUN_MIN_MM = 0.0f;
-constexpr float MARKER_RUN_MAX_MM = 0.0f;     // a longer run is a line tile, not the marker
-constexpr float LINE_LEAVE_MARGIN_MM = 40.0f; // leaving a white tile, the array this far past its
-                                              // edge still on white = going out along the line
-constexpr float LINE_ENTER_RUN_MM = 0.0f;     // non-black this far = the line zone has been entered
+constexpr float MARKER_RUN_MAX_MM = 0.0f; // a longer run is a line tile, not the marker
+constexpr float LINE_ENTER_RUN_MM = 0.0f; // non-black this far = the line zone has been entered
 // The line is over when it has been gone (white floor, no line under the array) for this far after
 // it was last seen. The floor after the bridge line is white, so "no line" is a reliable signal;
 // the robot rolls on at LINE_SEARCH_SPEED_MM_S while it checks, then brakes to a stop. 0 = off:
@@ -399,7 +405,10 @@ constexpr uint8_t LINE_SLOWDOWN_PCT = 100;    // speed kept at the largest line 
 constexpr float LINE_SLOWDOWN_ERR_MM = 20.0f; // line error at which that slowdown is reached
 
 // ---- Ramp ------------------------------------------------------- [FIXED] --
-// Tilt of the gravity vector from the board's Z axis. Above this the IR array may be lifted off
-// the floor, so "all black" no longer means the line zone ended. 6 deg: the flat floor reads about
-// 0.8 deg, and a hard start or stop can fake a few degrees.
-constexpr float RAMP_TILT_DEG = 6.0f;
+// Tilt of the gravity vector from the board's Z axis. Above this an all-white sweep does not start
+// the lost-line search (a lifted array might read white). 0 = off, which it is: the lifted array at
+// the ramp's crest reads all BLACK, which never starts a search or ends the line, and the tilt
+// cannot tell the ramp from the flat floor with a plain threshold (ramp 7-12 deg with dips to ~1,
+// flat floor 0.5-5 with spikes of 8-10 when accelerating or turning). A rule would need a filtered
+// tilt.
+constexpr float RAMP_TILT_DEG = 0.0f;

@@ -203,15 +203,16 @@ RobotState --perceive()--> Perception --missionStep()--> DriveCommand --> motors
 | Motion control | `include/MotionControl.h`, `MotionProfile.h` | a trapezoid reference; linear PID on the odometer + angular PID on the **gyro**, mixed into left/right duty; stall latch |
 | Primitives | `include/MotionPrimitives.h`, `StepCell.h` | straight run, in-place turn, one-cell step that reads the walls on the way |
 | Wall sensing | `include/WallSense.h` | wall presence, centring trim |
-| Line | `include/LineFollow.h` | line centroid, follower, marker / line-zone detector |
+| Line | `include/LineFollow.h` | line centroid, follower (the old white-tile `FloorDetector` stays, unused) |
+| Floor | `include/FloorPattern.h` | floor class, marker and gap pattern, bridge handover |
 | Maze | `lib/maze/MazeMap.h`, `Explorer.h` | map in the robot's own frame, next-move search |
 | Mission | `include/Mission.h` | the phase state machine |
 
 Nothing about the layout is fixed in code: the start cell, its heading and the bridge corner are
 discovered at run time, in a map whose "north" is the start heading. The run is
-`WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> LineFollow -> Done`, any phase to
-`Fault`; Section A is explored without stopping on straight cells, and the line is followed until it
-ends. Per-module detail is in [`modules/`](modules/).
+`WaitStart -> SenseFront -> TurnAround -> SenseBack -> Explore -> Bridge -> LineFollow -> Done`, any
+phase to `Fault`; Section A is explored without stopping on straight cells until the IR array reports
+the marker, the way out is straight on across the gap, and the line is followed from there. Per-module detail is in [`modules/`](modules/).
 
 The control layer is **only verified in simulation**: the host suites run the whole stack against a
 simulated arena, and the robot-specific values it needs are `<<TBD>>` placeholders in `RobotSpec.h`
