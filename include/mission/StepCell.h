@@ -18,7 +18,10 @@
 #include <stdint.h>
 
 #include "motion/MotionPrimitives.h"
-#include "RobotSpec.h"
+#include "spec/Competition.h"
+#include "spec/Motion.h"
+#include "spec/Ultrasonic.h"
+#include "spec/WallFollow.h"
 #include "sense/WallSense.h"
 
 struct StepCellParams {

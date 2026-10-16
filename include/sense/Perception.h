@@ -16,7 +16,12 @@
 #include "sense/LineView.h"
 #include "motion/MotionTypes.h"
 #include "sense/Odometry.h"
-#include "RobotSpec.h"
+#include "spec/Drivetrain.h"
+#include "spec/FloorPattern.h"
+#include "spec/Imu.h"
+#include "spec/LineSensor.h"
+#include "spec/Platform.h"
+#include "spec/WallFollow.h"
 #include "core/RobotState.h"
 #include "sense/Tilt.h"
 #include "sense/WallSense.h"
@@ -33,7 +38,7 @@ struct Perception {
     bool startPressed = false;
 };
 
-// The defaults are the values in RobotSpec.h.
+// The defaults are the values in the spec/ headers.
 struct PerceiveParams {
     float mmPerCount = MM_PER_ENCODER_COUNT;
     uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;

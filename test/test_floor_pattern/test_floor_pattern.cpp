@@ -7,6 +7,7 @@
 #include <unity.h>
 
 #include "sense/FloorPattern.h"
+#include "spec/LineSensor.h"
 
 static PatternParams params()
 {

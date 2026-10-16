@@ -5,7 +5,7 @@
 #include <unity.h>
 
 #include "motion/MotorDrive.h"
-#include "RobotSpec.h"
+#include "spec/Drivetrain.h"
 
 static void test_zero_is_both_legs_off()
 {

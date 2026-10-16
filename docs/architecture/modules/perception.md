@@ -12,7 +12,7 @@
   store at boot; this also works out which channels it accepts (`lineCalibrationUsable`).
 - `perceiverSetLevel(pc, counts)` - the forward-axis reading on level ground, from `InclineLevel`.
 - `PerceiveParams` - `mmPerCount`, `dtMs`, `frozenMs`, `frontFrozenMm`, `wall`, `irPitchMm`. Every default is the
-  value in `RobotSpec.h`, so a default-constructed one is the spec.
+  value in the `spec/` headers, so a default-constructed one is the spec.
 - `perceive(pc, state, params, out)` - fills `Perception`: `motion` (distance, speed, heading, yaw
   rate), `inclineCounts`, `walls` ([wall_sense](wall_sense.md)), `sideBlindMs`, `line`, `floor` ([floor_pattern](floor_pattern.md): black, white, air or mixed)
   ([line_view](line_view.md)), `startPressed`.

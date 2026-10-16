@@ -11,7 +11,7 @@
 
 #include "motion/MotorDrive.h"
 #include "config/RobotConfig.h"
-#include "RobotSpec.h"
+#include "spec/Drivetrain.h"
 
 // The register code below is hand-mapped to these pins.
 static_assert(PIN_MOTOR_L_RPWM == 6 && PIN_MOTOR_L_LPWM == 7 && PIN_MOTOR_L_EN == 8,

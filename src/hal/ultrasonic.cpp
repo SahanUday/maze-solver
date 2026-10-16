@@ -12,7 +12,8 @@
 #include <util/delay.h>
 
 #include "config/RobotConfig.h"
-#include "RobotSpec.h"
+#include "spec/Platform.h"
+#include "spec/Ultrasonic.h"
 #include "sense/UltrasonicMath.h"
 
 static_assert(US_SENSOR_COUNT == 3, "front, left, right");

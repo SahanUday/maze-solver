@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#include "RobotSpec.h"
+#include "spec/Competition.h"
 
 namespace maze
 {

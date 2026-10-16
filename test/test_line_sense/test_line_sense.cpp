@@ -7,6 +7,7 @@
 #include <unity.h>
 
 #include "sense/LineSense.h"
+#include "spec/LineSensor.h"
 
 static const uint16_t kWhite[IR_CHANNEL_COUNT] = {983, 973, 976, 976, 974, 986, 982, 990};
 static const uint16_t kBlack[IR_CHANNEL_COUNT] = {1019, 1019, 1019, 1019, 1019, 1019, 1019, 1019};

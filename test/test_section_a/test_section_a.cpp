@@ -9,6 +9,12 @@
 
 #include "mission/SectionA.h"
 #include "../support/world.h"
+#include "spec/Competition.h"
+#include "spec/Drivetrain.h"
+#include "spec/Imu.h"
+#include "spec/Mission.h"
+#include "spec/Motion.h"
+#include "spec/Platform.h"
 
 using world::World;
 

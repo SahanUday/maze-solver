@@ -12,10 +12,10 @@
 #include <stdint.h>
 
 #include "motion/Heading.h"
-#include "RobotSpec.h"
+#include "spec/WallFollow.h"
 #include "core/RobotState.h"
 
-// The defaults are the values in RobotSpec.h.
+// The defaults are the values in spec/WallFollow.h.
 struct WallParams {
     uint16_t sideMm = WALL_PRESENT_SIDE_MM;      // side reading below this = wall
     uint16_t frontMm = WALL_PRESENT_FRONT_MM;    // front reading below this = wall

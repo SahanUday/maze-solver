@@ -27,7 +27,15 @@
 #include "motion/MotionControl.h"
 #include "motion/MotionPrimitives.h"
 #include "sense/Perception.h"
-#include "RobotSpec.h"
+#include "spec/Drivetrain.h"
+#include "spec/FloorPattern.h"
+#include "spec/Imu.h"
+#include "spec/LineFollow.h"
+#include "spec/LineSensor.h"
+#include "spec/Mission.h"
+#include "spec/Motion.h"
+#include "spec/Platform.h"
+#include "spec/Ultrasonic.h"
 #include "mission/StepCell.h"
 
 constexpr float MARKER_STILL_MM_S = 5.0f; // below this the robot has stopped
@@ -78,7 +86,7 @@ struct SectionAParams {
     uint16_t dtMs = CONTROL_LOOP_PERIOD_MS;
 };
 
-// Every parameter at its RobotSpec.h value: what the robot runs with.
+// Every parameter at its spec/ value: what the robot runs with.
 inline SectionAParams sectionAParams()
 {
     SectionAParams p;

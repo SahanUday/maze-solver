@@ -61,7 +61,7 @@ in the readings alone can tell the two apart.
 
 - `headingUpdate()` is a no-op until `gyroBiasFinish()` has returned `true`.
 - A bias holds only for the chip, its temperature and the mounting it was taken
-  on. It is captured at run time and never written into `RobotSpec.h`.
+  on. It is captured at run time and never written into `spec/Imu.h`.
 - `deg` stays in [-180, 180), so it never grows without bound; +180 wraps to
   -180.
 - The sum cannot overflow `int32_t`: `GYRO_BIAS_SAMPLES` (1000) times the full

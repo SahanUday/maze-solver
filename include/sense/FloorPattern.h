@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #include "sense/LineView.h"
-#include "RobotSpec.h"
+#include "spec/LineSensor.h"
 
 enum class FloorClass : uint8_t {
     Black, // bare maze floor (or a marker's black box)

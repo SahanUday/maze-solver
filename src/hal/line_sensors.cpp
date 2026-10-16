@@ -9,7 +9,8 @@
 #include <util/delay.h>
 
 #include "config/RobotConfig.h"
-#include "RobotSpec.h"
+#include "spec/LineSensor.h"
+#include "spec/Platform.h"
 
 namespace
 {
@@ -47,7 +48,7 @@ static_assert(CPU_HZ / IR_ADC_PRESCALER <= 1000000UL,
               "IR_ADC_PRESCALER gives an ADC clock above 1 MHz");
 
 // _delay_us() below is computed from the F_CPU macro, the ADC clock from CPU_HZ.
-static_assert(CPU_HZ == F_CPU, "CPU_HZ in RobotSpec.h must match the F_CPU the build uses");
+static_assert(CPU_HZ == F_CPU, "CPU_HZ in spec/Platform.h must match the F_CPU the build uses");
 
 constexpr uint8_t kAdcPrescalerBits = adcPrescalerBits(IR_ADC_PRESCALER);
 

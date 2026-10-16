@@ -11,7 +11,10 @@
 
 #include "motion/Heading.h"
 #include "config/RobotConfig.h"
-#include "RobotSpec.h"
+#include "spec/Imu.h"
+#include "spec/LineSensor.h"
+#include "spec/Mission.h"
+#include "spec/Platform.h"
 #include "core/RobotState.h"
 #include "mission/RunLoop.h"
 #include "core/Scheduler.h"

@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#include "RobotSpec.h"
+#include "spec/LineSensor.h"
 
 struct LineView {
     bool valid = false;    // at least one usable channel; otherwise the three below are all false

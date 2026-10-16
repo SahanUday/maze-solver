@@ -10,7 +10,8 @@
 #include <util/delay.h>
 
 #include "config/RobotConfig.h"
-#include "RobotSpec.h"
+#include "spec/Imu.h"
+#include "spec/Platform.h"
 
 namespace
 {
@@ -43,7 +44,7 @@ constexpr uint8_t kValues = kBurstBytes / 2;
 static_assert(IMU_GYRO_AXIS_YAW < 3, "IMU_GYRO_AXIS_YAW indexes ImuRaw::gyro");
 static_assert(kBurstBytes <= BUFFER_LENGTH, "the burst must fit one Wire transfer");
 // _delay_ms() below is computed from the F_CPU macro.
-static_assert(CPU_HZ == F_CPU, "CPU_HZ in RobotSpec.h must match the F_CPU the build uses");
+static_assert(CPU_HZ == F_CPU, "CPU_HZ in spec/Platform.h must match the F_CPU the build uses");
 
 bool writeRegister(uint8_t reg, uint8_t value)
 {

@@ -6,6 +6,7 @@
 #include <unity.h>
 
 #include "sense/UltrasonicMath.h"
+#include "spec/Ultrasonic.h"
 
 static void test_zero_ticks_is_invalid()
 {

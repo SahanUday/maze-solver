@@ -22,7 +22,7 @@
 #include <unity.h>
 
 #include "Maze.h"
-#include "RobotSpec.h"
+#include "spec/Competition.h"
 
 using namespace maze;
 
