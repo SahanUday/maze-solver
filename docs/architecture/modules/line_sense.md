@@ -29,7 +29,7 @@ mask sets a channel above `LINE_MASK_ON_PCT` of its range, clears it below
 ## Invariants
 
 - A channel needs a range of at least `LINE_CAL_MIN_SPAN_COUNTS` (30); a run that saw
-  only one colour leaves its channels unusable. `RobotSpec.h` asserts that the hysteresis band of
+  only one colour leaves its channels unusable. `spec/LineSensor.h` asserts that the hysteresis band of
   that span is at least 6 sigma of the ADC noise, below which the mask flickers at a line edge.
 - A calibration holds only for the mount height, floor and lighting it was taken
   in: run it again after changing any of them.

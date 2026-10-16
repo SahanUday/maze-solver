@@ -7,6 +7,8 @@
 #include <unity.h>
 
 #include "motion/Heading.h"
+#include "spec/Imu.h"
+#include "spec/Platform.h"
 
 // A bias calibration of `samples` readings, each `counts`.
 static GyroBias calibrated(int16_t counts, uint16_t samples)

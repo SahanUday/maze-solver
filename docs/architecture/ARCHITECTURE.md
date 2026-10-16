@@ -62,7 +62,7 @@ register or an Arduino I/O call directly:
 ## Fixed-period control loop
 
 `src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
-every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`). The
+every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/spec/Platform.h`). The
 tick-due/drift-resync logic itself lives in `include/core/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
@@ -92,7 +92,7 @@ with function bodies in it must appear in the coverage report or declare
 `include/` is grouped by layer and headers are included by path
 (`#include "motion/Heading.h"`; [ADR 0012](decisions/0012-group-headers-by-layer.md)):
 `config/` (pins), `core/` (`RobotState`, `Scheduler`), `sense/`, `motion/`,
-`mission/`. `RobotSpec.h` is at the top of `include/`.
+`mission/`, and `spec/` for the constants (below).
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
@@ -174,9 +174,11 @@ pin.
 
 `include/config/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
 the `A0`-`A15` pin-name macros — fine, since it's only ever consumed by
-`env:mega`-only code. `include/RobotSpec.h` holds everything else (geometry,
-timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
-include it directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
+`env:mega`-only code. `include/spec/` holds everything else (geometry, timing, motion, control, PID gains),
+one header per module: `Competition`, `Platform`, `Drivetrain`, `Imu`, `LineSensor`,
+`FloorPattern`, `Ultrasonic`, `Motion`, `WallFollow`, `LineFollow`, `Mission`. A file
+includes only the ones it uses. They are Arduino-free, so `lib/maze` can include
+`spec/Competition.h` directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
 without pulling in a framework the host build doesn't have.
 
 Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
@@ -189,7 +191,7 @@ happen to read.
 Motion control, perception and the cell step are pure headers in `include/`, no `Arduino.h`, tested on
 the host (the motion headers against a simulated plant, `test/support/sim.h`). Nothing
 calls them from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measured values are
-in `include/RobotSpec.h`. The line view has not been run on the robot (the IR array is not calibrated).
+in `include/spec/`. The line view has not been run on the robot (the IR array is not calibrated).
 
 | Piece | File | Role |
 |---|---|---|

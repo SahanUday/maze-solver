@@ -6,9 +6,9 @@ tbd = load_script("tbd-report.py")
 
 LISTING = """6 outstanding TBD placeholder(s):
 
-include/RobotSpec.h:5://  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
-include/RobotSpec.h:53:// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
-include/RobotSpec.h:67:// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
+include/spec/Drivetrain.h:5://  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
+include/spec/Drivetrain.h:53:// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
+include/spec/Drivetrain.h:67:// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
 scripts/check-ram-budget.sh:5:# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement.
 include/config/RobotConfig.h:9://  `<<TBD HARDWARE>>` = not yet measured. See scripts/list-tbds.sh.
 """
@@ -17,7 +17,7 @@ include/config/RobotConfig.h:9://  `<<TBD HARDWARE>>` = not yet measured. See sc
 class ParseTest(unittest.TestCase):
     def test_real_placeholders_only_sorted_by_kind(self):
         items = tbd.parse(LISTING)
-        self.assertEqual([(i["kind"], i["file"], i["line"]) for i in items], [("CALIBRATION", "include/RobotSpec.h", 67), ("FIRST-ISR", "scripts/check-ram-budget.sh", 5), ("HARDWARE", "include/RobotSpec.h", 53)])
+        self.assertEqual([(i["kind"], i["file"], i["line"]) for i in items], [("CALIBRATION", "include/spec/Drivetrain.h", 67), ("FIRST-ISR", "scripts/check-ram-budget.sh", 5), ("HARDWARE", "include/spec/Drivetrain.h", 53)])
 
     def test_description_is_cleaned_up(self):
         what = {i["kind"]: i["what"] for i in tbd.parse(LISTING)}
@@ -35,21 +35,21 @@ class RenderTest(unittest.TestCase):
     def test_summary_and_table(self):
         text = tbd.render(self.items)
         self.assertIn("**3 open**: 1 CALIBRATION · 1 FIRST-ISR · 1 HARDWARE", text)
-        self.assertIn("| HARDWARE | `include/RobotSpec.h:53` | Wheel / drivetrain geometry |", text)
+        self.assertIn("| HARDWARE | `include/spec/Drivetrain.h:53` | Wheel / drivetrain geometry |", text)
         self.assertNotIn("This PR:", text)  # no base, no comparison
 
     def test_links_when_repo_and_sha_given(self):
         text = tbd.render(self.items, repo="o/r", sha="abc")
-        self.assertIn("[include/RobotSpec.h:53](https://github.com/o/r/blob/abc/include/RobotSpec.h#L53)", text)
+        self.assertIn("[include/spec/Drivetrain.h:53](https://github.com/o/r/blob/abc/include/spec/Drivetrain.h#L53)", text)
 
     def test_added_and_resolved_are_compared_without_line_numbers(self):
         base = [dict(i) for i in self.items]
         base[2]["line"] = 99  # same placeholder, moved: not a change
-        base.append({"file": "include/RobotSpec.h", "line": 70, "kind": "HARDWARE", "what": "Old thing"})
+        base.append({"file": "include/spec/Drivetrain.h", "line": 70, "kind": "HARDWARE", "what": "Old thing"})
         head = self.items + [{"file": "src/hal/x.cpp", "line": 3, "kind": "HARDWARE", "what": "New thing"}]
         text = tbd.render(head, base)
         self.assertIn("**1 added**, **1 resolved**", text)
-        self.assertIn("Resolved here: Old thing (`include/RobotSpec.h`)", text)
+        self.assertIn("Resolved here: Old thing (`include/spec/Drivetrain.h`)", text)
         self.assertIn("New thing (new) |", text)
         self.assertNotIn("Wheel / drivetrain geometry (new)", text)
 

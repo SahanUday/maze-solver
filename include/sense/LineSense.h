@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#include "RobotSpec.h"
+#include "spec/LineSensor.h"
 
 struct LineCalibration {
     uint16_t white[IR_CHANNEL_COUNT]; // lowest count seen

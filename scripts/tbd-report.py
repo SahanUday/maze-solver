@@ -13,7 +13,7 @@ Informational: it never fails.
   --repo/--sha make each entry a link to that line on GitHub
 
 Lines that only *describe* the marker (it sits inside backticks, as in the
-legend at the top of RobotSpec.h) are not placeholders and are skipped.
+legend at the top of each spec header) are not placeholders and are skipped.
 Exit status: 0, or 2 if list-tbds.sh cannot be run.
 """
 

@@ -1,6 +1,6 @@
 // ============================================================================
 //  RobotConfig.h  --  single source of truth for pin assignments.
-//  Non-pin constants live in RobotSpec.h.
+//  Non-pin constants live in the spec/ headers.
 //
 //  Rules:
 //    1. Every pin number lives HERE.
@@ -31,7 +31,7 @@
 // ---- Encoders ------------------------------------------------------------
 // JGA25-370 Hall quadrature, 4x decoded on all four transitions. Each motor's A/B sit
 // on one AVR port with A on the LOWER bit, so one PINx read yields (B<<1)|A.
-// "+" = A leads B; flip per side with ENC_*_INVERT in RobotSpec.h.
+// "+" = A leads B; flip per side with ENC_*_INVERT in spec/Drivetrain.h.
 constexpr uint8_t PIN_ENC_L_A = 2;  // PE4, INT4
 constexpr uint8_t PIN_ENC_L_B = 3;  // PE5, INT5
 constexpr uint8_t PIN_ENC_R_A = 19; // PD2, INT2

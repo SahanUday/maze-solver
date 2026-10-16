@@ -12,7 +12,7 @@ The Section A mission: from any tile, explore until the approach marker and stop
   motion controller's integrals. Static; about 400 B.
 - `sectionAReset(ms)`, `sectionAFail(ms, code)` - the caller fails a run for a precondition it
   found missing (`NoImu`).
-- `sectionAParams()` - every parameter at its `RobotSpec.h` value (`SECTION_A_*`, the plan, the
+- `sectionAParams()` - every parameter at its `spec/` value (`spec/Mission.h` and the others) (`SECTION_A_*`, the plan, the
   controller gains). The caller may set `wallsOnly`, `finishAtStart`.
 - `sectionAStep(ms, params, perception)` - one tick; returns the `DriveCommand`.
 - `sectionATakeHeadingFix(ms)` - degrees to subtract from the gyro heading

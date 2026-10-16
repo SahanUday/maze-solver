@@ -15,7 +15,7 @@ a `MoveStatus` (`Running`, `Done`, `Stuck`). It never touches the motors.
 - `Turn` - `turnBegin(t, fb, targetHeadingDeg, deltaDeg)`, `turnStep(...)`. A 180 is ambiguous
   from the headings alone, so both are given.
 - `PlanParams` - accelerations, rates, tolerances, settle time, stuck detection. From
-  `RobotSpec.h`: `ACCEL_MM_S2`, `TURN_RATE_MAX_DPS`, `TURN_ACCEL_DPS2`, `STEP_TOLERANCE_MM`,
+  `spec/Motion.h`: `ACCEL_MM_S2`, `TURN_RATE_MAX_DPS`, `TURN_ACCEL_DPS2`, `STEP_TOLERANCE_MM`,
   `TURN_TOLERANCE_DEG`, `TURN_SETTLE_MS`, `PROGRESS_MIN_MM`, `PROGRESS_MIN_DEG`, `PATIENCE_MS`.
 
 ## How it works

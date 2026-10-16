@@ -6,6 +6,7 @@
 #include <unity.h>
 
 #include "sense/LineView.h"
+#include "spec/LineSensor.h"
 
 constexpr float PITCH = 10.0f;
 

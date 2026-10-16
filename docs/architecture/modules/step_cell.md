@@ -7,7 +7,7 @@ Drive from one cell centre to the next, reading its walls on the way. Pure logic
 
 - `StepCellParams` - `PlanParams`, `WallParams`, and pitch, cruise speed, `sampleLeadMm`,
   `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, `echoMs`, `blindMs`, `snapMm`,
-  `snapGain`, `snapMinDeg`, `snapMaxDeg`, which default to `RobotSpec.h`.
+  `snapGain`, `snapMinDeg`, `snapMaxDeg`, which default to `spec/WallFollow.h`.
 - `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
 - `stepCellContinue(sc, params)` - the next cell is straight on: roll through this centre.
@@ -76,7 +76,7 @@ A measured error over `snapMaxDeg` is not taken as the gyro's.
 
 ## Status
 
-Host tests, 100% line coverage; `RobotSpec.h` asserts the sampling lead covers the braking
+Host tests, 100% line coverage; `spec/WallFollow.h` asserts the sampling lead covers the braking
 distance.
 
 The host robot model (the real perception, step and motion chain, in random 6x6 mazes under a

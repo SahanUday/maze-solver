@@ -15,7 +15,8 @@
 
 #include "motion/DriveCommand.h"
 #include "sense/Perception.h"
-#include "RobotSpec.h"
+#include "spec/Competition.h"
+#include "spec/Mission.h"
 #include "core/RobotState.h"
 #include "mission/SectionA.h"
 

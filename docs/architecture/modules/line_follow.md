@@ -8,7 +8,7 @@ first line view past the gap ([floor_pattern](floor_pattern.md)).
 ## Interface
 
 - `LineParams` - gains, speed, acceleration, slowdown, search rate and speed, lost timeout, end
-  distance, ramp incline. Every value is in `RobotSpec.h` (`KP_LINE`, `LINE_SPEED_MM_S`, ...).
+  distance, ramp incline. Every value is in `spec/LineFollow.h` (`KP_LINE`, `LINE_SPEED_MM_S`, ...).
 - `lineFollowBegin(lf, fb, alreadyOnLine)`, `lineFollowStep(lf, p, fb, view, inclineCounts, dtMs,
   out)` - returns `Following`, `Searching`, `Ended` or `Lost`, and fills a `MotionTarget`.
 

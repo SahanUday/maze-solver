@@ -16,7 +16,6 @@
 #include "sense/LineView.h"
 #include "motion/MotionProfile.h"
 #include "motion/MotionTypes.h"
-#include "RobotSpec.h"
 
 struct LineParams {
     float kp = 0.0f; // deg of heading offset per mm of line error

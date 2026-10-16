@@ -7,7 +7,7 @@ tested by `test/test_wall_sense/`. The readings come from [ultrasonic](ultrasoni
 ## Interface
 
 - `WallParams` - presence thresholds, the single-wall centre distance, the pair tolerance, `kp`,
-  `ki`, the bias limits, `steerMaxDeg`. The defaults are the `RobotSpec.h` values
+  `ki`, the bias limits, `steerMaxDeg`. The defaults are the `spec/WallFollow.h` values
   (`WALL_PRESENT_*`, `WALL_CENTER_DIST_MM`, `WALL_PAIR_TOL_MM`, `KP_WALL`, `KI_WALL`,
   `WALL_BIAS_*`, `STEER_MAX_DEG`).
 - `wallView(state, params)` - one tick's `WallView`: per sensor `valid`, `mm`, and
@@ -56,6 +56,6 @@ has to decide treats it as a wall.
 
 ## Status
 
-Measured on the robot (2026-10-14): thresholds and centre distance in `RobotSpec.h`; `KP_WALL` held
+Measured on the robot (2026-10-14): thresholds and centre distance in `spec/WallFollow.h`; `KP_WALL` held
 the robot within about +-10 mm of the centre. `KI_WALL`, the bias limits, the pair tolerance and the
 frozen time come from a host model of the corridor and the sensors, not from the robot.

@@ -10,7 +10,12 @@
 #include "motion/Heading.h"
 #include "sense/LineSense.h"
 #include "sense/Perception.h"
-#include "RobotSpec.h"
+#include "spec/Drivetrain.h"
+#include "spec/Imu.h"
+#include "spec/LineSensor.h"
+#include "spec/Motion.h"
+#include "spec/Platform.h"
+#include "spec/Ultrasonic.h"
 #include "core/RobotState.h"
 
 namespace world

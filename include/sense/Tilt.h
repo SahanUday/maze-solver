@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 
-#include "RobotSpec.h"
+#include "spec/Imu.h"
 #include "core/RobotState.h"
 
 static_assert(IMU_ACCEL_AXIS_FORWARD < 3, "IMU_ACCEL_AXIS_FORWARD indexes ImuRaw::accel");

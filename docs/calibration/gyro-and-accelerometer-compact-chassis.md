@@ -1,7 +1,7 @@
 # Gyro and accelerometer on the compact chassis
 
 What was measured on the compact chassis, 2026-10-13 and 14, and what it decided. The
-constants these feed are in `include/RobotSpec.h`; the code that uses them is described in
+constants these feed are in `include/spec/Imu.h`; the code that uses them is described in
 [heading](../architecture/modules/heading.md) and [imu](../architecture/modules/imu.md).
 
 **Provenance.** The raw logs were not kept: the working directory they were written to was

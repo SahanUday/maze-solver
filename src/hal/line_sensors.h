@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "RobotSpec.h"
+#include "spec/LineSensor.h"
 
 // Takes over the ADC and PORTF, turns the emitters on and waits for them to settle. Call once.
 void lineSensorsInit();
