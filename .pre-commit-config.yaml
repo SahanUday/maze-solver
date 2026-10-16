@@ -34,7 +34,7 @@ repos:
         name: pin map (duplicate pins, notes, static_asserts, peripheral owners)
         entry: scripts/check-pin-map.py
         language: script
-        files: ^(include/RobotConfig\.h|src/.*)$
+        files: ^(include/config/RobotConfig\.h|src/.*)$
         pass_filenames: false
       - id: isr-atomicity
         name: ISR atomicity (multi-byte volatiles only inside ISR / ATOMIC_BLOCK)

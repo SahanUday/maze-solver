@@ -63,7 +63,7 @@ register or an Arduino I/O call directly:
 
 `src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
 every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`). The
-tick-due/drift-resync logic itself lives in `include/Scheduler.h`
+tick-due/drift-resync logic itself lives in `include/core/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
 `env:native`'s test suite instead of only being checked by reading it.
@@ -88,6 +88,11 @@ Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
 `include/` so `env:native` can test it. A header there
 with function bodies in it must appear in the coverage report or declare
 `// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
+
+`include/` is grouped by layer and headers are included by path
+(`#include "motion/Heading.h"`; [ADR 0012](decisions/0012-group-headers-by-layer.md)):
+`config/` (pins), `core/` (`RobotState`, `Scheduler`), `sense/`, `motion/`,
+`mission/`. `RobotSpec.h` is at the top of `include/`.
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
@@ -155,7 +160,7 @@ echo pins, and `PINK` then reads 0 for them.
 
 ## Driver/algorithm boundary — RobotState
 
-`include/RobotState.h` is the only channel between hardware and logic.
+`include/core/RobotState.h` is the only channel between hardware and logic.
 Drivers (called from `readSensors()`) are the only code that writes it, once
 per tick. Algorithm code (`runAlgorithm()`, and everything in `lib/maze`)
 only reads it — never a pin, `analogRead`, `digitalWrite`, or `millis()`
@@ -167,7 +172,7 @@ pin.
 
 ## Config split: pins vs. spec
 
-`include/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
+`include/config/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
 the `A0`-`A15` pin-name macros — fine, since it's only ever consumed by
 `env:mega`-only code. `include/RobotSpec.h` holds everything else (geometry,
 timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
@@ -188,20 +193,20 @@ in `include/RobotSpec.h`. The line view has not been run on the robot (the IR ar
 
 | Piece | File | Role |
 |---|---|---|
-| Odometry | `include/Odometry.h` | encoder counts to distance and speed |
-| Profile | `include/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
-| Controller | `include/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
-| Moves | `include/MotionPrimitives.h` | straight run along a held heading; in-place turn |
-| Output | `include/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
-| Perception | `include/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
-| Cell step | `include/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
-| Section A mission | `include/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the approach marker, drive on over the gap and hand over to the line follower |
-| Run loop | `include/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
-| Wall sensing | `include/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
-| Incline | `include/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
-| Line view | `include/LineView.h` | one sweep of the IR array to where the line is |
-| Line follower | `include/LineFollow.h` | steers on the line view's centroid as a heading offset; searches for a lost line toward the side it was last seen; ignores an all-white view on the ramp |
-| Floor pattern | `include/FloorPattern.h` | the IR array's floor class (black, white, air, mixed) along the path: the approach marker and the gap before the ramp |
+| Odometry | `include/sense/Odometry.h` | encoder counts to distance and speed |
+| Profile | `include/motion/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
+| Controller | `include/motion/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
+| Moves | `include/motion/MotionPrimitives.h` | straight run along a held heading; in-place turn |
+| Output | `include/motion/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
+| Perception | `include/sense/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
+| Cell step | `include/mission/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
+| Section A mission | `include/mission/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the approach marker, drive on over the gap and hand over to the line follower |
+| Run loop | `include/mission/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
+| Wall sensing | `include/sense/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
+| Incline | `include/sense/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
+| Line view | `include/sense/LineView.h` | one sweep of the IR array to where the line is |
+| Line follower | `include/motion/LineFollow.h` | steers on the line view's centroid as a heading offset; searches for a lost line toward the side it was last seen; ignores an all-white view on the ramp |
+| Floor pattern | `include/sense/FloorPattern.h` | the IR array's floor class (black, white, air, mixed) along the path: the approach marker and the gap before the ramp |
 
 ## Dual build target
 

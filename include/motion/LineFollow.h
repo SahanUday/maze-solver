@@ -12,10 +12,10 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
-#include "LineView.h"
-#include "MotionProfile.h"
-#include "MotionTypes.h"
+#include "motion/Heading.h"
+#include "sense/LineView.h"
+#include "motion/MotionProfile.h"
+#include "motion/MotionTypes.h"
 #include "RobotSpec.h"
 
 struct LineParams {

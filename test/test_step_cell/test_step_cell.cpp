@@ -7,7 +7,7 @@
 #include <initializer_list>
 #include <unity.h>
 
-#include "StepCell.h"
+#include "mission/StepCell.h"
 #include "../support/sim.h"
 
 constexpr uint16_t DT_MS = 10;

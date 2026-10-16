@@ -4,9 +4,9 @@
 
 #include <math.h>
 
-#include "Heading.h"
-#include "MotionControl.h"
-#include "MotionPrimitives.h"
+#include "motion/Heading.h"
+#include "motion/MotionControl.h"
+#include "motion/MotionPrimitives.h"
 
 struct Sim {
     static constexpr float MM_S_PER_DUTY = 0.5f; // wheel speed per duty count

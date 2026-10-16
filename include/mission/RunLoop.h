@@ -13,11 +13,11 @@
 
 #include <stdint.h>
 
-#include "DriveCommand.h"
-#include "Perception.h"
+#include "motion/DriveCommand.h"
+#include "sense/Perception.h"
 #include "RobotSpec.h"
-#include "RobotState.h"
-#include "SectionA.h"
+#include "core/RobotState.h"
+#include "mission/SectionA.h"
 
 struct RunLoop {
     Perceiver perceiver;

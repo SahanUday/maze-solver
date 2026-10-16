@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <unity.h>
 
-#include "RunLoop.h"
+#include "mission/RunLoop.h"
 #include "../support/world.h"
 
 using world::World;

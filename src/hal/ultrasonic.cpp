@@ -11,9 +11,9 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
-#include "RobotConfig.h"
+#include "config/RobotConfig.h"
 #include "RobotSpec.h"
-#include "UltrasonicMath.h"
+#include "sense/UltrasonicMath.h"
 
 static_assert(US_SENSOR_COUNT == 3, "front, left, right");
 static_assert(US_SLOT_MS % CONTROL_LOOP_PERIOD_MS == 0, "slot must be whole ticks");

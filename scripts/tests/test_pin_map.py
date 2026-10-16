@@ -9,7 +9,7 @@ from support import Tree, load_script
 
 pin_map = load_script("check-pin-map.py")
 
-CONFIG = "include/RobotConfig.h"
+CONFIG = "include/config/RobotConfig.h"
 
 
 def config(*lines):

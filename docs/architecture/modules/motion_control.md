@@ -1,7 +1,7 @@
 # motion_control
 
 Turns a `MotionTarget` and a `MotionFeedback` into left and right duty. Pure logic in
-`include/MotionControl.h` and `MotionTypes.h`, tested by `test/test_motion_control/`.
+`include/motion/MotionControl.h` and `MotionTypes.h`, tested by `test/test_motion_control/`.
 `DriveCommand.h` is the struct a caller hands to the motors.
 
 ## Interface

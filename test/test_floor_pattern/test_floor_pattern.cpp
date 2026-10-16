@@ -6,7 +6,7 @@
 
 #include <unity.h>
 
-#include "FloorPattern.h"
+#include "sense/FloorPattern.h"
 
 static PatternParams params()
 {

@@ -17,9 +17,9 @@
 #include <math.h>
 #include <stdint.h>
 
-#include "MotionPrimitives.h"
+#include "motion/MotionPrimitives.h"
 #include "RobotSpec.h"
-#include "WallSense.h"
+#include "sense/WallSense.h"
 
 struct StepCellParams {
     PlanParams plan;

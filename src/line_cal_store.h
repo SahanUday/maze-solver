@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "LineSense.h"
+#include "sense/LineSense.h"
 
 // False if nothing valid is stored: never written, damaged, or no channel usable.
 bool lineCalLoad(LineCalibration &cal);

@@ -1,7 +1,7 @@
 # motion_profile
 
 Trapezoid speed profile for one axis, distance (mm, mm/s) or angle (deg, deg/s). Pure logic in
-`include/MotionProfile.h`, tested by `test/test_motion_profile/`.
+`include/motion/MotionProfile.h`, tested by `test/test_motion_profile/`.
 
 ## Interface
 

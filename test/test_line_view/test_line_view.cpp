@@ -5,7 +5,7 @@
 #include <initializer_list>
 #include <unity.h>
 
-#include "LineView.h"
+#include "sense/LineView.h"
 
 constexpr float PITCH = 10.0f;
 

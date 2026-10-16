@@ -4,7 +4,7 @@
 
 #include <unity.h>
 
-#include "MotionControl.h"
+#include "motion/MotionControl.h"
 
 static MotionControlParams params()
 {

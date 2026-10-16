@@ -6,7 +6,7 @@
 
 #include <unity.h>
 
-#include "Heading.h"
+#include "motion/Heading.h"
 
 // A bias calibration of `samples` readings, each `counts`.
 static GyroBias calibrated(int16_t counts, uint16_t samples)

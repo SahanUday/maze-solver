@@ -2,19 +2,19 @@
 //  main.cpp  --  fixed-period control loop scheduler.
 //  Ticks at CONTROL_LOOP_PERIOD_MS: readSensors() then runAlgorithm().
 //  Hardware is reached only through src/hal/* drivers - see RobotState.h.
-//  The algorithm is the Section A run (include/RunLoop.h): after the gyro is zeroed at power-up
-//  the robot explores from where it stands until the approach marker, or every reachable tile
-//  without a line calibration.
+//  The algorithm is the Section A run (include/mission/RunLoop.h): after the gyro is zeroed at
+//  power-up the robot explores from where it stands until the approach marker, or every reachable
+//  tile without a line calibration.
 // ============================================================================
 
 #include <Arduino.h>
 
-#include "Heading.h"
-#include "RobotConfig.h"
+#include "motion/Heading.h"
+#include "config/RobotConfig.h"
 #include "RobotSpec.h"
-#include "RobotState.h"
-#include "RunLoop.h"
-#include "Scheduler.h"
+#include "core/RobotState.h"
+#include "mission/RunLoop.h"
+#include "core/Scheduler.h"
 #include "hal/encoders.h"
 #include "hal/imu.h"
 #include "hal/line_sensors.h"

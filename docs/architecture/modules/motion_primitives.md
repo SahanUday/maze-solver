@@ -1,7 +1,7 @@
 # motion_primitives
 
 Two basic moves: a straight run along a held heading, and an in-place turn. Pure logic in
-`include/MotionPrimitives.h`, tested by `test/test_motion_primitives/` against the simulated
+`include/motion/MotionPrimitives.h`, tested by `test/test_motion_primitives/` against the simulated
 plant in `test/support/sim.h`.
 
 ## Interface

@@ -7,7 +7,7 @@
 #include <initializer_list>
 #include <unity.h>
 
-#include "SectionA.h"
+#include "mission/SectionA.h"
 #include "../support/world.h"
 
 using world::World;

@@ -4,7 +4,7 @@
 
 #include <unity.h>
 
-#include "Scheduler.h"
+#include "core/Scheduler.h"
 
 static void test_not_due_yet()
 {

@@ -8,7 +8,7 @@ conflict. This script finds those collisions from the code itself, so there is
 no second pin table to keep in sync.
 
 Checks (stdlib only, ~100 ms):
-  pins      every PIN_* in include/RobotConfig.h resolves to a real Mega pin
+  pins      every PIN_* in include/config/RobotConfig.h resolves to a real Mega pin
             (literal or A0-A15), no two names share a pin, reserved pins
             (0/1 USB serial, 20/21 I2C) are used only by their owner. A second
             name for an existing pin (`constexpr uint8_t PIN_X = PIN_Y;`) must
@@ -194,7 +194,7 @@ def parse_pins(text: str):
 
 
 def check_pins(root: Path, findings: list[Finding]):
-    rel = "include/RobotConfig.h"
+    rel = "include/config/RobotConfig.h"
     path = root / rel
     if not path.exists():
         return []
@@ -320,7 +320,7 @@ def check_hal(root: Path, findings: list[Finding], pins=()):
         asserted_bits = set().union(*(bits_of[name] for name in covered)) if covered else set()
         asserted_ports = {bit[1] for bit in asserted_bits}
         none_on = f"none of the PIN_* it asserts ({', '.join(sorted(covered))}) is" if covered else "no static_assert in it names a PIN_* that is"
-        fix = "assert the pin from include/RobotConfig.h so moving it breaks the build"
+        fix = "assert the pin from include/config/RobotConfig.h so moving it breaks the build"
 
         flagged_ports = set()
         for bit, (path, ln) in sorted(bits_used.items()):

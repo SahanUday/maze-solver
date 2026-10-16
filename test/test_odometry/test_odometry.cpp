@@ -4,7 +4,7 @@
 
 #include <unity.h>
 
-#include "Odometry.h"
+#include "sense/Odometry.h"
 
 static void test_first_update_only_primes()
 {
