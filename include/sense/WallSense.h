@@ -11,9 +11,9 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
+#include "motion/Heading.h"
 #include "RobotSpec.h"
-#include "RobotState.h"
+#include "core/RobotState.h"
 
 // The defaults are the values in RobotSpec.h.
 struct WallParams {

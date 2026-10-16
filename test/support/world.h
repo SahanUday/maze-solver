@@ -6,12 +6,12 @@
 #include <math.h>
 #include <stdint.h>
 
-#include "DriveCommand.h"
-#include "Heading.h"
-#include "LineSense.h"
-#include "Perception.h"
+#include "motion/DriveCommand.h"
+#include "motion/Heading.h"
+#include "sense/LineSense.h"
+#include "sense/Perception.h"
 #include "RobotSpec.h"
-#include "RobotState.h"
+#include "core/RobotState.h"
 
 namespace world
 {

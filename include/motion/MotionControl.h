@@ -12,8 +12,8 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
-#include "MotionTypes.h"
+#include "motion/Heading.h"
+#include "motion/MotionTypes.h"
 
 // Gains are duty counts per mm, deg, mm/s or deg/s (P, D) and per mm*s or deg*s (I).
 struct MotionControlParams {

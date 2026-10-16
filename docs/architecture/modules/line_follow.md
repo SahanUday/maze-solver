@@ -1,6 +1,6 @@
 # line_follow
 
-Following the black line on the white ramp and bridge tiles. Pure logic in `include/LineFollow.h`,
+Following the black line on the white ramp and bridge tiles. Pure logic in `include/motion/LineFollow.h`,
 tested by `test/test_line_follow/` and, closed loop, by `test/test_section_a/`. It sits on the line
 view ([line_view](line_view.md)); the mission ([section_a](section_a.md)) hands over to it at the
 first line view past the gap ([floor_pattern](floor_pattern.md)).

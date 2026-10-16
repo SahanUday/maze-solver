@@ -10,7 +10,7 @@ include/RobotSpec.h:5://  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet m
 include/RobotSpec.h:53:// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
 include/RobotSpec.h:67:// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
 scripts/check-ram-budget.sh:5:# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement.
-include/RobotConfig.h:9://  `<<TBD HARDWARE>>` = not yet measured. See scripts/list-tbds.sh.
+include/config/RobotConfig.h:9://  `<<TBD HARDWARE>>` = not yet measured. See scripts/list-tbds.sh.
 """
 
 

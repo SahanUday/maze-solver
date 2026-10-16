@@ -13,9 +13,9 @@
 
 #include <stdint.h>
 
-#include "Heading.h"
-#include "MotionProfile.h"
-#include "MotionTypes.h"
+#include "motion/Heading.h"
+#include "motion/MotionProfile.h"
+#include "motion/MotionTypes.h"
 
 struct PlanParams {
     float accelMmS2 = 0.0f;

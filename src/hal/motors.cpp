@@ -9,8 +9,8 @@
 
 #include <avr/io.h>
 
-#include "MotorDrive.h"
-#include "RobotConfig.h"
+#include "motion/MotorDrive.h"
+#include "config/RobotConfig.h"
 #include "RobotSpec.h"
 
 // The register code below is hand-mapped to these pins.

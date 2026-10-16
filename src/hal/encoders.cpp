@@ -11,8 +11,8 @@
 #include <avr/io.h>
 #include <util/atomic.h>
 
-#include "Quadrature.h"
-#include "RobotConfig.h"
+#include "sense/Quadrature.h"
+#include "config/RobotConfig.h"
 #include "RobotSpec.h"
 
 // The register code below is hand-mapped to these pins.

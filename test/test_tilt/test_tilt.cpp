@@ -5,7 +5,7 @@
 #include <math.h>
 #include <unity.h>
 
-#include "Tilt.h"
+#include "sense/Tilt.h"
 
 constexpr int16_t LEVEL = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
 

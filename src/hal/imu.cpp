@@ -9,7 +9,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#include "RobotConfig.h"
+#include "config/RobotConfig.h"
 #include "RobotSpec.h"
 
 namespace

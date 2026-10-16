@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-#include "LineView.h"
+#include "sense/LineView.h"
 #include "RobotSpec.h"
 
 enum class FloorClass : uint8_t {

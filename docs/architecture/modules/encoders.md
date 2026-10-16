@@ -1,7 +1,7 @@
 # encoders
 
 JGA25-370 quadrature encoders, 4x decoded. Code: `src/hal/encoders.{h,cpp}`,
-pure decode in `include/Quadrature.h`. Decisions:
+pure decode in `include/sense/Quadrature.h`. Decisions:
 [0002](../decisions/0002-drive-and-sensing-hardware-allocation.md),
 [0003](../decisions/0003-four-x-quadrature-decoding.md).
 

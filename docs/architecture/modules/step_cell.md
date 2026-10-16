@@ -1,7 +1,7 @@
 # step_cell
 
 Drive from one cell centre to the next, reading its walls on the way. Pure logic in
-`include/StepCell.h`, tested by `test/test_step_cell/` in a simulated corridor.
+`include/mission/StepCell.h`, tested by `test/test_step_cell/` in a simulated corridor.
 
 ## Interface
 

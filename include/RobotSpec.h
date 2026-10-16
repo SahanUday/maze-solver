@@ -183,10 +183,11 @@ constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 86.0f; // wheel axle to the array's
 constexpr bool IR_D1_ON_RIGHT = true;
 
 // ---- Marker and gap on the floor ------------------------------- [MEASURED] --
-// What the array sees along the path out of the maze (include/FloorPattern.h). The approach marker
-// is a white frame around a black box; crossing it along its middle the array saw (three scans on
-// the robot): white 36-42 mm, black 116-119 mm, white 37-41 mm. Then ~20 mm of black strip and the
-// gap before the ramp: every channel at 1016-1023 for ~21 mm (the gap is ~37 mm; its edges blur).
+// What the array sees along the path out of the maze (include/sense/FloorPattern.h). The approach
+// marker is a white frame around a black box; crossing it along its middle the array saw (three
+// scans on the robot): white 36-42 mm, black 116-119 mm, white 37-41 mm. Then ~20 mm of black strip
+// and the gap before the ramp: every channel at 1016-1023 for ~21 mm (the gap is ~37 mm; its edges
+// blur).
 constexpr float MARKER_FRAME_MIN_MM = 25.0f; // each white frame
 constexpr float MARKER_FRAME_MAX_MM = 55.0f;
 // The far frame counts once this much of it is under the array: with the array 86 mm ahead of the

@@ -2,7 +2,7 @@
 
 Gyro bias estimation and yaw integration: the arithmetic that turns the raw
 counts from [imu](imu.md) into `RobotState::headingDeg`. Pure logic in
-`include/Heading.h`: no hardware, no `Arduino.h`, tested on the PC by
+`include/motion/Heading.h`: no hardware, no `Arduino.h`, tested on the PC by
 `test/test_heading/`. Decision:
 [0008](../decisions/0008-mpu6050-heading-and-tilt.md), which places it above the
 HAL for the reason [0006](../decisions/0006-line-calibration-above-the-hal.md)

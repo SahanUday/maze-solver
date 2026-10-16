@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "RobotState.h" // ImuRaw
+#include "core/RobotState.h" // ImuRaw
 
 // Starts the bus, checks WHO_AM_I and configures the chip. Returns false if the
 // sensor does not answer or answers wrongly; nothing else here is usable then.

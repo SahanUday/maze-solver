@@ -1,7 +1,7 @@
 # floor_pattern
 
 What the IR array sees as the robot drives out of the maze: the approach marker and the gap before the
-ramp. Pure logic in `include/FloorPattern.h`, tested by `test/test_floor_pattern/`. It sits on the
+ramp. Pure logic in `include/sense/FloorPattern.h`, tested by `test/test_floor_pattern/`. It sits on the
 line view ([line_view](line_view.md)) and takes the odometer position of the array's sensing line.
 
 ## Interface

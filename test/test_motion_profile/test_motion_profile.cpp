@@ -4,7 +4,7 @@
 
 #include <unity.h>
 
-#include "MotionProfile.h"
+#include "motion/MotionProfile.h"
 
 constexpr float DT = 0.01f;
 

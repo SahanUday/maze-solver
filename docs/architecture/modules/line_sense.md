@@ -1,7 +1,7 @@
 # line_sense
 
 Per-channel calibration, normalization and black/white mask for the IR array
-counts. Pure logic in `include/LineSense.h`: no hardware, tested on the PC by
+counts. Pure logic in `include/sense/LineSense.h`: no hardware, tested on the PC by
 `test/test_line_sense/`. Decision:
 [0006](../decisions/0006-line-calibration-above-the-hal.md). The counts come from
 [line_sensors](line_sensors.md).

@@ -20,15 +20,15 @@
 
 #include <stdint.h>
 
-#include "DriveCommand.h"
-#include "FloorPattern.h"
-#include "LineFollow.h"
+#include "motion/DriveCommand.h"
+#include "sense/FloorPattern.h"
+#include "motion/LineFollow.h"
 #include "Maze.h"
-#include "MotionControl.h"
-#include "MotionPrimitives.h"
-#include "Perception.h"
+#include "motion/MotionControl.h"
+#include "motion/MotionPrimitives.h"
+#include "sense/Perception.h"
 #include "RobotSpec.h"
-#include "StepCell.h"
+#include "mission/StepCell.h"
 
 constexpr float MARKER_STILL_MM_S = 5.0f; // below this the robot has stopped
 constexpr uint16_t MARKER_STILL_MS = 150; // ... for this long

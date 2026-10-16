@@ -11,15 +11,15 @@
 
 #include <stdint.h>
 
-#include "FloorPattern.h"
-#include "LineSense.h"
-#include "LineView.h"
-#include "MotionTypes.h"
-#include "Odometry.h"
+#include "sense/FloorPattern.h"
+#include "sense/LineSense.h"
+#include "sense/LineView.h"
+#include "motion/MotionTypes.h"
+#include "sense/Odometry.h"
 #include "RobotSpec.h"
-#include "RobotState.h"
-#include "Tilt.h"
-#include "WallSense.h"
+#include "core/RobotState.h"
+#include "sense/Tilt.h"
+#include "sense/WallSense.h"
 
 struct Perception {
     MotionFeedback motion;

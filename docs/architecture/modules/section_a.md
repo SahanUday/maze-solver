@@ -1,7 +1,7 @@
 # section_a
 
 The Section A mission: from any tile, explore until the approach marker and stop on its tile. Pure logic in
-`include/SectionA.h`, tested by `test/test_section_a/` in a simulated arena. It joins the planner
+`include/mission/SectionA.h`, tested by `test/test_section_a/` in a simulated arena. It joins the planner
 ([maze](maze.md)), the cell step ([step_cell](step_cell.md)), the turn
 ([motion_primitives](motion_primitives.md)) and [perception](perception.md); the decision is
 [0009](../decisions/0009-explore-in-a-start-relative-map.md).

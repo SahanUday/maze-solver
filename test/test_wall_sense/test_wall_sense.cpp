@@ -5,7 +5,7 @@
 
 #include <unity.h>
 
-#include "WallSense.h"
+#include "sense/WallSense.h"
 
 // Proportional only, wide pair tolerance: the tests that add the integral or the gate say so.
 static WallParams params()

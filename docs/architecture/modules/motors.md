@@ -1,7 +1,7 @@
 # motors
 
 Two HW-039 / IBT_2 (BTS7960) drivers, register-level PWM. Code:
-`src/hal/motors.{h,cpp}`, pure duty split in `include/MotorDrive.h`. Decision:
+`src/hal/motors.{h,cpp}`, pure duty split in `include/motion/MotorDrive.h`. Decision:
 [0002](../decisions/0002-drive-and-sensing-hardware-allocation.md).
 
 ## Interface
