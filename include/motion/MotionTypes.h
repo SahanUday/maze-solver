@@ -1,5 +1,5 @@
 // ============================================================================
-//  MotionTypes.h  --  the hand-off between a motion primitive and the controller.
+//  motion/MotionTypes.h  --  the hand-off between a motion primitive and the controller.
 //  Plain data, no logic.
 // ============================================================================
 

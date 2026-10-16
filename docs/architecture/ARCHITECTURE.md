@@ -53,8 +53,9 @@ register or an Arduino I/O call directly:
    its entry points return success/failure instead of a reading
    ([`decisions/0008`](decisions/0008-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
-   and plain data. `lib/maze` lives here and must never include `Arduino.h`
-   (see "Dual build target" below).
+   and plain data. `lib/maze` and the pure-logic headers in `include/`
+   (`core/`, `sense/`, `motion/`, `mission/`) live here and must never include
+   `Arduino.h` (see "Dual build target" below).
 3. **Sequencing layer** — `src/main.cpp` and, eventually, the top-level
    run-phase state machine. Wires the other two layers together once per
    tick.
@@ -197,7 +198,7 @@ in `include/spec/`. The line view has not been run on the robot (the IR array is
 |---|---|---|
 | Odometry | `include/sense/Odometry.h` | encoder counts to distance and speed |
 | Profile | `include/motion/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
-| Controller | `include/motion/MotionControl.h`, `MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
+| Controller | `include/motion/MotionControl.h`, `include/motion/MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
 | Moves | `include/motion/MotionPrimitives.h` | straight run along a held heading; in-place turn |
 | Output | `include/motion/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
 | Perception | `include/sense/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |

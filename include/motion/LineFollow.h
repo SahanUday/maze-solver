@@ -1,5 +1,5 @@
 // ============================================================================
-//  LineFollow.h  --  following the black line on the white bridge tiles. No hardware, no
+//  motion/LineFollow.h  --  following the black line on the white bridge tiles. No hardware, no
 //  Arduino.h - testable under env:native.
 //
 //  The line view (LineView.h) says where the line is; this steers on it: the line error becomes a

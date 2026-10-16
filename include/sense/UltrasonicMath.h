@@ -1,5 +1,5 @@
 // ============================================================================
-//  UltrasonicMath.h  --  HC-SR04 echo duration to distance.
+//  sense/UltrasonicMath.h  --  HC-SR04 echo duration to distance.
 //  No Arduino.h: builds and unit-tests under env:native.
 //  docs/architecture/decisions/0007-non-blocking-ultrasonic-ranging.md
 // ============================================================================

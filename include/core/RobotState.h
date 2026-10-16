@@ -1,5 +1,5 @@
 // ============================================================================
-//  RobotState.h  --  boundary between drivers and algorithms.
+//  core/RobotState.h  --  boundary between drivers and algorithms.
 //
 //  Drivers write this struct once per tick. Algorithm code only reads it -
 //  never a pin, analogRead(), digitalWrite(), or millis() directly.

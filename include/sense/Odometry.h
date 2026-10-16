@@ -1,5 +1,5 @@
 // ============================================================================
-//  Odometry.h  --  encoder counts to distance and speed. No hardware, no Arduino.h -
+//  sense/Odometry.h  --  encoder counts to distance and speed. No hardware, no Arduino.h -
 //  testable under env:native.
 //
 //  Distance is the mean of the two wheels (a pivot adds none), cumulative and signed.

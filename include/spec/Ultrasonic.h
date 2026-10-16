@@ -1,5 +1,6 @@
 // ============================================================================
 //  spec/Ultrasonic.h  --  HC-SR04 timing, range and per-sensor offsets.
+//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 //  See scripts/list-tbds.sh.

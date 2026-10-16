@@ -1,5 +1,5 @@
 // ============================================================================
-//  MotionProfile.h  --  trapezoid speed profile, one axis (mm and mm/s, or deg and deg/s).
+//  motion/MotionProfile.h  --  trapezoid speed profile, one axis (mm and mm/s, or deg and deg/s).
 //  No hardware, no Arduino.h - testable under env:native.
 //
 //  Stepped on the reference trajectory, not the measured robot.

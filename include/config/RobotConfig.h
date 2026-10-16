@@ -1,5 +1,5 @@
 // ============================================================================
-//  RobotConfig.h  --  single source of truth for pin assignments.
+//  config/RobotConfig.h  --  single source of truth for pin assignments.
 //  Non-pin constants live in the spec/ headers.
 //
 //  Rules:

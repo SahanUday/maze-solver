@@ -1,5 +1,5 @@
 // ============================================================================
-//  DriveCommand.h  --  what the algorithm layer asks of the drivetrain, one per tick.
+//  motion/DriveCommand.h  --  what the algorithm layer asks of the drivetrain, one per tick.
 //  Duties are signed timer counts, the unit motorSet() takes.
 // ============================================================================
 

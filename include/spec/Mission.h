@@ -1,5 +1,6 @@
 // ============================================================================
 //  spec/Mission.h  --  Section A, bridge hand-over, run start and the status line.
+//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 //  See scripts/list-tbds.sh.

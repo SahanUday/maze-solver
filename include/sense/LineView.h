@@ -1,6 +1,6 @@
 // ============================================================================
-//  LineView.h  --  one sweep of the IR array to where the line is. No hardware, no Arduino.h -
-//  testable under env:native.
+//  sense/LineView.h  --  one sweep of the IR array to where the line is. No hardware, no Arduino.h
+//  - testable under env:native.
 //
 //  The maze floor is black, so "all black" is the normal state; on bridge tiles the line is the
 //  black part.

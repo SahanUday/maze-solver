@@ -1,5 +1,6 @@
 // ============================================================================
 //  spec/Platform.h  --  clocks and the control-loop period every module shares.
+//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 //  See scripts/list-tbds.sh.

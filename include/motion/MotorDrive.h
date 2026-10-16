@@ -1,5 +1,5 @@
 // ============================================================================
-//  MotorDrive.h  --  signed command -> per-leg duty for a BTS7960 half-bridge
+//  motion/MotorDrive.h  --  signed command -> per-leg duty for a BTS7960 half-bridge
 //  pair. No hardware, no Arduino.h - testable under env:native.
 // ============================================================================
 

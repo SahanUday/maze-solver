@@ -1,5 +1,5 @@
 // ============================================================================
-//  Heading.h  --  gyro bias estimate and yaw integration. No hardware, no
+//  motion/Heading.h  --  gyro bias estimate and yaw integration. No hardware, no
 //  Arduino.h - testable under env:native.
 //
 //  The gyro measures a rate, not an angle, so heading is the integral of that
