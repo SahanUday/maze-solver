@@ -1,6 +1,6 @@
 // ============================================================================
-//  Tilt.h  --  nose-up slope from the accelerometer's forward axis, in counts. No hardware, no
-//  Arduino.h - testable under env:native.
+//  sense/Tilt.h  --  nose-up slope from the accelerometer's forward axis, in counts. No hardware,
+//  no Arduino.h - testable under env:native.
 //
 //  Gravity on the forward axis is IMU_ACCEL_ONE_G_COUNTS * sin(incline), so a threshold in counts
 //  answers "on the bridge" without trigonometry (decisions/0008). Valid at constant speed or at

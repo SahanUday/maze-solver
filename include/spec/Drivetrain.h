@@ -1,5 +1,6 @@
 // ============================================================================
 //  spec/Drivetrain.h  --  motor PWM, wheel and encoder geometry, polarity, minimum duty.
+//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 //  See scripts/list-tbds.sh.

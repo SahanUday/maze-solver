@@ -161,8 +161,8 @@ report, so it needs a test. A header that cannot be built on the PC says so with
 and structs need nothing.
 
 **What can be unit tested.** Only code that does not touch hardware and does not
-include `Arduino.h`: the headers in `include/` (`Scheduler.h`, `Quadrature.h`,
-`MotorDrive.h`, `LineSense.h`, `UltrasonicMath.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
+include `Arduino.h`: the headers in `include/` (`core/Scheduler.h`, `sense/Quadrature.h`,
+`motion/MotorDrive.h`, `sense/LineSense.h`, `sense/UltrasonicMath.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
 `main.cpp`) is built only for the robot. That is why drivers keep their
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.

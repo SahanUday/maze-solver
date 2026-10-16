@@ -1,5 +1,5 @@
 // ============================================================================
-//  LineSense.h  --  per-channel calibration and black/white mask for the IR
+//  sense/LineSense.h  --  per-channel calibration and black/white mask for the IR
 //  array counts. No hardware, no Arduino.h - testable under env:native.
 //
 //  Counts fall as reflection rises, so white is the LOW end of a channel's

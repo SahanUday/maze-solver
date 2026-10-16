@@ -1,5 +1,5 @@
 // ============================================================================
-//  MotionPrimitives.h  --  Straight and Turn moves. No hardware, no Arduino.h -
+//  motion/MotionPrimitives.h  --  Straight and Turn moves. No hardware, no Arduino.h -
 //  testable under env:native.
 //
 //  begin, then step once per tick: step writes the MotionTarget for MotionControl and

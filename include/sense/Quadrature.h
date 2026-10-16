@@ -1,5 +1,5 @@
 // ============================================================================
-//  Quadrature.h  --  4x quadrature step decoding. No hardware, no Arduino.h -
+//  sense/Quadrature.h  --  4x quadrature step decoding. No hardware, no Arduino.h -
 //  testable under env:native.
 //
 //  State is (B << 1) | A. "+1" means A leads B (00 -> 01 -> 11 -> 10 -> 00).

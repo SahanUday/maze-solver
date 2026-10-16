@@ -1,6 +1,6 @@
 // ============================================================================
-//  WallSense.h  --  ultrasonic readings to "is there a wall" and a centring trim. No hardware,
-//  no Arduino.h - testable under env:native.
+//  sense/WallSense.h  --  ultrasonic readings to "is there a wall" and a centring trim. No
+//  hardware, no Arduino.h - testable under env:native.
 //
 //  Readings carry their US_OFFSET_*, so (left - right) / 2 is the offset from the corridor centre.
 //  Each sensor refreshes every US_SENSOR_COUNT * US_SLOT_MS, so a reading can be that old.

@@ -1,6 +1,6 @@
 // ============================================================================
-//  FloorPattern.h  --  what the IR array sees as the robot drives: the approach marker and the gap
-//  before the bridge. No hardware, no Arduino.h - testable under env:native.
+//  sense/FloorPattern.h  --  what the IR array sees as the robot drives: the approach marker and
+//  the gap before the bridge. No hardware, no Arduino.h - testable under env:native.
 //
 //  The marker is a white frame around a black box (measured on the robot: white ~36 mm, black
 //  ~118 mm, white ~37 mm along the path), so crossing it gives white - black - white. After the

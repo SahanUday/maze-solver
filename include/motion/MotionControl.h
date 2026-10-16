@@ -1,5 +1,5 @@
 // ============================================================================
-//  MotionControl.h  --  MotionTarget + MotionFeedback to left/right duty. No hardware,
+//  motion/MotionControl.h  --  MotionTarget + MotionFeedback to left/right duty. No hardware,
 //  no Arduino.h - testable under env:native.
 //
 //    linear   PID on the odometer + speed feedforward

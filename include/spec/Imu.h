@@ -1,5 +1,6 @@
 // ============================================================================
 //  spec/Imu.h  --  MPU-6050 settings, gyro bias capture, accel orientation and level, incline.
+//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 //  See scripts/list-tbds.sh.

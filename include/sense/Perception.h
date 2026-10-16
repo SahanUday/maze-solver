@@ -1,5 +1,5 @@
 // ============================================================================
-//  Perception.h  --  RobotState in, one derived Perception out per tick. No hardware, no
+//  sense/Perception.h  --  RobotState in, one derived Perception out per tick. No hardware, no
 //  Arduino.h - testable under env:native.
 //
 //  RobotState is raw (counts, deg, mm); this derives distance, walls, the line and the incline,
