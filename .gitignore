@@ -19,3 +19,7 @@ venv/
 # ---- OS noise -------------------------------------------------------
 .DS_Store
 Thumbs.db
+
+# ---- Simulator binary ----------------------------------------------
+# The prebuilt mms AppImage (54 MB, over the 1 MB large-file hook); see sim/README.md.
+*.AppImage
