@@ -131,6 +131,24 @@ class FrozenAdrTest(unittest.TestCase):
         self.commit()
         self.assertEqual(self.frozen(), ["adr-frozen"])
 
+    def test_renumbering_an_accepted_adr_is_allowed(self):
+        (self.tree.root / ADR.format("0001-first")).unlink()
+        self.write("0003-first", adr("0003"))
+        self.commit()
+        self.assertEqual(self.frozen(), [])
+
+    def test_renumbering_with_a_body_edit_is_rejected(self):
+        (self.tree.root / ADR.format("0001-first")).unlink()
+        self.write("0003-first", adr("0003", body="Rewritten.\n"))
+        self.commit()
+        self.assertEqual(self.frozen(), ["adr-frozen"])
+
+    def test_renaming_to_a_different_title_is_rejected(self):
+        (self.tree.root / ADR.format("0001-first")).unlink()
+        self.write("0003-other", adr("0003"))
+        self.commit()
+        self.assertEqual(self.frozen(), ["adr-frozen"])
+
     def test_proposed_adrs_stay_editable_and_new_adrs_are_fine(self):
         self.write("0002-draft", adr("0002", status="Proposed", body="Reworked.\n"))
         self.write("0003-new", adr("0003"))

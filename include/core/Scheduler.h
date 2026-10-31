@@ -1,5 +1,5 @@
 // ============================================================================
-//  Scheduler.h  --  fixed-period tick timing. No hardware, no Arduino.h -
+//  core/Scheduler.h  --  fixed-period tick timing. No hardware, no Arduino.h -
 //  testable under env:native.
 // ============================================================================
 

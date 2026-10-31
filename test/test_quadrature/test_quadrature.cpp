@@ -4,7 +4,7 @@
 
 #include <unity.h>
 
-#include "Quadrature.h"
+#include "sense/Quadrature.h"
 
 // (B << 1) | A, A leading: 00 -> 01 -> 11 -> 10 -> 00
 static const uint8_t kForward[] = {0, 1, 3, 2, 0};

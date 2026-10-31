@@ -81,8 +81,13 @@ compiler can't. They run on the **whole project**, not just changed files.
   parallel. Fails on two names for the same pin, a pin that is reserved (USB
   serial, I2C) or doesn't exist, a comment like `// PE4, INT4` that disagrees
   with the pin number, a driver that uses a `PIN_*` without a `static_assert`
-  for it, and two drivers using the same timer, interrupt, USART, ADC, I2C or
-  SPI block (Timer0 belongs to the Arduino core).
+  for it, a driver in `src/hal/` that touches a port register (`DDRx`/`PORTx`/
+  `PINx`) or names a pin bit (`PC1`) that no `static_assert` on a `PIN_*` covers,
+  and two drivers using the same timer, interrupt, USART, ADC, I2C or SPI block
+  (Timer0 belongs to the Arduino core). The pin rules make sure a driver's
+  hardcoded pin is tied to `RobotConfig.h` by an assert on that port and bit; what
+  the assert compares (`PIN_X == 36`) is still for the author and reviewer to get
+  right.
   *Deliberate sharing:* add `// pin-check: shared timer4 - <reason>` in every
   module involved.
 - **`check-isr-atomicity.py`**: on this 8-bit chip, reading a 16- or 32-bit
@@ -139,7 +144,7 @@ different ways:
 |---|---|---|
 | `env:native` | built normally | the everyday test run |
 | `env:native_san` | with AddressSanitizer + UBSan | the program watches itself and stops at the first memory error or undefined behaviour (reading past an array, integer overflow). These bugs often don't crash, so ordinary tests miss them. |
-| `env:native_cov` | with coverage counting | records which lines ran, then `scripts/check-coverage.sh` fails if less than 90% of `include/` and `lib/` was exercised |
+| `env:native_cov` | with coverage counting | records which lines ran, then `scripts/check-coverage.sh` fails if less than 90% of `include/` and `lib/` was exercised, or if a header with logic in it is missing from the report altogether |
 
 **Run** (in a PlatformIO terminal):
 ```
@@ -147,20 +152,27 @@ pio test -e native
 pio test -e native_san
 pio test -e native_cov && scripts/check-coverage.sh   # needs: pip install -r requirements-ci.txt
 ```
-Add `-f test_scheduler` to run one suite. Coverage only counts files that some
-test compiles, so a brand-new untested header isn't counted: write its test.
+Add `-f test_scheduler` to run one suite. Coverage only measures files that some
+test compiles, so on its own it would let a brand-new untested header slip
+through. `scripts/check-untested-headers.py` closes that: a header under
+`include/` or `lib/` that contains a function body must be in the coverage
+report, so it needs a test. A header that cannot be built on the PC says so with
+`// coverage-exempt: <reason>` (the reason is required). Headers of constants
+and structs need nothing.
 
 **What can be unit tested.** Only code that does not touch hardware and does not
-include `Arduino.h`: the headers in `include/` (`Scheduler.h`, `Quadrature.h`,
-`MotorDrive.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
+include `Arduino.h`: the headers in `include/` (`core/Scheduler.h`, `sense/Quadrature.h`,
+`motion/MotorDrive.h`, `sense/LineSense.h`, `sense/UltrasonicMath.h`) and the library `lib/maze`. Code in `src/` (the HAL drivers and
 `main.cpp`) is built only for the robot. That is why drivers keep their
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
 
 **Where tests live.** One folder per suite under `test/`, with the same name in
 the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
-`test_scheduler`, `test_quadrature`, `test_motor_drive`, and `test_native`
-(a placeholder that proves the host build works). A test file looks like this
+`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`, `test_floor_pattern`, `test_line_follow`,
+`test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`, `test_motion_profile`,
+`test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
+`test_step_cell`, `test_maze`, `test_section_a` and `test_run_loop`. A test file looks like this
 (Unity is the test framework):
 ```cpp
 #include <unity.h>
@@ -187,7 +199,8 @@ scripts have their own tests. Each feeds a script a tiny fake project (a
 duplicated pin, a missing `ATOMIC_BLOCK`) and confirms it is reported, and that
 a clean project passes. Files: `test_pin_map.py`, `test_isr_atomicity.py`,
 `test_docs_drift.py`, `test_banned_patterns.py`, `test_pr_title.py`,
-`test_size_report.py`, `test_tbd_report.py`, with shared helpers in
+`test_size_report.py`, `test_tbd_report.py`, `test_untested_headers.py`,
+`test_check_coverage.py` (the shell wiring, run against a stub `gcovr`), with shared helpers in
 `support.py`. They use Python's
 built-in `unittest`; nothing to install.
 **Run:** `python -m unittest discover -s scripts/tests`.

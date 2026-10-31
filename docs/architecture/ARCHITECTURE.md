@@ -46,11 +46,16 @@ Three layers, enforced structurally — nothing in layer 2 or 3 may touch a
 register or an Arduino I/O call directly:
 
 1. **HAL** — one file pair per peripheral (`motors`, `encoders`, `ultrasonic`,
-   `line_sensors`, ...). Only layer allowed to touch hardware, per the hybrid
-   policy above.
+   `line_sensors`, `imu`, ...). Only layer allowed to touch hardware, per the
+   hybrid policy above. `imu` is the one module that takes the framework
+   exception rather than the register rule: it drives the MPU-6050 through
+   `Wire.h`, and is also the only driver whose device can be absent, so both of
+   its entry points return success/failure instead of a reading
+   ([`decisions/0008`](decisions/0008-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
-   and plain data. `lib/maze` lives here and must never include `Arduino.h`
-   (see "Dual build target" below).
+   and plain data. `lib/maze` and the pure-logic headers in `include/`
+   (`core/`, `sense/`, `motion/`, `mission/`) live here and must never include
+   `Arduino.h` (see "Dual build target" below).
 3. **Sequencing layer** — `src/main.cpp` and, eventually, the top-level
    run-phase state machine. Wires the other two layers together once per
    tick.
@@ -58,8 +63,8 @@ register or an Arduino I/O call directly:
 ## Fixed-period control loop
 
 `src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
-every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/RobotSpec.h`). The
-tick-due/drift-resync logic itself lives in `include/Scheduler.h`
+every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/spec/Platform.h`). The
+tick-due/drift-resync logic itself lives in `include/core/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
 `env:native`'s test suite instead of only being checked by reading it.
@@ -79,22 +84,84 @@ library gains its first `.cpp`. The HAL access policy of ADR 0001 (registers onl
 `digitalWrite`/`analogRead`/`attachInterrupt` and the like) is checked
 automatically; see the [testing guide](../testing.md).
 
-Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`) stays in
-`include/` so `env:native` can test it.
+Logic that needs no hardware (`Quadrature.h`, `MotorDrive.h`, `LineSense.h`,
+`Heading.h` and the motion headers listed under "Control layer" below) stays in
+`include/` so `env:native` can test it. A header there
+with function bodies in it must appear in the coverage report or declare
+`// coverage-exempt: <reason>`; see the [testing guide](../testing.md).
+
+`include/` is grouped by layer and headers are included by path
+(`#include "motion/Heading.h"`; [ADR 0012](decisions/0012-group-headers-by-layer.md)):
+`config/` (pins), `core/` (`RobotState`, `Scheduler`), `sense/`, `motion/`,
+`mission/`, and `spec/` for the constants (below).
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
 `RobotConfig.h` pin constants it depends on, so moving a pin without updating
-the driver fails the build. The pin, timer and interrupt allocation is in
-[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md).
+the driver fails the build. The allocation is summarised under
+[Hardware allocation](#hardware-allocation) below.
 
 State shared between an ISR and the main loop is a `volatile` variable private
 to its driver file, read through an accessor under `ATOMIC_BLOCK` (an AVR
 load or store wider than a byte can be torn by an interrupt). This is checked
 automatically, not left to review; see the [testing guide](../testing.md).
 
+## Hardware allocation
+
+Current state. Reasoning lives in
+[`decisions/0002`](decisions/0002-drive-and-sensing-hardware-allocation.md) for
+drive and sensing and
+[`decisions/0007`](decisions/0007-non-blocking-ultrasonic-ranging.md) for the
+ultrasonic echo path; per-module detail is in [`modules/`](modules/).
+
+### Ports
+
+| Pins | Port bits | Owner |
+|---|---|---|
+| A0–A7 | `PF0`–`PF7` | IR array channels, read as one `PINF` |
+| 36 | `PC1` | IR array emitter enable |
+| 30 / 32 / 34 | `PC7` / `PC5` / `PC3` | ultrasonic triggers |
+| A10 / A11 / A12 | `PK2` / `PK3` / `PK4` | ultrasonic echoes |
+| A8 / A9 | `PK0` / `PK1` | pot, battery sense (analog) |
+| 2 / 3 / 18 / 19 | `PE4` / `PE5` / `PD3` / `PD2` | encoders |
+| 20 / 21 | — | I2C |
+
+`PORTC` is shared between the ultrasonic triggers and the IR emitter enable, so
+every write to it is read-modify-write; a plain assignment from one driver would
+switch off the other's pin. `PORTF` must stay whole: the IR driver reads all
+eight channels in a single `PINF`, and splitting them across ports loses that.
+
+### Timers
+
+| Timer | Owner |
+|---|---|
+| 0 | `millis()` — Arduino core |
+| 1 | motors, right (`OC1A`/`OC1B`) |
+| 2 | unused; 8-bit, so unusable as a 16-bit time base |
+| 3 | free, but its outputs are pins 5/2/3 and 2/3 are the left encoder |
+| 4 | motors, left (`OC4A`/`OC4B`) |
+| 5 | ultrasonic time base — `TCNT5` only, no timer pin |
+
+A 16-bit timer's temp register is per timer, so the motor timers are unaffected
+by the ultrasonic driver. Any main-context access to `TCNT5`/`OCR5x`/`ICR5`
+needs `ATOMIC_BLOCK`.
+
+### Interrupts
+
+All six external-interrupt pins are taken: `INT2`–`INT5` by the encoders,
+`INT0`/`INT1` by I2C. Serial1 is unavailable as a result.
+
+`PORTC` has no pin-change or external interrupt at all, which is why the echo
+lines sit on `PORTK`. The three echoes share the `PCINT2` vector as
+`PCINT18`–`PCINT20`, and `PCMSK2` admits only the sensor currently ranging —
+which is what keeps `PK0`/`PK1` usable as analog inputs.
+
+A future pot or battery driver on A8/A9 must not write `DIDR2` wholesale:
+setting bits 2–4 (`ADC10`–`ADC12`) disables the digital input buffers on the
+echo pins, and `PINK` then reads 0 for them.
+
 ## Driver/algorithm boundary — RobotState
 
-`include/RobotState.h` is the only channel between hardware and logic.
+`include/core/RobotState.h` is the only channel between hardware and logic.
 Drivers (called from `readSensors()`) are the only code that writes it, once
 per tick. Algorithm code (`runAlgorithm()`, and everything in `lib/maze`)
 only reads it — never a pin, `analogRead`, `digitalWrite`, or `millis()`
@@ -106,17 +173,43 @@ pin.
 
 ## Config split: pins vs. spec
 
-`include/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
+`include/config/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
 the `A0`-`A15` pin-name macros — fine, since it's only ever consumed by
-`env:mega`-only code. `include/RobotSpec.h` holds everything else (geometry,
-timing, motion, control, PID gains) and is Arduino-free, so `lib/maze` can
-include it directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
+`env:mega`-only code. `include/spec/` holds everything else (geometry, timing, motion, control, PID gains),
+one header per module: `Competition`, `Platform`, `Drivetrain`, `Imu`, `LineSensor`,
+`FloorPattern`, `Ultrasonic`, `Motion`, `WallFollow`, `LineFollow`, `Mission`. A file
+includes only the ones it uses. They are Arduino-free, so `lib/maze` can include
+`spec/Competition.h` directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
 without pulling in a framework the host build doesn't have.
 
 Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
 (`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
 tracked via `scripts/list-tbds.sh` rather than a comment someone has to
 happen to read.
+
+## Control layer
+
+Motion control, perception and the cell step are pure headers in `include/`, no `Arduino.h`, tested on
+the host (the motion headers against a simulated plant, `test/support/sim.h`). Nothing
+calls them from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measured values are
+in `include/spec/`. The line view has not been run on the robot (the IR array is not calibrated).
+
+| Piece | File | Role |
+|---|---|---|
+| Odometry | `include/sense/Odometry.h` | encoder counts to distance and speed |
+| Profile | `include/motion/MotionProfile.h` | trapezoid speed profile, stepped on a reference trajectory |
+| Controller | `include/motion/MotionControl.h`, `include/motion/MotionTypes.h` | linear PID on the odometer + angular PID on the gyro, mixed into left and right duty |
+| Moves | `include/motion/MotionPrimitives.h` | straight run along a held heading; in-place turn |
+| Output | `include/motion/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
+| Perception | `include/sense/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
+| Cell step | `include/mission/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
+| Section A mission | `include/mission/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the approach marker, drive on over the gap and hand over to the line follower |
+| Run loop | `include/mission/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
+| Wall sensing | `include/sense/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
+| Incline | `include/sense/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
+| Line view | `include/sense/LineView.h` | one sweep of the IR array to where the line is |
+| Line follower | `include/motion/LineFollow.h` | steers on the line view's centroid as a heading offset; searches for a lost line toward the side it was last seen; ignores an all-white view on the ramp |
+| Floor pattern | `include/sense/FloorPattern.h` | the IR array's floor class (black, white, air, mixed) along the path: the approach marker and the gap before the ramp |
 
 ## Dual build target
 

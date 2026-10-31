@@ -11,9 +11,9 @@
 #include <avr/io.h>
 #include <util/atomic.h>
 
-#include "Quadrature.h"
-#include "RobotConfig.h"
-#include "RobotSpec.h"
+#include "sense/Quadrature.h"
+#include "config/RobotConfig.h"
+#include "spec/Drivetrain.h"
 
 // The register code below is hand-mapped to these pins.
 static_assert(PIN_ENC_L_A == 2 && PIN_ENC_L_B == 3, "left encoder must be PE4/PE5 (INT4/INT5)");

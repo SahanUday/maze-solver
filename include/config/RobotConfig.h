@@ -1,6 +1,6 @@
 // ============================================================================
-//  RobotConfig.h  --  single source of truth for pin assignments.
-//  Non-pin constants live in RobotSpec.h.
+//  config/RobotConfig.h  --  single source of truth for pin assignments.
+//  Non-pin constants live in the spec/ headers.
 //
 //  Rules:
 //    1. Every pin number lives HERE.
@@ -31,14 +31,16 @@
 // ---- Encoders ------------------------------------------------------------
 // JGA25-370 Hall quadrature, 4x decoded on all four transitions. Each motor's A/B sit
 // on one AVR port with A on the LOWER bit, so one PINx read yields (B<<1)|A.
-// "+" = A leads B; flip per side with ENC_*_INVERT in RobotSpec.h.
+// "+" = A leads B; flip per side with ENC_*_INVERT in spec/Drivetrain.h.
 constexpr uint8_t PIN_ENC_L_A = 2;  // PE4, INT4
 constexpr uint8_t PIN_ENC_L_B = 3;  // PE5, INT5
 constexpr uint8_t PIN_ENC_R_A = 19; // PD2, INT2
 constexpr uint8_t PIN_ENC_R_B = 18; // PD3, INT3
 
-// ---- I2C bus (MPU-6050 gyro) ----------------------------------- [FIXED] --
-// Owned by the Wire library - do not reference directly.
+// ---- I2C bus (MPU-6050 IMU) ----------------------------------- [FIXED] --
+// The bus itself is driven by Wire.h, not by our register code. imu.cpp still
+// names both constants: it clears the AVR's internal pull-ups through PORTD
+// (decisions/0008), so check-pin-map.py's `registers` rule wants the tie.
 constexpr uint8_t PIN_I2C_SDA = 20; // INT1
 constexpr uint8_t PIN_I2C_SCL = 21; // INT0
 
@@ -54,19 +56,26 @@ constexpr uint8_t PIN_MOTOR_R_RPWM = 11; // PB5, OC1A
 constexpr uint8_t PIN_MOTOR_R_LPWM = 12; // PB6, OC1B
 
 // ---- Ultrasonic wall sensors -------------------------------- [PROPOSED] --
-// HC-SR04-style: front, left, right. Fire one at a time (avoid cross-talk).
-// ECHO pins are on PORTK (PCINT21-23) so edges can be timestamped by interrupt.
+// HC-SR04 x3, front/left/right. Fire one at a time (avoid cross-talk).
+// Trig on PORTC: PC7, PC5, PC3.
 constexpr uint8_t PIN_US_FRONT_TRIG = 30;
 constexpr uint8_t PIN_US_LEFT_TRIG = 32;
 constexpr uint8_t PIN_US_RIGHT_TRIG = 34;
-constexpr uint8_t PIN_US_FRONT_ECHO = A13; // PK5
-constexpr uint8_t PIN_US_LEFT_ECHO = A14;  // PK6
-constexpr uint8_t PIN_US_RIGHT_ECHO = A15; // PK7
 
-// ---- 8-element IR array ------------------------------------- [PROPOSED] --
-// Analog array (QTR-8A style), left to right.
+// Echo on PORTK: PK2, PK3, PK4 = PCINT18-20, so edges can be timestamped by interrupt.
+// PORTC has no interrupt capability, so the trigger and echo sides are split.
+// ultrasonic.cpp hand-maps these bits; keep all three on PORTK. See decisions/0007-*.md.
+constexpr uint8_t PIN_US_FRONT_ECHO = A10;
+constexpr uint8_t PIN_US_LEFT_ECHO = A11;
+constexpr uint8_t PIN_US_RIGHT_ECHO = A12;
+
+// ---- 8-element IR array ----------------------------------------- [FIXED] --
+// Left to right, D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7. line_sensors drives the ADC
+// directly, so keep all 8 channels on ADC0-7 in order. See decisions/0005-*.md.
 constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
-constexpr uint8_t PIN_IR_EMITTER = 36; // HIGH = emitters on
+
+// Emitter enable. Pin 36 is PC1. HIGH = emitters on, LOW = off.
+constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // Physical switches - no reprogramming allowed between trials.

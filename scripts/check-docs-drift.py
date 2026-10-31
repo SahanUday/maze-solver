@@ -14,7 +14,10 @@
               guide cannot silently fall behind what CI actually runs.
   adr-frozen  (with --base REF) an ADR that was `Accepted` on the base is
               immutable: the only allowed edit is its Status line moving to
-              Superseded/Deprecated. A changed mind gets a new ADR.
+              Superseded/Deprecated. A changed mind gets a new ADR. A renumber
+              (same name after the number, same text but the number in the
+              title) is not an edit: it is how two ADRs that took the same
+              number in parallel are told apart once both are merged.
 
 Usage: scripts/check-docs-drift.py [--root DIR] [--base REF]
   --base REF  compare against REF (CI passes HEAD^1 on the PR merge commit).
@@ -121,6 +124,20 @@ def without_status(text: str) -> str:
     return STATUS.sub("", text)
 
 
+ADR_FILE = re.compile(r"^(\d{4})-(.+\.md)$")
+TITLE_NUMBER = re.compile(r"^# \d{4}:", re.M)
+
+
+def is_renumber(old_path: str, new_path: str, old_text: str, new_text: str) -> bool:
+    """Same ADR under a new number: the part of the name after the number is unchanged, and the
+    text differs only in the number of the `# NNNN:` heading."""
+    old = ADR_FILE.match(Path(old_path).name)
+    new = ADR_FILE.match(Path(new_path).name)
+    if not old or not new or old[2] != new[2] or old[1] == new[1]:
+        return False
+    return TITLE_NUMBER.sub("# NNNN:", old_text, count=1) == TITLE_NUMBER.sub("# NNNN:", new_text, count=1)
+
+
 def check_adr_frozen(root: Path, base: str, findings: list[Finding]):
     changes = git(root, "diff", "--name-status", "-M", base, "HEAD", "--", ADR_DIR)
     for row in changes.splitlines():
@@ -135,6 +152,8 @@ def check_adr_frozen(root: Path, base: str, findings: list[Finding]):
         m = STATUS.search(old_text)
         if not m or not FROZEN_STATUS.match(m.group(1)):
             continue  # Proposed (or unknown): still editable
+        if code == "R" and is_renumber(old, fields[2], old_text, git(root, "show", f"HEAD:{fields[2]}")):
+            continue
         if code in ("D", "R"):
             what = "deleted" if code == "D" else f"renamed to {fields[2]}"
             findings.append(Finding(old, 1, "adr-frozen", f"{old} is Accepted and was {what}. Accepted ADRs are immutable - supersede it with a new ADR instead"))
