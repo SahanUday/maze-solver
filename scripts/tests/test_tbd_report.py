@@ -4,13 +4,11 @@ from support import Tree, load_script
 
 tbd = load_script("tbd-report.py")
 
-LISTING = """6 outstanding TBD placeholder(s):
+LISTING = """3 outstanding TBD placeholder(s):
 
-include/spec/Drivetrain.h:5://  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
 include/spec/Drivetrain.h:53:// ---- Wheel / drivetrain geometry --------------------- <<TBD HARDWARE>> --
 include/spec/Drivetrain.h:67:// ---- Motion PID gains -------------------------------- <<TBD CALIBRATION>> --
 scripts/check-ram-budget.sh:5:# <<TBD FIRST-ISR>>: replace with a real stack high-water-mark measurement.
-include/config/RobotConfig.h:9://  `<<TBD HARDWARE>>` = not yet measured. See scripts/list-tbds.sh.
 """
 
 
@@ -66,8 +64,9 @@ class RenderTest(unittest.TestCase):
 
 
 class CollectTest(unittest.TestCase):
-    def test_runs_the_list_script_in_the_given_tree(self):
-        tree = Tree({"include/A.h": "// ---- Motor limits ---- <<TBD HARDWARE>> --\n"})
+    def test_runs_the_list_script_in_the_given_tree_and_skips_the_legend(self):
+        legend = "//  `<<TBD HARDWARE>>` = not yet measured.\n"
+        tree = Tree({"include/A.h": legend + "// ---- Motor limits ---- <<TBD HARDWARE>> --\n"})
         self.addCleanup(tree.close)
         script = tbd.Path(__file__).resolve().parent.parent / "list-tbds.sh"
         items = tbd.collect(tree.root, script)

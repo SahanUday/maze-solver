@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "sense/FloorPattern.h"
 #include "sense/LineSense.h"
 #include "sense/LineView.h"
@@ -103,7 +104,7 @@ inline bool sideFrozen(uint16_t &lastMm, uint16_t &sameMs, bool valid, uint16_t 
         sameMs = 0;
         return false;
     }
-    sameMs = sameMs > UINT16_MAX - dtMs ? UINT16_MAX : static_cast<uint16_t>(sameMs + dtMs);
+    sameMs = satAddU16(sameMs, dtMs);
     return sameMs >= frozenMs;
 }
 
@@ -159,7 +160,7 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
             pc.frontSinceMm = pc.odo.distMm;
         }
         const float moved = pc.odo.distMm - pc.frontSinceMm;
-        if ((moved < 0.0f ? -moved : moved) >= p.frontFrozenMm) {
+        if (absf(moved) >= p.frontFrozenMm) {
             out.walls.frontValid = false;
             out.walls.front = false;
         }
@@ -176,10 +177,7 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
         w.right = w.rightValid && w.rightMm < p.wall.sideMm;
     }
     const bool blind = !out.walls.leftValid && !out.walls.rightValid;
-    pc.sideBlindMs = !blind ? 0
-                            : (pc.sideBlindMs > UINT16_MAX - p.dtMs
-                                   ? UINT16_MAX
-                                   : static_cast<uint16_t>(pc.sideBlindMs + p.dtMs));
+    pc.sideBlindMs = blind ? satAddU16(pc.sideBlindMs, p.dtMs) : 0;
     out.sideBlindMs = pc.sideBlindMs;
 
     lineNormalize(pc.cal, state.irRaw, pc.norm);

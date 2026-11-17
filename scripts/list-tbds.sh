@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Lists every outstanding <<TBD ...>> placeholder. Informational only.
+# Lists every outstanding <<TBD ...>> placeholder. Informational only. A line that only
+# describes the marker (it sits inside backticks, as in the legend at the top of each spec
+# header) is not a placeholder and is skipped.
 set -euo pipefail
 
 SEARCH_DIRS=()
@@ -14,7 +16,7 @@ fi
 
 EXTS=(--include='*.c' --include='*.h' --include='*.cpp' --include='*.hpp' --include='*.cc' --include='*.sh')
 
-matches=$(grep -rnE '<<TBD [A-Z0-9-]+>>' "${SEARCH_DIRS[@]}" "${EXTS[@]}" || true)
+matches=$(grep -rnE '<<TBD [A-Z0-9-]+>>' "${SEARCH_DIRS[@]}" "${EXTS[@]}" | grep -vF '`<<TBD' || true)
 
 if [ -z "$matches" ]; then
     echo "No outstanding TBD placeholders."

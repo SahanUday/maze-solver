@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/DriveCommand.h"
 #include "sense/FloorPattern.h"
 #include "motion/LineFollow.h"
@@ -647,7 +648,7 @@ inline DriveCommand sectionAStep(SectionA &ms, const SectionAParams &p, const Pe
                 // tolerance, are an arrival: the next move starts from where it stands, and the
                 // walls put the centre right again.
                 float err = ms.step.straight.targetMm - fb.distMm;
-                err = err < 0.0f ? -err : err;
+                err = absf(err);
                 if (err <= p.stuckAcceptMm && fb.speedMmS < MARKER_STILL_MM_S &&
                     fb.speedMmS > -MARKER_STILL_MM_S) {
                     st = MoveStatus::Done;

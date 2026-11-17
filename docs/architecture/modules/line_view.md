@@ -31,5 +31,5 @@ black card under one end of the array).
 
 ## Status
 
-Host tests only. Not run on the robot: the array is not calibrated and `IR_SENSOR_PITCH_MM` has no
-measured value yet.
+Host tests, and the Section A run on the robot at the mid-evaluation (tag `v0.1-section-a`) with a
+stored calibration.

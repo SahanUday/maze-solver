@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/Heading.h"
 #include "sense/LineView.h"
 #include "motion/MotionProfile.h"
@@ -128,7 +129,7 @@ inline LineStatus lineFollowStep(LineFollow &lf, const LineParams &p, const Moti
                     lf.side = lv.errMm > 0.0f ? 1.0f : -1.0f;
                 }
                 if (p.slowdownErrMm > 0.0f) {
-                    float frac = (lv.errMm < 0.0f ? -lv.errMm : lv.errMm) / p.slowdownErrMm;
+                    float frac = absf(lv.errMm) / p.slowdownErrMm;
                     frac = frac > 1.0f ? 1.0f : frac;
                     speed *= 1.0f - frac * (1.0f - static_cast<float>(p.slowdownPct) / 100.0f);
                 }

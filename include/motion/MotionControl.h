@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/Heading.h"
 #include "motion/MotionTypes.h"
 
@@ -74,11 +75,6 @@ inline void motionControlClearIntegrals(MotionControl &mc)
 
 namespace motion_detail
 {
-
-inline float absf(float x)
-{
-    return x < 0.0f ? -x : x;
-}
 
 inline float clampSymmetric(float x, float limit)
 {

@@ -39,8 +39,9 @@ changes. The error LED follows `Fault`.
 ## Status
 
 Host tests, including a whole run from power-on to the marker and onto the line through the raw sensors in the
-simulated arena. Not run on the robot. No IR calibration is stored yet, so `main.cpp` passes none
-and the run is walls only: it explores every reachable tile and stops (`Done`).
+simulated arena. Ran on the robot at the mid-evaluation (tag `v0.1-section-a`). `main.cpp` loads the
+stored IR calibration at boot ([line_sense](line_sense.md)) and passes it; without a usable one the
+run is walls only: it explores every reachable tile and stops (`Done`).
 
 ## Status line
 
