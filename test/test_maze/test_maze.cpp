@@ -188,7 +188,7 @@ static void test_wall_is_recorded_on_both_sides_of_the_edge()
     explorerInit(e);
     explorerObserve(e, true, false, false); // wall to the North
     uint8_t north = 0;
-    TEST_ASSERT_TRUE(neighbour(e.pos, Dir::North, north));
+    TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
     TEST_ASSERT_BITS_HIGH(wallBit(Dir::North), e.cell[e.pos]);
     TEST_ASSERT_BITS_HIGH(wallBit(Dir::South), e.cell[north]);
     TEST_ASSERT_BITS_HIGH(kVisited, e.cell[e.pos]);
@@ -319,9 +319,9 @@ static void test_plan_keeps_out_of_the_start_tile_when_another_way_exists()
     uint8_t east1 = 0;
     uint8_t northEast = 0;
     uint8_t north = 0;
-    TEST_ASSERT_TRUE(neighbour(kStartCell, Dir::East, east1));
-    TEST_ASSERT_TRUE(neighbour(east1, Dir::North, northEast));
-    TEST_ASSERT_TRUE(neighbour(kStartCell, Dir::North, north));
+    TEST_ASSERT_TRUE(Explorer::neighbour(kStartCell, Dir::East, east1));
+    TEST_ASSERT_TRUE(Explorer::neighbour(east1, Dir::North, northEast));
+    TEST_ASSERT_TRUE(Explorer::neighbour(kStartCell, Dir::North, north));
     for (const uint8_t idx : {kStartCell, east1, northEast, north}) {
         e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | kVisited);
     }
@@ -459,6 +459,40 @@ static void test_the_cell_ahead_is_visited_once_the_robot_has_been_in_it()
     TEST_ASSERT_TRUE(maze::explorerAheadVisited(e)); // the start cell behind it is
 }
 
+static void test_the_section_b_map_plans_a_path_longer_than_62_tiles()
+{
+    // A 17 x 17 map (more than 255 cells, so its index is 16 bits) with four wall lines across it,
+    // gaps at alternating ends: the way from the south-east corner to the north-west one is a
+    // serpentine of 96 tiles. Every cell but the north-west corner is visited.
+    using B = ExplorerT<SECTION_B_SIZE_TILES>;
+    B e;
+    explorerInit(e);
+    for (uint16_t i = 0; i < B::kCells; ++i) {
+        e.cell[i] = kVisited;
+    }
+    e.cell[0] = 0;
+    const uint8_t gapCol[4] = {0, 16, 0, 16};
+    const uint8_t lineRow[4] = {14, 10, 6, 2}; // the wall is south of this row
+    for (uint8_t k = 0; k < 4; ++k) {
+        for (uint8_t col = 0; col < B::kSide; ++col) {
+            if (col != gapCol[k]) {
+                markWall(e, static_cast<B::Index>(lineRow[k] * B::kSide + col), Dir::South);
+            }
+        }
+    }
+    e.pos = static_cast<B::Index>(B::kCells - 1);
+    e.heading = Dir::East;
+    uint16_t moves = 0;
+    while (e.pos != 0 && moves < 300) {
+        Dir step = Dir::North;
+        TEST_ASSERT_TRUE(explorerPlan(e, step));
+        explorerFace(e, step);
+        TEST_ASSERT_TRUE(explorerAdvance(e));
+        ++moves;
+    }
+    TEST_ASSERT_EQUAL_UINT16(96, moves);
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -483,5 +517,6 @@ int main()
     RUN_TEST(test_the_start_tile_is_re_entered_only_where_it_cannot_be_avoided);
     RUN_TEST(test_starting_on_the_finish_does_not_move);
     RUN_TEST(test_the_cell_ahead_is_visited_once_the_robot_has_been_in_it);
+    RUN_TEST(test_the_section_b_map_plans_a_path_longer_than_62_tiles);
     return UNITY_END();
 }
