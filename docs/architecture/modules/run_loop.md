@@ -27,8 +27,9 @@ hardware and applies the result.
    (`TimeUp`). A run that is `Done` or `Fault` is left alone.
 
 `main.cpp` applies the command: `motorsEnable()` when `enable` changes, `motorSet()` for both
-wheels, the heading fix through `headingSet()`, and a line on the serial port when the phase
-changes. The error LED follows `Fault`.
+wheels, and the heading fix through the heading estimator (`src/app/heading_estimator.*`). The
+serial lines come from `src/app/telemetry.*` and the error LED, which follows `Fault`, from
+`src/app/operator_io.*`.
 
 ## Invariants
 
@@ -45,7 +46,7 @@ run is walls only: it explores every reachable tile and stops (`Done`).
 
 ## Status line
 
-While the run is going, `src/main.cpp` prints one CSV line every `RUN_LOG_EVERY_MS` (200 ms; 0 =
+While the run is going, `src/app/telemetry.cpp` prints one CSV line every `RUN_LOG_EVERY_MS` (200 ms; 0 =
 off) after a `# status ...` header: time, phase, fault, moves, turns, flags (1 marker seen, 2 gap
 seen, 4 turning to the exit), odometer, speed, heading, the three ultrasonics (0 = no echo), the IR
 floor class (0 black, 1 white, 2 air, 3 mixed), the line error, the eight raw IR counts and the

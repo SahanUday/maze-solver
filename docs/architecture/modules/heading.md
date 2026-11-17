@@ -48,7 +48,7 @@ capture does not read zero, so its mean is a wrong zero that is subtracted for
 the rest of the run, and the heading drifts at `(captured - true) / GYRO_COUNTS_PER_DPS`
 for as long as it runs. The spread is a Welford running mean and sum of squared
 deviations, so it stays accurate with counts up to the full +-32767 range.
-`src/main.cpp` repeats a rejected capture up to `GYRO_BIAS_MAX_ATTEMPTS` times
+`src/app/heading_estimator.cpp` repeats a rejected capture up to `GYRO_BIAS_MAX_ATTEMPTS` times
 (about 1.4 s each) and, if none is still enough, reports the failure and leaves
 the heading at 0, which is the same fallback as a capture with too few samples.
 
