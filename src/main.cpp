@@ -85,7 +85,7 @@ static void runAlgorithm(const RobotState &state)
     }
 
     telemetryTick(g_run, state, cmd);
-    operatorIoTick(state.timestampMs, g_run.mission.phase == SectionAPhase::Fault);
+    operatorIoTick(state.timestampMs, g_run.mission.phase == MissionPhase::Fault);
 }
 
 void loop()

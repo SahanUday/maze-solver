@@ -33,7 +33,7 @@ void logStatus(const RunLoop &run, const RobotState &state, const DriveCommand &
         return;
     }
     lastMs = nowMs;
-    const SectionA &m = run.mission;
+    const MissionManager &m = run.mission;
     const Perception &p = run.perception;
     const uint8_t flags = static_cast<uint8_t>(
         (m.marker.atMarker ? 1 : 0) | (m.marker.gapSeen ? 2 : 0) | (m.marker.sideExit ? 4 : 0));
@@ -76,8 +76,8 @@ void logStatus(const RunLoop &run, const RobotState &state, const DriveCommand &
 
 void logPhaseChange(const RunLoop &run)
 {
-    static SectionAPhase loggedPhase = SectionAPhase::WaitStart;
-    const SectionAPhase phase = run.mission.phase;
+    static MissionPhase loggedPhase = MissionPhase::WaitStart;
+    const MissionPhase phase = run.mission.phase;
     if (phase == loggedPhase) {
         return;
     }
@@ -89,14 +89,16 @@ void logPhaseChange(const RunLoop &run)
     Serial.print(F(" moves "));
     Serial.print(run.mission.explore.moves);
     Serial.print(F(" turns "));
-    Serial.println(run.mission.explore.turns);
+    Serial.print(run.mission.explore.turns);
+    Serial.print(F(" part "));
+    Serial.println(static_cast<uint8_t>(run.mission.part));
 }
 
 } // namespace
 
 void telemetryTick(const RunLoop &run, const RobotState &state, const DriveCommand &cmd)
 {
-    if (run.started) {
+    if (run.mission.start.started) {
         logStatus(run, state, cmd);
     }
     logPhaseChange(run);

@@ -30,7 +30,7 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
   (the marker exit uses it), with the same retries.
 - `cellExplorerEdgeOpen(ce, dir)`, `cellExplorerHeadingRef(ce)` - the map's view of the tile the
   robot is on, and the gyro heading square to the map's current direction.
-- The fault codes (`SectionAFault`) are in `mission/Fault.h`.
+- The fault codes (`MissionFault`) are in `mission/Fault.h`.
 
 ## How it works
 
@@ -72,8 +72,8 @@ was going, and the status is `Braked` once the wheels have stood still `STOP_STI
 
 ## Status
 
-Tested through the Section A mission in a simulated arena (ray-cast walls, a plant with stiction,
-encoder and gyro noise, ultrasonic dropouts and strays): see [section_a](section_a.md). The `Braked`
+Tested through the mission manager in a simulated arena (ray-cast walls, a plant with stiction,
+encoder and gyro noise, ultrasonic dropouts and strays): see [mission_manager](mission_manager.md). The `Braked`
 path is not reached by those tests. Ran on the robot at the mid-evaluation (tag `v0.1-section-a`) as
 part of the Section A run, before the mission was split. The split changed no output on the host:
 every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the

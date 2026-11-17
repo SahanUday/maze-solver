@@ -2,7 +2,7 @@
 
 From the approach marker out of the maze: tell the marker, find the way out of its tile, drive on over
 the strip and the gap, and hand over to the line follower. Pure logic in
-`include/mission/MarkerExit.h`, tested through the Section A mission (`test/test_section_a/`) and
+`include/mission/MarkerExit.h`, tested through the mission manager (`test/test_section_a/`) and
 `test/test_floor_pattern/` (`BridgeHandover`). Decisions:
 [0010](../decisions/0010-finish-on-the-approach-marker.md),
 [0011](../decisions/0011-leave-the-maze-onto-the-line-without-stopping.md) and
@@ -54,6 +54,6 @@ On the marker's tile the way out is straight on, or to a side when a wall is ahe
 
 ## Status
 
-Tested through the Section A mission in the simulated arena: the straight exit, an exit to either
+Tested through the mission manager in the simulated arena: the straight exit, an exit to either
 side, a gap that does not read as air, a line that never comes. Ran on the robot at the
 mid-evaluation (tag `v0.1-section-a`) before the split; not run since.

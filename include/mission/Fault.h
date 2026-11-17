@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-enum class SectionAFault : uint8_t {
+enum class MissionFault : uint8_t {
     None,
     NoImu,        // set by the caller: no gyro, no heading, no turns
     NoRoute,      // nothing left to explore, the rescans used, the white tile not found
@@ -16,5 +16,6 @@ enum class SectionAFault : uint8_t {
     TooManyStops, // blocked steps over the limit: something keeps stopping the robot
     TimeUp,       // set by the caller: the run limit passed before the run ended
     NoLine,       // drove on from the marker and found no line past the gap
-    LineLost      // the line was gone, and searched for in vain
+    LineLost,     // the line was gone, and searched for in vain
+    BadConfig     // the parts asked for cannot run: not built, or not able to start alone
 };

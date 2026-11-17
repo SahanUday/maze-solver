@@ -69,7 +69,7 @@ struct ExploreInput {
 
 template <uint8_t N> struct CellExplorerT {
     ExplorePhase phase = ExplorePhase::Sense;
-    SectionAFault fault = SectionAFault::None;
+    MissionFault fault = MissionFault::None;
 
     maze::ExplorerT<N> map;
     float h0 = 0.0f; // the gyro heading at the start; map North is this
@@ -250,7 +250,7 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
                 return true; // every reachable tile has been entered
             }
             if (ce.rescans >= p.rescans) {
-                ce.fault = SectionAFault::NoRoute;
+                ce.fault = MissionFault::NoRoute;
                 return false;
             }
             ++ce.rescans; // a wall that was only a bad reading can strand the search
@@ -306,7 +306,7 @@ template <uint8_t N> inline bool onWallsReady(CellExplorerT<N> &ce, const CellEx
 {
     if (!ce.entered) {
         if (!maze::explorerAdvance(ce.map)) {
-            ce.fault = SectionAFault::NoRoute; // the map says a wall is there
+            ce.fault = MissionFault::NoRoute; // the map says a wall is there
             return false;
         }
         ce.entered = true;
@@ -403,7 +403,7 @@ inline TurnStatus cellExplorerTurnStep(CellExplorerT<N> &ce, const CellExplorerP
     }
     if (st == MoveStatus::Stuck) {
         if (++ce.turnTries > p.turnRetries) {
-            ce.fault = SectionAFault::StuckTurn;
+            ce.fault = MissionFault::StuckTurn;
             return TurnStatus::Fault;
         }
         cell_explorer_detail::startTurn(ce, fb, ce.turnTo);
@@ -503,7 +503,7 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
                 }
             }
             if (st == MoveStatus::Stuck && !ce.braking) {
-                ce.fault = SectionAFault::StuckStep;
+                ce.fault = MissionFault::StuckStep;
                 return ExploreStatus::Fault;
             }
             if (st == MoveStatus::Done && !ce.stopHere && in.lateStopOffer) {
@@ -522,7 +522,7 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
                 if (ce.step.blocked) {
                     ++ce.blocked;
                     if (ce.blocked > p.maxBlocked) {
-                        ce.fault = SectionAFault::TooManyStops;
+                        ce.fault = MissionFault::TooManyStops;
                         return ExploreStatus::Fault;
                     }
                     ce.afterStop = true; // stand and look: a wall, or something that has gone
@@ -540,5 +540,5 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
             break;
         }
     }
-    return ce.fault != SectionAFault::None ? ExploreStatus::Fault : ExploreStatus::Running;
+    return ce.fault != MissionFault::None ? ExploreStatus::Fault : ExploreStatus::Running;
 }

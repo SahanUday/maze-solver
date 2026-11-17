@@ -19,12 +19,10 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
-// After the marker the mission drives on (SECTION_A_FOLLOW_LINE) and hands over to the line
-// follower; false stops on the marker's tile instead, for a first run that does not leave the
-// maze. The hand-over is the first line view BRIDGE_HANDOVER_MIN_MM past the end of the gap (the
-// ~8 mm dark patch right after it must not count); no line within APPROACH_NO_LINE_MM of the
-// marker's centre is `NoLine` (marker centre to the ramp's line is ~300 mm).
-constexpr bool SECTION_A_FOLLOW_LINE = true;
+// After the marker the mission drives on and hands over to the line follower. The hand-over is the
+// first line view BRIDGE_HANDOVER_MIN_MM past the end of the gap (the ~8 mm dark patch right after
+// it must not count); no line within APPROACH_NO_LINE_MM of the marker's centre is `NoLine`
+// (marker centre to the ramp's line is ~300 mm).
 constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
 // Without a seen gap, hand over at the first line view this far past the marker's box centre (the
 // gap ends ~182 mm and the dark patch ~190 mm from the tile's centre; the line is on the board
