@@ -6,8 +6,10 @@ hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. Decision:
 
 ## Interface
 
-- `Explorer` - the map (`cell[]`), the planner's scratch, `pos` and `heading`. Cell `kStartCell` is
-  where the run began; North is the start heading.
+- `ExplorerT<N>` - the map of an N x N maze (`cell[]`), the planner's scratch, `pos` and `heading`.
+  Its cell `kStart` is where the run began; North is the start heading. `Explorer` is the Section A
+  map (N = 4, with `kSide`, `kCells`, `kStartCell`); Section B is `ExplorerT<SECTION_B_SIZE_TILES>`
+  ([0014](../decisions/0014-explore-section-b-in-a-start-relative-map.md)).
 - `explorerInit(e)` - empty map, at the start cell, facing North.
 - `explorerObserve(e, front, left, right)` - walls seen from the current cell, relative to the
   heading; marks the cell visited. `false` means no wall *or* not heard.
@@ -25,16 +27,16 @@ One cell visit: observe, plan, turn to the step and observe again (the new front
 nothing has looked at), then drive. A wall is stored on both cells that share the edge and is never
 erased. Planning is a breadth-first search over edges that are not walls, expanding straight, right,
 left, back, and stopping at the first unvisited cell it finds, which is also the nearest. It runs
-first with the start tile closed and again with it open if that finds nothing. Path length and the
-first step share one byte per cell.
+first with the start tile closed and again with it open if that finds nothing. Each cell's scratch
+byte is the first step of the way to it.
 
 ## Invariants
 
-- The 7x7 map holds any 4x4 start: the robot is at most 3 tiles from the start tile in any
-  direction.
+- The (2N-1) square map holds any N x N start: the robot is at most N-1 tiles from the start tile in
+  any direction. Cells are indexed with a byte up to 255 of them and with 16 bits beyond.
 - A forward drive follows an observation whose front reading was heard. The planner treats an
   unobserved edge as open.
-- No recursion and no heap. One `Explorer` is 149 B.
+- No recursion and no heap. One `Explorer` is 149 B; `ExplorerT<9>` is about 1.16 KB.
 
 ## Status
 
@@ -48,6 +50,9 @@ The maze in the test was read from the photograph of the arena and its eight wal
 against it; it has not been measured in the arena. It ran on the robot as part of the Section A run
 at the mid-evaluation (tag `v0.1-section-a`). There is no motion, turn or finish-detection code in
 this module.
+
+A test on the 17x17 map (`ExplorerT<9>`) plans a 96-tile serpentine to the far corner. The Section B
+map has not run on the robot.
 
 `explorerAheadVisited(e)` is true when the cell in the heading direction has been entered: its walls
 were all looked at from inside, so the shared edge is settled whatever the front sensor says now.
