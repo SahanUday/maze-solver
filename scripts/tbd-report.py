@@ -12,8 +12,6 @@ Informational: it never fails.
                resolved (compared by file + kind + description, not line number)
   --repo/--sha make each entry a link to that line on GitHub
 
-Lines that only *describe* the marker (it sits inside backticks, as in the
-legend at the top of each spec header) are not placeholders and are skipped.
 Exit status: 0, or 2 if list-tbds.sh cannot be run.
 """
 
@@ -32,7 +30,7 @@ COLLAPSE_AFTER = 12
 
 
 def parse(listing: str) -> list[dict]:
-    """list-tbds.sh output -> [{file, line, kind, what}], legend lines dropped."""
+    """list-tbds.sh output -> [{file, line, kind, what}]."""
     items = []
     for row in listing.splitlines():
         m = ENTRY.match(row)
@@ -40,7 +38,7 @@ def parse(listing: str) -> list[dict]:
             continue  # the "N outstanding..." header, blanks, "No outstanding..."
         text = m["text"]
         marker = MARKER.search(text)
-        if not marker or "`" + marker.group(0) in text:
+        if not marker:
             continue
         what = MARKER.sub("", text).strip(" /#*-:\t")
         items.append({"file": m["file"], "line": int(m["line"]), "kind": marker["kind"], "what": what or "(no description)"})
