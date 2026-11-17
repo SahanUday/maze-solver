@@ -82,8 +82,8 @@ modules time out differently, and a stray edge from another sensor would
 otherwise reach the ISR. Masking `PCMSK2` to only the active sensor means that
 never happens, rather than having it detected and filtered.
 
-`PCMSK2` also admits nothing on `PK0`/`PK1`, so `PIN_POT` and `PIN_VBAT_SENSE`
-keep working as analog inputs.
+`PCMSK2` also admits nothing on `PK0`/`PK1` (A8, A9), so `PIN_POT` and the other analog
+input keep working.
 
 ## Port sharing
 

@@ -169,7 +169,7 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
 }
 
 // ---- Unit tests ----------------------------------------------------------------------------
-static void test_robotspec_is_native_safe()
+static void test_the_spec_is_native_safe()
 {
     TEST_ASSERT_EQUAL(250, TILE_PITCH_MM);
 }
@@ -496,7 +496,7 @@ static void test_the_section_b_map_plans_a_path_longer_than_62_tiles()
 int main()
 {
     UNITY_BEGIN();
-    RUN_TEST(test_robotspec_is_native_safe);
+    RUN_TEST(test_the_spec_is_native_safe);
     RUN_TEST(test_turns);
     RUN_TEST(test_wall_is_recorded_on_both_sides_of_the_edge);
     RUN_TEST(test_side_walls_follow_the_heading);

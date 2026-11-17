@@ -87,9 +87,8 @@ inline DriveCommand runLoopTick(RunLoop &rl, const RobotState &state, uint32_t n
         }
     }
 
-    RobotState seen = state;
-    seen.startButtonPressed = rl.started;
-    perceive(rl.perceiver, seen, rl.perceive, rl.perception);
+    perceive(rl.perceiver, state, rl.perceive, rl.perception);
+    rl.perception.startPressed = rl.started;
 
     if (rl.started && rl.mission.phase != SectionAPhase::Done &&
         rl.mission.phase != SectionAPhase::Fault && nowMs - rl.startedAtMs >= RUN_LIMIT_MS) {
