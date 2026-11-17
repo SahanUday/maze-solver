@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/Heading.h"
 #include "motion/MotionProfile.h"
 #include "motion/MotionTypes.h"
@@ -104,7 +105,7 @@ inline void straightBegin(Straight &s, const MotionFeedback &fb, float distMm, f
     s.vEndMmS = vEndMmS;
     s.headingRefDeg = headingRefDeg;
     s.fresh = true;
-    progressBegin(s.watch, distMm < 0.0f ? -distMm : distMm);
+    progressBegin(s.watch, absf(distMm));
 }
 
 // Move the finish line `addMm` on (signed like `distMm`) and change the arrival speed.
@@ -161,7 +162,7 @@ inline MoveStatus straightStep(Straight &s, const PlanParams &plan, const Motion
     s.fresh = false;
 
     float err = s.targetMm - fb.distMm;
-    err = err < 0.0f ? -err : err;
+    err = absf(err);
     if (s.vEndMmS == 0.0f) {
         if (s.refSpeedMmS == 0.0f && err <= plan.stepToleranceMm) {
             return MoveStatus::Done;
@@ -203,7 +204,7 @@ inline void turnBegin(Turn &t, const MotionFeedback &fb, float targetHeadingDeg,
     t.settledMs = 0;
     t.fresh = true;
     const float startErr = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
-    progressBegin(t.watch, startErr < 0.0f ? -startErr : startErr);
+    progressBegin(t.watch, absf(startErr));
 }
 
 inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback &fb, uint16_t dtMs,
@@ -227,7 +228,7 @@ inline MoveStatus turnStep(Turn &t, const PlanParams &plan, const MotionFeedback
     t.fresh = false;
 
     float err = headingWrapDeg(t.targetHeadingDeg - fb.headingDeg);
-    err = err < 0.0f ? -err : err;
+    err = absf(err);
     if (profileDone && err <= plan.turnToleranceDeg) {
         t.settledMs = static_cast<uint16_t>(t.settledMs + dtMs);
         if (t.settledMs >= plan.turnSettleMs) {

@@ -17,6 +17,7 @@
 #include <math.h>
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/MotionPrimitives.h"
 #include "spec/Competition.h"
 #include "spec/Motion.h"
@@ -214,11 +215,6 @@ inline bool heard(const uint8_t (&v)[3])
     return v[0] > 0 || v[1] > 0;
 }
 
-inline float absf(float x)
-{
-    return x < 0.0f ? -x : x;
-}
-
 // Take in the front echo; true while the move should wait for a pair. Only an echo that
 // agrees with the one before it moves the wall, so a stray reading cannot. A wall the robot can no
 // longer stop short of the stop point for (braking distance and one echo of travel included) is a
@@ -238,8 +234,8 @@ inline bool frontLogic(StepCell &sc, const StepCellParams &p, const MotionFeedba
     // (a still robot at 300 mm reads sd 0.0): without it a stopped move never forms a pair.
     if (fresh || !echo) {
         sc.sameMs = 0;
-    } else if (sc.sameMs < UINT16_MAX - dtMs) {
-        sc.sameMs = static_cast<uint16_t>(sc.sameMs + dtMs);
+    } else {
+        sc.sameMs = satAddU16(sc.sameMs, dtMs);
     }
     if (echo && !fresh && sc.haveFront && !sc.haveWall &&
         static_cast<float>(sc.sameMs) >= 1.5f * p.echoMs) {
@@ -267,9 +263,7 @@ inline bool frontLogic(StepCell &sc, const StepCellParams &p, const MotionFeedba
         if (clear || p.blindMs == 0 || sc.openAhead) {
             return false;
         }
-        if (sc.blindMs < UINT16_MAX - dtMs) {
-            sc.blindMs = static_cast<uint16_t>(sc.blindMs + dtMs);
-        }
+        sc.blindMs = satAddU16(sc.blindMs, dtMs);
         if (sc.blindMs < p.blindMs) {
             return true;
         }

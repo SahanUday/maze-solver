@@ -92,7 +92,7 @@ with function bodies in it must appear in the coverage report or declare
 
 `include/` is grouped by layer and headers are included by path
 (`#include "motion/Heading.h"`; [ADR 0012](decisions/0012-group-headers-by-layer.md)):
-`config/` (pins), `core/` (`RobotState`, `Scheduler`), `sense/`, `motion/`,
+`config/` (pins), `core/` (`RobotState`, `Scheduler`, `MathUtil`), `sense/`, `motion/`,
 `mission/`, and `spec/` for the constants (below).
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the

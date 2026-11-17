@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include "core/MathUtil.h"
 #include "motion/Heading.h"
 #include "spec/WallFollow.h"
 #include "core/RobotState.h"
@@ -69,7 +70,7 @@ inline bool wallCenterError(const WallView &v, const WallParams &p, float &errMm
     if (v.left && v.right) {
         const float sum = static_cast<float>(v.leftMm) + static_cast<float>(v.rightMm);
         const float off = sum - 2.0f * center;
-        if ((off < 0.0f ? -off : off) > static_cast<float>(p.pairTolMm)) {
+        if (absf(off) > static_cast<float>(p.pairTolMm)) {
             return false;
         }
         errMm = (static_cast<float>(v.leftMm) - static_cast<float>(v.rightMm)) * 0.5f;
@@ -123,7 +124,7 @@ inline float wallSteerTrim(WallSteer &w, const WallView &v, const WallParams &p,
                            uint16_t dtMs)
 {
     const float moved = headingWrapDeg(headingDeg - w.anchorDeg);
-    if (!w.anchored || (moved < 0.0f ? -moved : moved) > p.biasResetDeg) {
+    if (!w.anchored || absf(moved) > p.biasResetDeg) {
         w.biasDeg = 0.0f;
         w.anchorDeg = headingDeg;
         w.anchored = true;
@@ -134,8 +135,7 @@ inline float wallSteerTrim(WallSteer &w, const WallView &v, const WallParams &p,
     float trim = w.biasDeg;
     if (!wallCenterError(v, p, err)) {
         w.mode = WallMode::None;
-        w.unseenMs =
-            w.unseenMs > UINT16_MAX - dtMs ? UINT16_MAX : static_cast<uint16_t>(w.unseenMs + dtMs);
+        w.unseenMs = satAddU16(w.unseenMs, dtMs);
         if (w.unseenMs > p.biasHoldMs) {
             const float step = p.biasFadeDegPerS * (static_cast<float>(dtMs) / 1000.0f);
             w.biasDeg =

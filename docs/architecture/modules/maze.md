@@ -18,7 +18,6 @@ hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. Decision:
 - `explorerRetreat(e)` - undo one `explorerAdvance`, for a move that did not happen (refused only
   off the map).
 - `explorerRescan(e)` - forget every wall and visit, keep the pose.
-- `wallDetected(heard, distMm)` - `heard && distMm < TILE_PITCH_MM`.
 
 ## How it works
 
