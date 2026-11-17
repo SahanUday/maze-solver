@@ -1,6 +1,7 @@
 # section_a
 
-The Section A mission: from any tile, explore until the approach marker and stop on its tile. Pure logic in
+The Section A mission: from any tile, explore until the approach marker, drive on over the gap and
+follow the line out of the maze. Pure logic in
 `include/mission/SectionA.h`, tested by `test/test_section_a/` in a simulated arena. It joins the planner
 ([maze](maze.md)), the cell step ([step_cell](step_cell.md)), the turn
 ([motion_primitives](motion_primitives.md)) and [perception](perception.md); the decision is
@@ -13,7 +14,7 @@ The Section A mission: from any tile, explore until the approach marker and stop
 - `sectionAReset(ms)`, `sectionAFail(ms, code)` - the caller fails a run for a precondition it
   found missing (`NoImu`).
 - `sectionAParams()` - every parameter at its `spec/` value (`spec/Mission.h` and the others) (`SECTION_A_*`, the plan, the
-  controller gains). The caller may set `wallsOnly`, `finishAtStart`.
+  controller gains). The caller may set `wallsOnly`.
 - `sectionAStep(ms, params, perception)` - one tick; returns the `DriveCommand`.
 - `sectionATakeHeadingFix(ms)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), 0 when there is none. Call it every tick after
@@ -91,6 +92,6 @@ centre, with no wall contact and the map position right; also with 30 % dropped 
 stray echoes, a gyro scale 2 % off with 9 deg/min of drift, a wall in the front sensor's dead zone
 and an obstacle held in front for a moment.
 
-Not run on the robot. `main.cpp` calls it through [run_loop](run_loop.md). The IR array is not
-calibrated, so the finish test has not seen a real floor; the array's distance ahead of the axle
-(`ARRAY_AHEAD_MM`) and the nose position in the test world are assumptions.
+Ran on the robot at the mid-evaluation (tag `v0.1-section-a`), called by `main.cpp` through
+[run_loop](run_loop.md). The array's distance ahead of the axle (`ARRAY_AHEAD_MM`) and the nose
+position in the test world are assumptions.

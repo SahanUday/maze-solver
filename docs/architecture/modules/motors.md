@@ -35,9 +35,5 @@ low-side FETs on) and EN low should coast. Not yet confirmed on hardware.
 ## Status
 
 Compiles; the duty split is covered by `test/test_motor_drive` on the host.
-`motorSet` / `motorsEnable` are not called by anything yet and have not been
-run on hardware. Bring-up: check the boards' EN pins have a pull-down (else add
-one, since the Mega pins float during reset); with EN high, step one motor
-0 -> +100 -> 0 -> -100 and confirm direction and that the other leg stays low on
-a scope or meter; set `MOTOR_*_INVERT` so positive is forward; then measure the
-dead zone.
+`main.cpp` calls `motorSet` / `motorsEnable` every tick through the run loop, and the robot
+drove with them at the mid-evaluation (tag `v0.1-section-a`).

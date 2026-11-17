@@ -96,9 +96,8 @@ void setup()
         pinMode(PIN_BTN_START, INPUT_PULLUP);
     }
     pinMode(PIN_LED_ERROR, OUTPUT);
-    // The IR calibration is taken once per lighting with the probe and kept in EEPROM
-    // (line_cal_store.h). Without one that looks real the run reads walls only: it explores every
-    // reachable tile and stops, and cannot see the marker.
+    // The IR calibration is kept in EEPROM (line_cal_store.h). Without one that looks real the run
+    // reads walls only: it explores every reachable tile and stops, and cannot see the marker.
     LineCalibration cal;
     const bool haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
     runLoopInit(g_run, g_imuPresent, haveCal ? &cal : nullptr);

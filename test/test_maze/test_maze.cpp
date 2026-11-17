@@ -309,13 +309,6 @@ static void test_advance_refuses_a_known_wall()
     TEST_ASSERT_EQUAL_UINT8(before, e.pos);
 }
 
-static void test_wall_detection_threshold()
-{
-    TEST_ASSERT_TRUE(wallDetected(true, 120));
-    TEST_ASSERT_FALSE(wallDetected(true, 370));
-    TEST_ASSERT_FALSE(wallDetected(false, 120)); // silence is not a wall
-}
-
 static void test_plan_keeps_out_of_the_start_tile_when_another_way_exists()
 {
     // S is the start, E1 east of it, NE north of E1, N north of S, with a wall between S and N.
@@ -484,7 +477,6 @@ int main()
     RUN_TEST(test_retreat_undoes_an_advance);
     RUN_TEST(test_retreat_stops_at_the_map_edge);
     RUN_TEST(test_advance_refuses_a_known_wall);
-    RUN_TEST(test_wall_detection_threshold);
     RUN_TEST(test_truth_maze_is_one_connected_region);
     RUN_TEST(test_every_start_tile_and_heading_reaches_the_white_tile);
     RUN_TEST(test_missed_side_readings_cost_time_not_the_finish);

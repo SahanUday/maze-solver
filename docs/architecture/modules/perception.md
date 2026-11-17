@@ -64,5 +64,6 @@ and then `lineView()`.
 ## Status
 
 Distance, speed and yaw rate have been checked on the robot (the odometer matched a tape measure to
-under 1%). The incline and the line view have not: no bridge threshold is set yet, and the IR array
-is not calibrated. The level capture has not been run with the motors on.
+under 1%). The incline (against the bench level `IMU_ACCEL_FORWARD_LEVEL_COUNTS`, threshold
+`RAMP_INCLINE_COUNTS`) and the line view ran in the Section A run at the mid-evaluation (tag
+`v0.1-section-a`). The level capture is not called by the firmware.

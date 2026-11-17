@@ -21,7 +21,6 @@
 // deviation in counts): a robot that was being moved during the capture scatters
 // far more than a still one, and its mean is a wrong zero.
 struct GyroBias {
-    int32_t sum = 0;
     uint16_t samples = 0;
     float mean = 0.0f;   // running mean and sum of squared deviations (Welford),
     float m2 = 0.0f;     // which stay accurate where sum-of-squares would not
@@ -37,7 +36,6 @@ struct Heading {
 // Start a calibration: nothing sampled yet, and not usable until finished.
 inline void gyroBiasReset(GyroBias &bias)
 {
-    bias.sum = 0;
     bias.samples = 0;
     bias.mean = 0.0f;
     bias.m2 = 0.0f;
@@ -53,7 +51,6 @@ inline void gyroBiasAccumulate(GyroBias &bias, int16_t yawRateCounts)
     if (bias.samples >= GYRO_BIAS_SAMPLES) {
         return;
     }
-    bias.sum += yawRateCounts;
     ++bias.samples;
     const float x = static_cast<float>(yawRateCounts);
     const float delta = x - bias.mean;
@@ -80,7 +77,7 @@ inline bool gyroBiasFinish(GyroBias &bias)
         bias.ready = false;
         return false;
     }
-    bias.counts = static_cast<float>(bias.sum) / static_cast<float>(bias.samples);
+    bias.counts = bias.mean;
     bias.ready = true;
     return true;
 }
