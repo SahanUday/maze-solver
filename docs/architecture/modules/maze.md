@@ -46,9 +46,9 @@ re-entered in 10 of the 60 runs that do not start on the white tile, all starts 
 goes through it. Ignoring walls in the planner fails six tests.
 
 The maze in the test was read from the photograph of the arena and its eight wall edges checked
-against it; it has not been measured in the arena. Nothing has run on the robot: the wall threshold
-(`TILE_PITCH_MM` against a centred robot) is arithmetic from the tile geometry, and there is no
-motion, turn or finish-detection code in this module.
+against it; it has not been measured in the arena. It ran on the robot as part of the Section A run
+at the mid-evaluation (tag `v0.1-section-a`). There is no motion, turn or finish-detection code in
+this module.
 
 `explorerAheadVisited(e)` is true when the cell in the heading direction has been entered: its walls
 were all looked at from inside, so the shared edge is settled whatever the front sensor says now.
