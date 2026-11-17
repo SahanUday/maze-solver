@@ -71,6 +71,15 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 `test/test_scheduler/` covers the jitter, catch-up-resync, and
 `millis()`-wraparound cases directly.
 
+## Application glue
+
+`src/app/` holds what `main.cpp` would otherwise carry: `heading_estimator` (the IMU, the gyro
+bias captured at boot and the yaw integration), `telemetry` (the status line and the phase-change
+line over serial) and `operator_io` (the start button and the two LEDs). It is non-critical glue
+in the sense of ADR 0001, so it uses the Arduino framework (`Serial`, `pinMode`, `digitalRead`,
+`digitalWrite`) rather than registers, and nothing in it is timing-critical. `main.cpp` keeps the
+driver start-up order, `readSensors()`, `runAlgorithm()` and the tick.
+
 ## HAL modules
 
 Register-level drivers live in `src/hal/` (not `lib/`). Code in `src/` is built

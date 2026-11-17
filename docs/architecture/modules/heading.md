@@ -48,7 +48,7 @@ capture does not read zero, so its mean is a wrong zero that is subtracted for
 the rest of the run, and the heading drifts at `(captured - true) / GYRO_COUNTS_PER_DPS`
 for as long as it runs. The spread is a Welford running mean and sum of squared
 deviations, so it stays accurate with counts up to the full +-32767 range.
-`src/main.cpp` repeats a rejected capture up to `GYRO_BIAS_MAX_ATTEMPTS` times
+`src/app/heading_estimator.cpp` repeats a rejected capture up to `GYRO_BIAS_MAX_ATTEMPTS` times
 (about 1.4 s each) and, if none is still enough, reports the failure and leaves
 the heading at 0, which is the same fallback as a capture with too few samples.
 
@@ -91,8 +91,8 @@ The threshold sits between about 3 (still) and about 330 (turning); a robot bein
 set down scattered 6.5 on the attempt that was accepted, so it is not generous
 at the low end.
 
-`main.cpp` calls the bias functions, `headingUpdate()` and `headingSet()` (to hand back the
-corridor's heading, [step_cell](step_cell.md)).
+`src/app/heading_estimator.cpp` calls the bias functions, `headingUpdate()` and `headingSet()` (to
+hand back the corridor's heading, [step_cell](step_cell.md)).
 
 Measured at rest on the compact chassis (2026-10-14, motors off): the zero is about 15
 counts (0.23 deg/s) and the heading wandered +2.4 deg in 10 min with the chip warm and
