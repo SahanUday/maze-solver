@@ -6,6 +6,7 @@
 
 #include <unity.h>
 
+#include "mission/MarkerExit.h"
 #include "sense/FloorPattern.h"
 #include "spec/LineSensor.h"
 

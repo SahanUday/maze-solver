@@ -51,35 +51,6 @@ inline FloorClass classifyFloor(const LineView &v, const uint16_t (&raw)[IR_CHAN
     return FloorClass::Mixed;
 }
 
-// After the gap, the robot hands over to the line follower. Not at the first sweep that is not air:
-// the dark patch just past the gap reads black, and the gap's trailing edge can show a false line.
-// It waits until the array has been off the gap for `minMm`, and then takes the first real line
-// view.
-struct BridgeHandover {
-    float offGapSinceMm = -1.0f; // array position where the floor stopped being air; -1 = on it
-};
-
-inline void bridgeHandoverReset(BridgeHandover &b)
-{
-    b.offGapSinceMm = -1.0f;
-}
-
-inline bool bridgeHandoverStep(BridgeHandover &b, bool gapSeen, FloorClass floor, const LineView &v,
-                               float posMm, float minMm)
-{
-    if (!gapSeen) {
-        return false;
-    }
-    if (floor == FloorClass::Air) {
-        b.offGapSinceMm = -1.0f;
-        return false;
-    }
-    if (b.offGapSinceMm < 0.0f) {
-        b.offGapSinceMm = posMm;
-    }
-    return posMm - b.offGapSinceMm >= minMm && v.onLine;
-}
-
 enum class PatternEvent : uint8_t {
     None,
     Marker, // white, black, white of the marker's proportions; centreMm is the middle of the black
