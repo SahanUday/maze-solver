@@ -10,8 +10,8 @@ placed line calibration there.
 
 ## Interface
 
-- `GyroBias` - a running `sum` and `samples`, a running `mean` and `m2` for the
-  spread, the finished estimate in `counts`, `spread` and `ready`.
+- `GyroBias` - `samples`, a running `mean` and `m2` (Welford), the finished estimate in
+  `counts`, `spread` and `ready`.
 - `gyroBiasReset(bias)`, `gyroBiasAccumulate(bias, yawRateCounts)` - reset, then
   call once per sample with the robot held still.
 - `gyroBiasFinish(bias)` - sets `counts` to the mean, `spread` to the standard
@@ -39,7 +39,7 @@ compiled), multiplies by `dtMs`, and wraps.
 Three deliberate refusals: `headingUpdate()` integrates nothing at all while the
 bias is not `ready`, because integrating an unknown offset is the exact failure
 this module exists to prevent; `gyroBiasAccumulate()` saturates at
-`GYRO_BIAS_SAMPLES` so an over-running caller cannot overflow the sum; and
+`GYRO_BIAS_SAMPLES` so an over-running caller cannot change a finished count; and
 `gyroBiasFinish()` refuses a capture whose samples scatter more than
 `GYRO_BIAS_MAX_SPREAD_COUNTS`.
 
@@ -64,9 +64,7 @@ in the readings alone can tell the two apart.
   on. It is captured at run time and never written into `spec/Imu.h`.
 - `deg` stays in [-180, 180), so it never grows without bound; +180 wraps to
   -180.
-- The sum cannot overflow `int32_t`: `GYRO_BIAS_SAMPLES` (1000) times the full
-  +-32767 range is well inside it.
-- One `GyroBias` is 28 B and one `Heading` is 4 B.
+- One `GyroBias` is 24 B and one `Heading` is 4 B.
 
 ## Status
 

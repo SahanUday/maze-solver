@@ -40,7 +40,6 @@ static void test_reset_leaves_nothing_sampled_and_not_ready()
     GyroBias bias;
     gyroBiasAccumulate(bias, 123);
     gyroBiasReset(bias);
-    TEST_ASSERT_EQUAL_INT32(0, bias.sum);
     TEST_ASSERT_EQUAL_UINT16(0, bias.samples);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.mean);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, bias.m2);
@@ -106,7 +105,6 @@ static void test_accumulating_past_the_limit_is_ignored_not_overflowed()
         gyroBiasAccumulate(bias, 32767);
     }
     TEST_ASSERT_EQUAL_UINT16(GYRO_BIAS_SAMPLES, bias.samples);
-    TEST_ASSERT_EQUAL_INT32(32767L * GYRO_BIAS_SAMPLES, bias.sum);
     TEST_ASSERT_TRUE(gyroBiasFinish(bias));
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 32767.0f, bias.counts);
 }

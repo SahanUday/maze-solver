@@ -229,11 +229,4 @@ inline bool explorerRetreat(Explorer &e)
     return true;
 }
 
-// A wall sits ~120 mm from a centred robot's centreline, an open side 370 mm or more: one tile
-// pitch is midway. `heard` is the ultrasonic valid bit; silence is not a measurement.
-constexpr bool wallDetected(bool heard, uint16_t distMm)
-{
-    return heard && distMm < TILE_PITCH_MM;
-}
-
 } // namespace maze
