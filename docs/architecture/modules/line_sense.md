@@ -46,12 +46,12 @@ counts on all 8 channels, and the live values read 251-255 with mask `11111111` 
 black; the white and half-on-black checks were done by hand and behaved as
 expected.
 
-Nothing calls it yet: there are no `RobotState` fields and no calibration trigger;
-both come with the first consumer.
+`perceive()` calls `lineNormalize()` and `lineMaskUpdate()` every tick. The firmware does not call
+`lineCalibrationReset/Accumulate/Finish`: it loads a stored calibration at boot (below).
 
 Still to check: the response to a 30 mm line (which sets `LINE_MASK_ON_PCT` and
 `LINE_MASK_OFF_PCT`), tilt on the bridge incline, and a change of mount height.
 
 `lineCalibrationLooksReal(cal)` - some channel usable, the whites at least `IR_CAL_WHITE_MIN_COUNTS`
 (a lit emitter) and not all alike (`IR_CAL_WHITE_SPREAD_COUNTS`). `main.cpp` believes a stored
-calibration (`src/line_cal_store.*`, EEPROM, same layout the probe writes) only if it passes.
+calibration (`src/line_cal_store.*`, EEPROM, one struct at address 0) only if it passes.

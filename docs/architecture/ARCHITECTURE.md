@@ -56,9 +56,9 @@ register or an Arduino I/O call directly:
    and plain data. `lib/maze` and the pure-logic headers in `include/`
    (`core/`, `sense/`, `motion/`, `mission/`) live here and must never include
    `Arduino.h` (see "Dual build target" below).
-3. **Sequencing layer** — `src/main.cpp` and, eventually, the top-level
-   run-phase state machine. Wires the other two layers together once per
-   tick.
+3. **Sequencing layer** — `src/main.cpp` and `RunLoop`
+   (`include/mission/RunLoop.h`), the top-level run loop. Wires the other two
+   layers together once per tick.
 
 ## Fixed-period control loop
 
@@ -190,9 +190,10 @@ happen to read.
 ## Control layer
 
 Motion control, perception and the cell step are pure headers in `include/`, no `Arduino.h`, tested on
-the host (the motion headers against a simulated plant, `test/support/sim.h`). Nothing
-calls them from `main.cpp` yet. Per-module detail is in [`modules/`](modules/); the measured values are
-in `include/spec/`. The line view has not been run on the robot (the IR array is not calibrated).
+the host (the motion headers against a simulated plant, `test/support/sim.h`). `RunLoop` calls them
+every tick from `main.cpp`, and the Section A run, line follower included, ran on the robot at the
+mid-evaluation (tag `v0.1-section-a`), with a stored IR calibration that `main.cpp` loads at boot.
+Per-module detail is in [`modules/`](modules/); the measured values are in `include/spec/`.
 
 | Piece | File | Role |
 |---|---|---|
@@ -206,7 +207,7 @@ in `include/spec/`. The line view has not been run on the robot (the IR array is
 | Section A mission | `include/mission/SectionA.h` | the per-tick state machine for Section A: read the start tile, explore with `lib/maze` through the cell step and the turn until the approach marker, drive on over the gap and hand over to the line follower |
 | Run loop | `include/mission/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
 | Wall sensing | `include/sense/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
-| Incline | `include/sense/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and the boot level capture |
+| Incline | `include/sense/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and a level capture that nothing calls yet (the bench level is used) |
 | Line view | `include/sense/LineView.h` | one sweep of the IR array to where the line is |
 | Line follower | `include/motion/LineFollow.h` | steers on the line view's centroid as a heading offset; searches for a lost line toward the side it was last seen; ignores an all-white view on the ramp |
 | Floor pattern | `include/sense/FloorPattern.h` | the IR array's floor class (black, white, air, mixed) along the path: the approach marker and the gap before the ramp |

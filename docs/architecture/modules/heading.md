@@ -93,8 +93,8 @@ The threshold sits between about 3 (still) and about 330 (turning); a robot bein
 set down scattered 6.5 on the attempt that was accepted, so it is not generous
 at the low end.
 
-Nothing calls `gyroYawRateDps()`, `headingSet()` or `headingWrapDeg()` from the
-firmware yet; `main.cpp` calls only the bias functions and `headingUpdate()`.
+`main.cpp` calls the bias functions, `headingUpdate()` and `headingSet()` (to hand back the
+corridor's heading, [step_cell](step_cell.md)).
 
 Measured at rest on the compact chassis (2026-10-14, motors off): the zero is about 15
 counts (0.23 deg/s) and the heading wandered +2.4 deg in 10 min with the chip warm and
@@ -107,5 +107,4 @@ neither is built. The gyro scale reproduces closed hand laps to 1.001 to 1.002
 
 Still to check: how much heading is actually lost over `RUN_LIMIT_MS` with the motors
 running (these were all bench runs), and the per-tick cost of the float arithmetic on the
-Mega. Snapping to the maze's 90 deg grid against wall readings - the mechanism meant to
-bound the residual drift - is **not built**; it has no trigger yet.
+Mega.
