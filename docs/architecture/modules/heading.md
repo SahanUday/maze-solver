@@ -91,8 +91,8 @@ The threshold sits between about 3 (still) and about 330 (turning); a robot bein
 set down scattered 6.5 on the attempt that was accepted, so it is not generous
 at the low end.
 
-`main.cpp` calls the bias functions, `headingUpdate()` and `headingSet()` (to hand back the
-corridor's heading, [step_cell](step_cell.md)).
+`src/app/heading_estimator.cpp` calls the bias functions, `headingUpdate()` and `headingSet()` (to
+hand back the corridor's heading, [step_cell](step_cell.md)).
 
 Measured at rest on the compact chassis (2026-10-14, motors off): the zero is about 15
 counts (0.23 deg/s) and the heading wandered +2.4 deg in 10 min with the chip warm and
