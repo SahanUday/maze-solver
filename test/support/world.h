@@ -253,7 +253,6 @@ struct World {
         gyroBiasFinish(bias);
 
         perceiverSetCalibration(pc, calibration());
-        state.startButtonPressed = true;
     }
 
     // The IR array's calibration: the white and black of arrayCounts().
@@ -323,6 +322,7 @@ struct World {
         lat = -dx * ey[exitDirOrNorth()] + dy * ex[exitDirOrNorth()];
     }
     bool lineGone = false;  // the board has no line on it (a test takes it away)
+    bool started = true;    // what the mission is told: the run has begun
     bool gapIsDark = false; // the gap reads dark like the strip, not as air (as on the real robot)
     int exitDirOrNorth() const
     {
@@ -451,6 +451,7 @@ struct World {
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = forwardAccel();
         Perception out;
         perceive(pc, state, pp, out);
+        out.startPressed = started;
         return out;
     }
 

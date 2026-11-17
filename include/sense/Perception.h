@@ -36,7 +36,8 @@ struct Perception {
     uint16_t sideBlindMs = 0;
     LineView line;
     FloorClass floor = FloorClass::Black; // the line view, and "nothing under the array"
-    bool startPressed = false;
+    bool startPressed =
+        false; // the run has begun; set by the run loop, not derived from RobotState
 };
 
 // The defaults are the values in the spec/ headers.
@@ -184,6 +185,4 @@ inline void perceive(Perceiver &pc, const RobotState &state, const PerceiveParam
     pc.mask = lineMaskUpdate(pc.norm, pc.mask);
     out.line = lineView(pc.norm, pc.mask, pc.usable, p.irPitchMm, p.irD1OnRight);
     out.floor = classifyFloor(out.line, state.irRaw, p.irAirCounts, p.irAirChannels);
-
-    out.startPressed = state.startButtonPressed;
 }

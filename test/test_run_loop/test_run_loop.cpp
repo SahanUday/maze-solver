@@ -151,7 +151,6 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
         World w;
         w.arena.photo();
         w.start(2, 1, facing);
-        w.state.startButtonPressed = false; // the loop sees the button, not the world
         const LineCalibration cal = World::calibration();
         RunLoop rl;
         runLoopInit(rl, true, &cal); // no button: it starts by itself

@@ -53,7 +53,6 @@ struct RobotState {
     uint16_t irRaw[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     // ---- Operator controls (read once at boot) ------------------------
-    bool startButtonPressed = false;
     uint8_t dipSwitches = 0; // one bit per switch in PIN_DIP
     uint8_t speedPotRaw = 0; // 0-255, scaled from the raw ADC read
 };

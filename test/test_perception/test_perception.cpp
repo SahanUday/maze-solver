@@ -382,16 +382,6 @@ static void test_the_array_end_that_is_d1_gives_the_sign_of_the_error()
     TEST_ASSERT_TRUE(r.out.line.errMm < 0.0f); // positive is left; D1 is on the right
 }
 
-static void test_the_start_button_is_passed_through()
-{
-    Rig r;
-    r.tick();
-    TEST_ASSERT_FALSE(r.out.startPressed);
-    r.s.startButtonPressed = true;
-    r.tick();
-    TEST_ASSERT_TRUE(r.out.startPressed);
-}
-
 static void test_reset_forgets_the_run()
 {
     Rig r;
@@ -432,7 +422,6 @@ int main()
     RUN_TEST(test_the_floor_is_black_white_or_mixed_by_the_line_view);
     RUN_TEST(test_a_saturated_array_is_air_even_with_no_calibration);
     RUN_TEST(test_the_array_end_that_is_d1_gives_the_sign_of_the_error);
-    RUN_TEST(test_the_start_button_is_passed_through);
     RUN_TEST(test_reset_forgets_the_run);
     return UNITY_END();
 }

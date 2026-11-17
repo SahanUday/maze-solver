@@ -577,13 +577,12 @@ static void test_nothing_moves_until_the_start_button()
     World w;
     photoWorld(w);
     w.start(1, 1, 0);
-    w.state.startButtonPressed = false;
+    w.started = false;
     SectionA ms;
     sectionAReset(ms);
     const SectionAParams p = stopAtMarker();
     DriveCommand cmd;
     for (int i = 0; i < 50; ++i) {
-        w.state.startButtonPressed = false;
         cmd = sectionAStep(ms, p, w.sense());
         w.drive(cmd);
     }
