@@ -35,17 +35,17 @@ void logStatus(const RunLoop &run, const RobotState &state, const DriveCommand &
     lastMs = nowMs;
     const SectionA &m = run.mission;
     const Perception &p = run.perception;
-    const uint8_t flags =
-        static_cast<uint8_t>((m.finishHere ? 1 : 0) | (m.gapSeen ? 2 : 0) | (m.exiting ? 4 : 0));
+    const uint8_t flags = static_cast<uint8_t>(
+        (m.marker.atMarker ? 1 : 0) | (m.marker.gapSeen ? 2 : 0) | (m.marker.sideExit ? 4 : 0));
     Serial.print(nowMs);
     Serial.print(',');
     Serial.print(static_cast<uint8_t>(m.phase));
     Serial.print(',');
     Serial.print(static_cast<uint8_t>(m.fault));
     Serial.print(',');
-    Serial.print(m.moves);
+    Serial.print(m.explore.moves);
     Serial.print(',');
-    Serial.print(m.turns);
+    Serial.print(m.explore.turns);
     Serial.print(',');
     Serial.print(flags);
     Serial.print(',');
@@ -87,9 +87,9 @@ void logPhaseChange(const RunLoop &run)
     Serial.print(F(" fault "));
     Serial.print(static_cast<uint8_t>(run.mission.fault));
     Serial.print(F(" moves "));
-    Serial.print(run.mission.moves);
+    Serial.print(run.mission.explore.moves);
     Serial.print(F(" turns "));
-    Serial.println(run.mission.turns);
+    Serial.println(run.mission.explore.turns);
 }
 
 } // namespace

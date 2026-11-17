@@ -32,7 +32,7 @@ static int visitedCells(const SectionA &ms)
 {
     int n = 0;
     for (uint8_t i = 0; i < maze::kCells; ++i) {
-        n += (ms.map.cell[i] & maze::kVisited) != 0 ? 1 : 0;
+        n += (ms.explore.map.cell[i] & maze::kVisited) != 0 ? 1 : 0;
     }
     return n;
 }
@@ -72,7 +72,7 @@ static bool mapMatchesTruth(const World &w, const SectionA &ms, int startI, int 
     const int right = di * fwdJ[facing] - dj * fwdI[facing]; // right of the heading
     const int row = maze::kSide / 2 - fwd;
     const int col = maze::kSide / 2 + right;
-    return ms.map.pos == row * maze::kSide + col;
+    return ms.explore.map.pos == row * maze::kSide + col;
 }
 
 // The navigation tests end on the marker's tile; the line is tested on its own below.
@@ -149,7 +149,7 @@ static void test_without_a_marker_the_run_ends_in_no_route()
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoRoute), static_cast<int>(o.fault));
-    TEST_ASSERT_EQUAL_UINT8(p.rescans, ms.rescans);
+    TEST_ASSERT_EQUAL_UINT8(p.rescans, ms.explore.rescans);
 }
 
 // The exit looks like a wall in the front sensor's dead zone: silent. Down a straight corridor to
@@ -224,7 +224,7 @@ static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
-    TEST_ASSERT_EQUAL_UINT16(0, ms.blocked); // taken as a wall without driving at it
+    TEST_ASSERT_EQUAL_UINT16(0, ms.explore.blocked); // taken as a wall without driving at it
 }
 
 // Something held in front of the robot for half a second while it drives: it stops short of its
@@ -240,9 +240,9 @@ static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
     sectionAReset(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_TRUE(ms.blocked > 0);
-    TEST_ASSERT_TRUE(ms.resumed > 0);
-    TEST_ASSERT_TRUE(ms.resumes == 0); // reset once the centre was reached
+    TEST_ASSERT_TRUE(ms.explore.blocked > 0);
+    TEST_ASSERT_TRUE(ms.explore.resumed > 0);
+    TEST_ASSERT_TRUE(ms.explore.resumes == 0); // reset once the centre was reached
     TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
     TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, 3, 0, 1));
     TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
@@ -453,7 +453,7 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
         const LineOutcome o = runToLine(w, ms, sectionAParams(), 500);
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase),
                                   "did not leave by the side");
-        TEST_ASSERT_TRUE(ms.exiting); // it turned
+        TEST_ASSERT_TRUE(ms.marker.sideExit); // it turned
         TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
         TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
     }
@@ -472,7 +472,7 @@ static void test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line()
         sectionAReset(ms);
         const LineOutcome o = runToLine(w, ms, sectionAParams(), 500);
         TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Line), static_cast<int>(o.phase));
-        TEST_ASSERT_FALSE(ms.gapSeen);
+        TEST_ASSERT_FALSE(ms.marker.gapSeen);
         TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
     }
 }
@@ -552,7 +552,7 @@ static void test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn()
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::StuckTurn), static_cast<int>(o.fault));
-    TEST_ASSERT_EQUAL_UINT8(p.turnRetries + 1, ms.turnTries);
+    TEST_ASSERT_EQUAL_UINT8(p.turnRetries + 1, ms.explore.turnTries);
 }
 
 static void test_wheels_that_never_break_away_stall_the_motors()
@@ -607,7 +607,7 @@ static void test_a_failure_set_by_the_caller_cuts_the_motors()
 
 static void test_the_sweep_goes_the_way_of_the_turn()
 {
-    using section_a_detail::sweepTo;
+    using cell_explorer_detail::sweepTo;
     TEST_ASSERT_FLOAT_WITHIN(0.01f, -90.0f, sweepTo(0.0f, -90.0f, 1));
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f, sweepTo(0.0f, 90.0f, 3));
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 180.0f, sweepTo(0.0f, 180.0f, 2) > 0 ? 180.0f : -1.0f);
@@ -621,12 +621,12 @@ static void test_the_sweep_goes_the_way_of_the_turn()
 static void test_map_directions_run_clockwise_and_the_gyro_counter_clockwise()
 {
     SectionA ms;
-    ms.h0 = 10.0f;
-    using section_a_detail::gridHeading;
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 10.0f, gridHeading(ms, maze::Dir::North));
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, -80.0f, gridHeading(ms, maze::Dir::East));
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, -170.0f, gridHeading(ms, maze::Dir::South));
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 100.0f, gridHeading(ms, maze::Dir::West));
+    ms.explore.h0 = 10.0f;
+    using cell_explorer_detail::gridHeading;
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 10.0f, gridHeading(ms.explore.h0, maze::Dir::North));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, -80.0f, gridHeading(ms.explore.h0, maze::Dir::East));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, -170.0f, gridHeading(ms.explore.h0, maze::Dir::South));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 100.0f, gridHeading(ms.explore.h0, maze::Dir::West));
 }
 
 static void test_the_default_parameters_are_the_spec()
