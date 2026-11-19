@@ -22,6 +22,7 @@
 #include <unity.h>
 
 #include "Maze.h"
+#include "Proof.h"
 #include "spec/Competition.h"
 
 using namespace maze;
@@ -520,8 +521,210 @@ static void test_the_section_b_map_plans_a_path_longer_than_62_tiles()
     TEST_ASSERT_EQUAL_UINT16(96, moves);
 }
 
+// ---- The proof ---------------------------------------------------------------------------
+// S to G. Known open: S-c, c-d, d-e, e-f and f-G, so 5 steps are known; every other edge is
+// unchecked, so 3 (S-a-b-G) are possible. a-b turns out to be a wall.
+//   S a b G
+//   c d e f
+static void test_the_proof_names_the_first_unchecked_edge_until_nothing_can_be_shorter()
+{
+    Explorer e;
+    explorerInit(e);
+    const uint8_t s = kStartCell;
+    uint8_t a = 0;
+    uint8_t c = 0;
+    uint8_t d = 0;
+    uint8_t x = 0;
+    uint8_t f = 0;
+    uint8_t g = 0;
+    TEST_ASSERT_TRUE(Explorer::neighbour(s, Dir::East, a));
+    TEST_ASSERT_TRUE(Explorer::neighbour(s, Dir::South, c));
+    TEST_ASSERT_TRUE(Explorer::neighbour(c, Dir::East, d));
+    TEST_ASSERT_TRUE(Explorer::neighbour(d, Dir::East, x));
+    TEST_ASSERT_TRUE(Explorer::neighbour(x, Dir::East, f));
+    TEST_ASSERT_TRUE(Explorer::neighbour(f, Dir::North, g));
+    markOpen(e, s, Dir::South);
+    markOpen(e, c, Dir::East);
+    markOpen(e, d, Dir::East);
+    markOpen(e, x, Dir::East);
+    markOpen(e, f, Dir::North);
+
+    Proof p = explorerProof(e, s, g);
+    TEST_ASSERT_EQUAL(static_cast<int>(ProofStatus::NotYet), static_cast<int>(p.status));
+    TEST_ASSERT_EQUAL_UINT16(3, p.length);
+    TEST_ASSERT_EQUAL_UINT8(s, p.lookTile);
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(p.lookDir));
+
+    markOpen(e, s, Dir::East); // S-a looked at: open
+    p = explorerProof(e, s, g);
+    TEST_ASSERT_EQUAL(static_cast<int>(ProofStatus::NotYet), static_cast<int>(p.status));
+    TEST_ASSERT_EQUAL_UINT8(a, p.lookTile); // the unchecked edge nearest the start
+    TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(p.lookDir));
+
+    markWall(e, a, Dir::East); // a-b is a wall: nothing left can beat 5
+    p = explorerProof(e, s, g);
+    TEST_ASSERT_EQUAL(static_cast<int>(ProofStatus::Proved), static_cast<int>(p.status));
+    TEST_ASSERT_EQUAL_UINT16(5, p.length);
+
+    for (uint8_t k = 0; k < 4; ++k) { // a sealed start: no route even with the rest open
+        markWall(e, s, static_cast<Dir>(k));
+    }
+    TEST_ASSERT_EQUAL(static_cast<int>(ProofStatus::NoRoute),
+                      static_cast<int>(explorerProof(e, s, g).status));
+}
+
+// Random mazes with loops, on the maps of Section A (4x4 in 7x7) and Section B (9x9 in 17x17): from
+// a start tile and a goal, look at whatever edge the proof names until it says "proved". The length
+// must be the true shortest, which a search over the maze itself finds.
+struct RandomMaze {
+    uint8_t n;
+    uint8_t wall[81]; // wallBit() of each tile, row-major; the outer edges are walls
+};
+
+static uint32_t nextRandom(uint32_t &s)
+{
+    s ^= s << 13;
+    s ^= s >> 17;
+    s ^= s << 5;
+    return s;
+}
+
+// The tile next to `tile` in direction `d`, or -1 outside the maze.
+static int mazeNeighbour(const RandomMaze &m, int tile, Dir d)
+{
+    const int r = tile / m.n + kDRow[static_cast<uint8_t>(d)];
+    const int c = tile % m.n + kDCol[static_cast<uint8_t>(d)];
+    return (r < 0 || c < 0 || r >= m.n || c >= m.n) ? -1 : r * m.n + c;
+}
+
+// Knock out the wall between `tile` and its neighbour `next` in direction `d`.
+static void openWall(RandomMaze &m, int tile, Dir d, int next)
+{
+    m.wall[tile] = static_cast<uint8_t>(m.wall[tile] & ~wallBit(d));
+    m.wall[next] = static_cast<uint8_t>(m.wall[next] & ~wallBit(opposite(d)));
+}
+
+// A maze with one way between any two tiles (depth-first), then `loops` more walls knocked out.
+static RandomMaze randomMaze(uint8_t n, uint32_t seed, uint8_t loops)
+{
+    RandomMaze m{n, {}};
+    for (int i = 0; i < n * n; ++i) {
+        m.wall[i] = 0x0F;
+    }
+    uint32_t rng = seed * 2654435761u + 1u;
+    bool seen[81] = {};
+    uint8_t stack[81];
+    uint8_t top = 0;
+    stack[top++] = 0;
+    seen[0] = true;
+    while (top > 0) {
+        const int cur = stack[top - 1];
+        Dir options[4];
+        uint8_t count = 0;
+        for (uint8_t k = 0; k < 4; ++k) {
+            const int next = mazeNeighbour(m, cur, static_cast<Dir>(k));
+            if (next >= 0 && !seen[next]) {
+                options[count++] = static_cast<Dir>(k);
+            }
+        }
+        if (count == 0) {
+            --top;
+            continue;
+        }
+        const Dir d = options[nextRandom(rng) % count];
+        const int next = mazeNeighbour(m, cur, d);
+        openWall(m, cur, d, next);
+        seen[next] = true;
+        stack[top++] = static_cast<uint8_t>(next);
+    }
+    for (uint8_t k = 0; k < loops; ++k) {
+        const int tile = static_cast<int>(nextRandom(rng) % (n * n));
+        const Dir d = static_cast<Dir>(nextRandom(rng) & 3);
+        const int next = mazeNeighbour(m, tile, d);
+        if (next >= 0) {
+            openWall(m, tile, d, next);
+        }
+    }
+    return m;
+}
+
+// Steps from `from` to `goal` by a search over the maze itself.
+static uint16_t trueDistance(const RandomMaze &m, int from, int goal)
+{
+    int dist[81];
+    int queue[81];
+    for (int i = 0; i < m.n * m.n; ++i) {
+        dist[i] = -1;
+    }
+    int head = 0;
+    int tail = 0;
+    dist[from] = 0;
+    queue[tail++] = from;
+    while (head < tail) {
+        const int cur = queue[head++];
+        for (uint8_t k = 0; k < 4; ++k) {
+            const Dir d = static_cast<Dir>(k);
+            const int next = mazeNeighbour(m, cur, d);
+            if ((m.wall[cur] & wallBit(d)) == 0 && dist[next] < 0) {
+                dist[next] = dist[cur] + 1;
+                queue[tail++] = next;
+            }
+        }
+    }
+    return static_cast<uint16_t>(dist[goal]);
+}
+
+template <uint8_t N> static void proveRandomMazes(uint32_t firstSeed, uint32_t lastSeed)
+{
+    using E = ExplorerT<N>;
+    for (uint32_t seed = firstSeed; seed <= lastSeed; ++seed) {
+        const RandomMaze m = randomMaze(N, seed, N);
+        uint32_t rng = seed + 7u;
+        const int start = static_cast<int>(nextRandom(rng) % (N * N));
+        int goal = static_cast<int>(nextRandom(rng) % (N * N));
+        goal = goal == start ? (goal + 1) % (N * N) : goal;
+        const uint16_t truth = trueDistance(m, start, goal);
+        E e;
+        explorerInit(e);
+        // Map cell of maze tile (r, c): as many rows and columns from the start cell.
+        const int row0 = start / N;
+        const int col0 = start % N;
+        const typename E::Index goalCell = static_cast<typename E::Index>(
+            E::kStart + (goal / N - row0) * E::kSide + (goal % N - col0));
+        bool proved = false;
+        for (uint16_t looks = 0; looks < 4 * E::kCells && !proved; ++looks) {
+            const Proof p = explorerProof(e, E::kStart, goalCell);
+            TEST_ASSERT_NOT_EQUAL(static_cast<int>(ProofStatus::NoRoute),
+                                  static_cast<int>(p.status));
+            TEST_ASSERT_LESS_OR_EQUAL_UINT16_MESSAGE(truth, p.length, "a bound above the truth");
+            if (p.status == ProofStatus::Proved) {
+                TEST_ASSERT_EQUAL_UINT16_MESSAGE(truth, p.length,
+                                                 "proved a path that is not shortest");
+                proved = true;
+                continue;
+            }
+            TEST_ASSERT_BITS_LOW(checkedBit(p.lookDir), e.cell[p.lookTile]); // a new edge
+            const int r = row0 + p.lookTile / E::kSide - E::kSide / 2;
+            const int c = col0 + p.lookTile % E::kSide - E::kSide / 2;
+            if ((m.wall[r * N + c] & wallBit(p.lookDir)) != 0) {
+                markWall(e, p.lookTile, p.lookDir);
+            } else {
+                markOpen(e, p.lookTile, p.lookDir);
+            }
+        }
+        TEST_ASSERT_TRUE_MESSAGE(proved, "the proof did not end");
+    }
+}
+
+static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
+{
+    proveRandomMazes<SECTION_A_SIZE_TILES>(1, 20);
+    proveRandomMazes<SECTION_B_SIZE_TILES>(1, 3);
+}
+
 int main()
 {
+    UNITY_BEGIN();
     UNITY_BEGIN();
     RUN_TEST(test_the_spec_is_native_safe);
     RUN_TEST(test_turns);
@@ -545,5 +748,7 @@ int main()
     RUN_TEST(test_starting_on_the_finish_does_not_move);
     RUN_TEST(test_the_cell_ahead_is_visited_once_the_robot_has_been_in_it);
     RUN_TEST(test_the_section_b_map_plans_a_path_longer_than_62_tiles);
+    RUN_TEST(test_the_proof_names_the_first_unchecked_edge_until_nothing_can_be_shorter);
+    RUN_TEST(test_the_proof_finds_the_true_shortest_path_on_random_mazes);
     return UNITY_END();
 }
