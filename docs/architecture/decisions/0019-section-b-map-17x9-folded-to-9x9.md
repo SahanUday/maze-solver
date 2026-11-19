@@ -17,7 +17,9 @@ the entry tile sits. What `docs/Maze_Solver.pdf` says (p. 3-4):
   switch settings (p. 5).
 - Figure 1 shows the line board joining the corner tile through an opening in the outer wall, with the
   marker on that tile. **That the robot arrives facing into the maze with the opening behind it is read
-  from the figure, not stated in the text.** The post-entry line corridor "may include bends" (p. 3), so
+  from the figure, not stated in the text.** The text points the same way: the outer walls enclose each
+  section "except at the designated bridge opening(s)" and the bridge tile is "the connection through
+  the outer wall" (p. 3), so the robot comes in through a wall opening. The post-entry line corridor "may include bends" (p. 3), so
   the last direction of the line is not fixed either.
 
 Taking the figure as the rule, the entry is on the back row, in a corner, facing in. Rows ahead are
