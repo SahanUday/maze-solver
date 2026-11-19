@@ -578,11 +578,8 @@ static void test_the_proof_names_the_first_unchecked_edge_until_nothing_can_be_s
 // must be the true shortest, which a search over the maze itself finds.
 struct RandomMaze {
     uint8_t n;
-    uint8_t wall[81]; // wallBit() of each tile, row-major; outer edges are walls
+    uint8_t wall[81]; // wallBit() of each tile, row-major; the outer edges are walls
 };
-
-constexpr int kDRow[4] = {-1, 0, 1, 0};
-constexpr int kDCol[4] = {0, 1, 0, -1};
 
 static uint32_t nextRandom(uint32_t &s)
 {
@@ -592,13 +589,22 @@ static uint32_t nextRandom(uint32_t &s)
     return s;
 }
 
-static int mazeNeighbour(const RandomMaze &m, int tile, uint8_t d)
+// The tile next to `tile` in direction `d`, or -1 outside the maze.
+static int mazeNeighbour(const RandomMaze &m, int tile, Dir d)
 {
-    const int r = tile / m.n + kDRow[d];
-    const int c = tile % m.n + kDCol[d];
+    const int r = tile / m.n + kDRow[static_cast<uint8_t>(d)];
+    const int c = tile % m.n + kDCol[static_cast<uint8_t>(d)];
     return (r < 0 || c < 0 || r >= m.n || c >= m.n) ? -1 : r * m.n + c;
 }
 
+// Knock out the wall between `tile` and its neighbour `next` in direction `d`.
+static void openWall(RandomMaze &m, int tile, Dir d, int next)
+{
+    m.wall[tile] = static_cast<uint8_t>(m.wall[tile] & ~wallBit(d));
+    m.wall[next] = static_cast<uint8_t>(m.wall[next] & ~wallBit(opposite(d)));
+}
+
+// A maze with one way between any two tiles (depth-first), then `loops` more walls knocked out.
 static RandomMaze randomMaze(uint8_t n, uint32_t seed, uint8_t loops)
 {
     RandomMaze m{n, {}};
@@ -613,38 +619,36 @@ static RandomMaze randomMaze(uint8_t n, uint32_t seed, uint8_t loops)
     seen[0] = true;
     while (top > 0) {
         const int cur = stack[top - 1];
-        uint8_t options[4];
+        Dir options[4];
         uint8_t count = 0;
-        for (uint8_t d = 0; d < 4; ++d) {
-            const int next = mazeNeighbour(m, cur, d);
+        for (uint8_t k = 0; k < 4; ++k) {
+            const int next = mazeNeighbour(m, cur, static_cast<Dir>(k));
             if (next >= 0 && !seen[next]) {
-                options[count++] = d;
+                options[count++] = static_cast<Dir>(k);
             }
         }
         if (count == 0) {
             --top;
             continue;
         }
-        const uint8_t d = options[nextRandom(rng) % count];
+        const Dir d = options[nextRandom(rng) % count];
         const int next = mazeNeighbour(m, cur, d);
-        m.wall[cur] = static_cast<uint8_t>(m.wall[cur] & ~wallBit(static_cast<Dir>(d)));
-        m.wall[next] = static_cast<uint8_t>(m.wall[next] & ~wallBit(opposite(static_cast<Dir>(d))));
+        openWall(m, cur, d, next);
         seen[next] = true;
         stack[top++] = static_cast<uint8_t>(next);
     }
-    for (uint8_t k = 0; k < loops; ++k) { // knock out interior walls: more than one way
+    for (uint8_t k = 0; k < loops; ++k) {
         const int tile = static_cast<int>(nextRandom(rng) % (n * n));
-        const uint8_t d = static_cast<uint8_t>(nextRandom(rng) & 3);
+        const Dir d = static_cast<Dir>(nextRandom(rng) & 3);
         const int next = mazeNeighbour(m, tile, d);
         if (next >= 0) {
-            m.wall[tile] = static_cast<uint8_t>(m.wall[tile] & ~wallBit(static_cast<Dir>(d)));
-            m.wall[next] =
-                static_cast<uint8_t>(m.wall[next] & ~wallBit(opposite(static_cast<Dir>(d))));
+            openWall(m, tile, d, next);
         }
     }
     return m;
 }
 
+// Steps from `from` to `goal` by a search over the maze itself.
 static uint16_t trueDistance(const RandomMaze &m, int from, int goal)
 {
     int dist[81];
@@ -658,9 +662,10 @@ static uint16_t trueDistance(const RandomMaze &m, int from, int goal)
     queue[tail++] = from;
     while (head < tail) {
         const int cur = queue[head++];
-        for (uint8_t d = 0; d < 4; ++d) {
+        for (uint8_t k = 0; k < 4; ++k) {
+            const Dir d = static_cast<Dir>(k);
             const int next = mazeNeighbour(m, cur, d);
-            if ((m.wall[cur] & wallBit(static_cast<Dir>(d))) == 0 && dist[next] < 0) {
+            if ((m.wall[cur] & wallBit(d)) == 0 && dist[next] < 0) {
                 dist[next] = dist[cur] + 1;
                 queue[tail++] = next;
             }
@@ -669,7 +674,7 @@ static uint16_t trueDistance(const RandomMaze &m, int from, int goal)
     return static_cast<uint16_t>(dist[goal]);
 }
 
-template <uint8_t N> static void prove_random_mazes(uint32_t firstSeed, uint32_t lastSeed)
+template <uint8_t N> static void proveRandomMazes(uint32_t firstSeed, uint32_t lastSeed)
 {
     using E = ExplorerT<N>;
     for (uint32_t seed = firstSeed; seed <= lastSeed; ++seed) {
@@ -681,7 +686,7 @@ template <uint8_t N> static void prove_random_mazes(uint32_t firstSeed, uint32_t
         const uint16_t truth = trueDistance(m, start, goal);
         E e;
         explorerInit(e);
-        // The maze tile (r, c) is the map cell that many rows and columns from the start cell.
+        // Map cell of maze tile (r, c): as many rows and columns from the start cell.
         const int row0 = start / N;
         const int col0 = start % N;
         const typename E::Index goalCell = static_cast<typename E::Index>(
@@ -696,17 +701,15 @@ template <uint8_t N> static void prove_random_mazes(uint32_t firstSeed, uint32_t
                 TEST_ASSERT_EQUAL_UINT16_MESSAGE(truth, p.length,
                                                  "proved a path that is not shortest");
                 proved = true;
-                break;
+                continue;
             }
-            // Look at the edge it names: the maze says what is there.
-            const Dir dir = p.lookDir;
-            TEST_ASSERT_BITS_LOW(checkedBit(dir), e.cell[p.lookTile]); // something new to look at
+            TEST_ASSERT_BITS_LOW(checkedBit(p.lookDir), e.cell[p.lookTile]); // a new edge
             const int r = row0 + p.lookTile / E::kSide - E::kSide / 2;
             const int c = col0 + p.lookTile % E::kSide - E::kSide / 2;
-            if ((m.wall[r * N + c] & wallBit(dir)) != 0) {
-                markWall(e, p.lookTile, dir);
+            if ((m.wall[r * N + c] & wallBit(p.lookDir)) != 0) {
+                markWall(e, p.lookTile, p.lookDir);
             } else {
-                markOpen(e, p.lookTile, dir);
+                markOpen(e, p.lookTile, p.lookDir);
             }
         }
         TEST_ASSERT_TRUE_MESSAGE(proved, "the proof did not end");
@@ -715,8 +718,8 @@ template <uint8_t N> static void prove_random_mazes(uint32_t firstSeed, uint32_t
 
 static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
 {
-    prove_random_mazes<SECTION_A_SIZE_TILES>(1, 60);
-    prove_random_mazes<SECTION_B_SIZE_TILES>(1, 12);
+    proveRandomMazes<SECTION_A_SIZE_TILES>(1, 60);
+    proveRandomMazes<SECTION_B_SIZE_TILES>(1, 12);
 }
 
 int main()

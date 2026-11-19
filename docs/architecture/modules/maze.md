@@ -1,7 +1,7 @@
 # maze
 
 Exploration of an unknown grid from an unknown start tile. Pure logic in `lib/maze/Maze.h`: no
-hardware, no `Arduino.h` (the proof is in `lib/maze/Proof.h`), tested on the PC by `test/test_maze/`.
+hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. The proof is in `lib/maze/Proof.h`.
 Decision:
 [0009](../decisions/0009-explore-in-a-start-relative-map.md).
 
@@ -27,7 +27,7 @@ Decision:
 - `explorerRescan(e)` - forget every wall, checked edge and visit, keep the pose.
 - `explorerProof(e, from, goal)` (`Proof.h`) - is the best known path from `from` to `goal` the
   shortest it can be? `Proved` with its length; `NotYet` with the cell and direction of the first
-  unchecked edge on the best possible path (and that path's length); or `NoRoute`. It overwrites the
+  unchecked edge on the best possible path (and that path's length); or `NoRoute`. It uses the
   planner's scratch and stores nothing.
 
 ## How it works
@@ -46,10 +46,10 @@ with the start tile closed and again with it open if that finds nothing. Each ce
 the first step of the way to it.
 
 The proof floods twice over edges that are not walls: *open* lets every edge pass, so its length is
-the shortest path there could possibly be; *closed* lets only checked edges pass, so its length is the
-shortest known. Equal: no unchecked edge can do better. Unequal: the open path has an unchecked edge,
-and the one nearest the start is where to look next. It is only as good as the readings: a wall that
-was wrongly recorded is never erased, so a path "proved" around it may not be the true shortest.
+the shortest path there could be; *closed* lets only checked edges pass, so its length is the
+shortest known. Equal: no unchecked edge can do better. Unequal: the open path has an unchecked
+edge, and the one nearest the start is where to look next. It is only as good as the readings: a
+wall recorded wrongly is never erased, so a path "proved" around it may not be the true shortest.
 
 ## Invariants
 
@@ -76,8 +76,7 @@ this module.
 The proof is tested on random mazes with loops on the Section A and Section B maps: from a start tile
 and a goal it looks at the edge the proof names until it says proved, and the length is the true
 shortest of a search over the maze itself. Letting unchecked edges pass the closed flood, or naming
-the farthest unchecked edge instead of the nearest, each fails it. The simulator runs also check, with
-40 % of the side readings missed, that every checked edge is what the maze has there.
+the farthest unchecked edge instead of the nearest, each fails it.
 
 A test on the 17x17 map (`ExplorerT<9>`) plans a 96-tile serpentine to the far corner. The Section B
 map has not run on the robot.
