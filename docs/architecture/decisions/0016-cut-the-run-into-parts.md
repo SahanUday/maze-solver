@@ -37,7 +37,7 @@ boundary is an **event the robot senses**, never a clock or a position it was to
 | `AExit` | marker tile to the board | stand and read both sides if a wall is ahead, turn, drive straight, watch the floor for the gap | the line is in view past the gap | nothing: the robot is moving |
 | `Line` | the line zone: bridge, ramp, bends | steer on the IR line centroid, tilt-aware, no map | the line ends onto the maze floor (#60) | nothing |
 | `BEntry` | Section B's marker tile | off the line, onto the maze floor, to the tile's centre, a new map origin (#60, #61) | the robot stands centred on the tile | the map origin |
-| `BExplore` | Section B's maze | the same explorer on a 17x9 map ([0019](0019-section-b-map-17x9-folded-to-9x9.md)); the finish is watched, **the marker is not** (the entry tile has one) | the finish is told (#69) | the map |
+| `BExplore` | Section B's maze | the same explorer on a 17x17 map ([0014](0014-explore-section-b-in-a-start-relative-map.md)); the finish is watched, **the marker is not** (the entry tile has one) | the finish is told (#69) | the map |
 | `BProve` | Section B's maze | after the finish: prove the shortest path, save the maps (#61, #63) | proved, or the run limit | nothing |
 
 What is **not** a part:

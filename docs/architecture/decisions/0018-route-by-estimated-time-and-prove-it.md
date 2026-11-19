@@ -43,7 +43,7 @@ start over the optimistic map (about three searches per decision), not a list of
 routes. The candidate routes (A, B, ...) in the explainer are a way for a person to see it.
 
 **Where it runs.** The planner works on the real 9x9 maze (4 headings: 324 states, about 1.3 KB),
-not on the start-relative explorer map ([0019](0019-section-b-map-17x9-folded-to-9x9.md)). Section A
+not on the start-relative explorer map ([0019](0019-section-b-worst-case-map-and-fold-for-planning.md)). Section A
 is the 7x7 start-relative map the explorer already has; its planner needs the same known/unknown
 difference.
 

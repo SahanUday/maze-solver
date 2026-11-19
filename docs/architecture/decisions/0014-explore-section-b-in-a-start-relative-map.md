@@ -1,6 +1,6 @@
 # 0014: Explore Section B in a start-relative 17x17 map
 
-- **Status:** Superseded by [0019](0019-section-b-map-17x9-folded-to-9x9.md)
+- **Status:** Accepted
 - **Date:** 2026-11-17
 
 ## Context
