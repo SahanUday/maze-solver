@@ -8,7 +8,8 @@
 //  Explorer is the Section A map (4 x 4); Section B (9 x 9) is ExplorerT<SECTION_B_SIZE_TILES>.
 //
 //  One cell visit:
-//      explorerObserve()   walls seen from here, relative to the heading
+//      explorerObserve()   walls heard from here, relative to the heading (and
+//      explorerObserveOpen() the edges heard open)
 //      explorerPlan()      first step toward the nearest unvisited cell
 //      explorerFace()      turn to it, then explorerObserve() again: the new front
 //                          may be an edge nothing has looked at
@@ -41,11 +42,15 @@ constexpr Dir opposite(Dir d)
     return static_cast<Dir>((static_cast<uint8_t>(d) + 2) & 3);
 }
 
-// Per cell: bits 0-3 are a wall on the North/East/South/West edge, bit 4 is visited.
-constexpr uint8_t kVisited = 0x10;
+// Per cell: bits 0-3 are a wall on the North/East/South/West edge, bits 4-7 the same edges
+// looked at ("checked"). A wall is always checked; an edge that is not is unknown.
 constexpr uint8_t wallBit(Dir d)
 {
     return static_cast<uint8_t>(1u << static_cast<uint8_t>(d));
+}
+constexpr uint8_t checkedBit(Dir d)
+{
+    return static_cast<uint8_t>(wallBit(d) << 4);
 }
 
 constexpr uint8_t kUnseen = 0xFF; // the planner has not reached this cell
@@ -69,6 +74,7 @@ template <uint8_t N> struct ExplorerT {
     static constexpr Index kStart = static_cast<Index>((kSide / 2) * kSide + kSide / 2);
 
     uint8_t cell[kCells];
+    uint8_t visited[(kCells + 7) / 8]; // one bit per cell: the robot has been in it
     uint8_t seen[kCells]; // planner scratch: the first step of the way here, or kUnseen
     Index queue[kCells];  // planner scratch
     Index pos;
@@ -115,11 +121,38 @@ constexpr uint8_t kSide = Explorer::kSide;
 constexpr uint8_t kCells = Explorer::kCells;
 constexpr uint8_t kStartCell = Explorer::kStart;
 
-template <uint8_t N> inline void explorerInit(ExplorerT<N> &e)
+namespace detail
+{
+
+template <uint8_t N> inline void clearMap(ExplorerT<N> &e)
 {
     for (uint16_t i = 0; i < ExplorerT<N>::kCells; ++i) {
         e.cell[i] = 0;
     }
+    for (uint16_t i = 0; i < sizeof e.visited; ++i) {
+        e.visited[i] = 0;
+    }
+}
+
+// Edge `d` of `idx` has been looked at, on both cells that share it.
+template <uint8_t N>
+inline void markEdge(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d, bool wall)
+{
+    typename ExplorerT<N>::Index other = 0;
+    const uint8_t here = wall ? (wallBit(d) | checkedBit(d)) : checkedBit(d);
+    e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | here);
+    if (ExplorerT<N>::neighbour(idx, d, other)) {
+        const Dir back = opposite(d);
+        const uint8_t there = wall ? (wallBit(back) | checkedBit(back)) : checkedBit(back);
+        e.cell[other] = static_cast<uint8_t>(e.cell[other] | there);
+    }
+}
+
+} // namespace detail
+
+template <uint8_t N> inline void explorerInit(ExplorerT<N> &e)
+{
+    detail::clearMap(e);
     e.pos = ExplorerT<N>::kStart;
     e.heading = Dir::North;
 }
@@ -128,11 +161,25 @@ template <uint8_t N> inline void explorerInit(ExplorerT<N> &e)
 // the search, which ends with an answer, where a flickering one would keep it changing its mind.
 template <uint8_t N> inline void markWall(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d)
 {
-    e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | wallBit(d));
-    typename ExplorerT<N>::Index other = 0;
-    if (ExplorerT<N>::neighbour(idx, d, other)) {
-        e.cell[other] = static_cast<uint8_t>(e.cell[other] | wallBit(opposite(d)));
-    }
+    detail::markEdge(e, idx, d, true);
+}
+
+// An edge a sensor heard open: checked, no wall. Never set from a guess: a wrong "open" would make
+// a path through a wall look known.
+template <uint8_t N> inline void markOpen(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d)
+{
+    detail::markEdge(e, idx, d, false);
+}
+
+template <uint8_t N>
+inline bool explorerVisited(const ExplorerT<N> &e, typename ExplorerT<N>::Index idx)
+{
+    return ((e.visited[idx >> 3] >> (idx & 7)) & 1) != 0;
+}
+
+template <uint8_t N> inline void markVisited(ExplorerT<N> &e, typename ExplorerT<N>::Index idx)
+{
+    e.visited[idx >> 3] = static_cast<uint8_t>(e.visited[idx >> 3] | (1u << (idx & 7)));
 }
 
 // The cell ahead has been entered: its walls were all looked at from inside, so the edge between
@@ -141,10 +188,10 @@ template <uint8_t N> inline void markWall(ExplorerT<N> &e, typename ExplorerT<N>
 template <uint8_t N> inline bool explorerAheadVisited(const ExplorerT<N> &e)
 {
     typename ExplorerT<N>::Index other = 0;
-    return ExplorerT<N>::neighbour(e.pos, e.heading, other) && (e.cell[other] & kVisited) != 0;
+    return ExplorerT<N>::neighbour(e.pos, e.heading, other) && explorerVisited(e, other);
 }
 
-// Walls seen from the current cell. A side that was not heard is passed as false: nothing is
+// Walls heard from the current cell. A side that was not heard is passed as false: nothing is
 // recorded, and the edge is looked at when the robot faces it.
 template <uint8_t N>
 inline void explorerObserve(ExplorerT<N> &e, bool frontWall, bool leftWall, bool rightWall)
@@ -158,7 +205,22 @@ inline void explorerObserve(ExplorerT<N> &e, bool frontWall, bool leftWall, bool
     if (rightWall) {
         markWall(e, e.pos, turnRight(e.heading));
     }
-    e.cell[e.pos] = static_cast<uint8_t>(e.cell[e.pos] | kVisited);
+    markVisited(e, e.pos);
+}
+
+// Edges heard open from the current cell, relative to the heading.
+template <uint8_t N>
+inline void explorerObserveOpen(ExplorerT<N> &e, bool frontOpen, bool leftOpen, bool rightOpen)
+{
+    if (frontOpen) {
+        markOpen(e, e.pos, e.heading);
+    }
+    if (leftOpen) {
+        markOpen(e, e.pos, turnLeft(e.heading));
+    }
+    if (rightOpen) {
+        markOpen(e, e.pos, turnRight(e.heading));
+    }
 }
 
 namespace detail
@@ -191,7 +253,7 @@ template <uint8_t N> inline bool plan(ExplorerT<N> &e, Dir &step, bool avoidStar
             }
             const uint8_t first = cur == e.pos ? static_cast<uint8_t>(d) : e.seen[cur];
             e.seen[next] = first;
-            if ((e.cell[next] & kVisited) == 0) {
+            if (!explorerVisited(e, next)) {
                 step = static_cast<Dir>(first);
                 return true;
             }
@@ -215,9 +277,7 @@ template <uint8_t N> inline bool explorerPlan(ExplorerT<N> &e, Dir &step)
 // was seen: a wall that was only a bad reading is the likeliest reason.
 template <uint8_t N> inline void explorerRescan(ExplorerT<N> &e)
 {
-    for (uint16_t i = 0; i < ExplorerT<N>::kCells; ++i) {
-        e.cell[i] = 0;
-    }
+    detail::clearMap(e);
 }
 
 template <uint8_t N> inline void explorerFace(ExplorerT<N> &e, Dir d)
