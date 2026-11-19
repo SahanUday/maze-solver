@@ -31,6 +31,10 @@ constexpr int kN = SECTION_A_SIZE_TILES;
 constexpr int kFinishRow = 0;
 constexpr int kFinishCol = 0;
 
+// Row and column step of each Dir.
+constexpr int kDRow[4] = {-1, 0, 1, 0};
+constexpr int kDCol[4] = {0, 1, 0, -1};
+
 struct Edge {
     uint8_t row, col;
     Dir dir; // the wall on this side of (row, col)
@@ -49,22 +53,8 @@ constexpr Edge kWallEdges[] = {
 
 static bool truthWall(int row, int col, Dir d)
 {
-    int r = row;
-    int c = col;
-    switch (d) {
-        case Dir::North:
-            --r;
-            break;
-        case Dir::South:
-            ++r;
-            break;
-        case Dir::East:
-            ++c;
-            break;
-        case Dir::West:
-            --c;
-            break;
-    }
+    const int r = row + kDRow[static_cast<uint8_t>(d)];
+    const int c = col + kDCol[static_cast<uint8_t>(d)];
     if (r < 0 || c < 0 || r >= kN || c >= kN) {
         return true;
     }
@@ -117,15 +107,13 @@ static void observe(Explorer &e, Sim &s)
 // the start heading, so a map cell is turned by `offset` quarters to reach the maze's.
 static bool mapDisagrees(const Explorer &e, int startRow, int startCol, uint8_t offset)
 {
-    static const int dRow[4] = {-1, 0, 1, 0};
-    static const int dCol[4] = {0, 1, 0, -1};
     for (uint8_t i = 0; i < kCells; ++i) {
         const int mapRow = i / kSide - kSide / 2;
         const int mapCol = i % kSide - kSide / 2;
         const int row =
-            startRow + mapRow * dRow[(2 + offset) & 3] + mapCol * dRow[(1 + offset) & 3];
+            startRow + mapRow * kDRow[(2 + offset) & 3] + mapCol * kDRow[(1 + offset) & 3];
         const int col =
-            startCol + mapRow * dCol[(2 + offset) & 3] + mapCol * dCol[(1 + offset) & 3];
+            startCol + mapRow * kDCol[(2 + offset) & 3] + mapCol * kDCol[(1 + offset) & 3];
         const bool inside = row >= 0 && col >= 0 && row < kN && col < kN;
         for (uint8_t d = 0; d < 4; ++d) {
             const Dir dir = static_cast<Dir>(d);
@@ -184,20 +172,8 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
         if (!explorerAdvance(e)) {
             return finish();
         }
-        switch (toTruth(e.heading)) {
-            case Dir::North:
-                --s.row;
-                break;
-            case Dir::South:
-                ++s.row;
-                break;
-            case Dir::East:
-                ++s.col;
-                break;
-            case Dir::West:
-                --s.col;
-                break;
-        }
+        s.row += kDRow[static_cast<uint8_t>(toTruth(e.heading))];
+        s.col += kDCol[static_cast<uint8_t>(toTruth(e.heading))];
         ++out.moves;
         if (s.row == startRow && s.col == startCol) {
             ++out.startReentries;

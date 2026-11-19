@@ -28,13 +28,17 @@ hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. Decision:
 ## How it works
 
 One cell visit: observe, plan, turn to the step and observe again (the new front may be an edge
-nothing has looked at), then drive. A cell byte holds the four walls (bits 0-3, N E S W) and the
-same four edges as *checked* (bits 4-7): an edge is unknown until a sensor has looked at it, then
-open or a wall. A wall is always checked. Both are stored on both cells that share the edge, and a
-wall is never erased. "Open" is set only from a sensor that heard the edge open, never from a guess. Planning is a breadth-first search over edges that are not walls, expanding straight, right,
-left, back, and stopping at the first unvisited cell it finds, which is also the nearest. It runs
-first with the start tile closed and again with it open if that finds nothing. Each cell's scratch
-byte is the first step of the way to it.
+nothing has looked at), then drive.
+
+A cell byte holds the four walls (bits 0-3, N E S W) and the same four edges as *checked* (bits 4-7):
+an edge is unknown until a sensor has looked at it, then open or a wall. A wall is always checked.
+Both are stored on both cells that share the edge. A wall is never erased. "Open" is set only from a
+sensor that heard the edge open, never from a guess.
+
+Planning is a breadth-first search over edges that are not walls, expanding straight, right, left,
+back, and stopping at the first unvisited cell it finds, which is also the nearest. It runs first
+with the start tile closed and again with it open if that finds nothing. Each cell's scratch byte is
+the first step of the way to it.
 
 ## Invariants
 

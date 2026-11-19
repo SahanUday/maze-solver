@@ -8,10 +8,10 @@
 //  Explorer is the Section A map (4 x 4); Section B (9 x 9) is ExplorerT<SECTION_B_SIZE_TILES>.
 //
 //  One cell visit:
-//      explorerObserve()   walls heard from here, relative to the heading (and
-//      explorerObserveOpen() the edges heard open)
+//      explorerObserve()   walls heard from here, relative to the heading
+//      explorerObserveOpen()  the edges heard open
 //      explorerPlan()      first step toward the nearest unvisited cell
-//      explorerFace()      turn to it, then explorerObserve() again: the new front
+//      explorerFace()      turn to it, then observe again: the new front
 //                          may be an edge nothing has looked at
 //      explorerAdvance()   drive one tile
 //  A forward drive must follow an observation whose front reading was heard.
@@ -42,8 +42,8 @@ constexpr Dir opposite(Dir d)
     return static_cast<Dir>((static_cast<uint8_t>(d) + 2) & 3);
 }
 
-// Per cell: bits 0-3 are a wall on the North/East/South/West edge, bits 4-7 the same edges
-// looked at ("checked"). A wall is always checked; an edge that is not is unknown.
+// Per cell: bits 0-3 a wall on the North/East/South/West edge, bits 4-7 the same edges looked at
+// ("checked"). A wall is always checked; an unchecked edge is unknown.
 constexpr uint8_t wallBit(Dir d)
 {
     return static_cast<uint8_t>(1u << static_cast<uint8_t>(d));
@@ -51,6 +51,11 @@ constexpr uint8_t wallBit(Dir d)
 constexpr uint8_t checkedBit(Dir d)
 {
     return static_cast<uint8_t>(wallBit(d) << 4);
+}
+// What looking at edge `d` records in the cell it belongs to.
+constexpr uint8_t lookedBits(Dir d, bool wall)
+{
+    return static_cast<uint8_t>(wall ? wallBit(d) | checkedBit(d) : checkedBit(d));
 }
 
 constexpr uint8_t kUnseen = 0xFF; // the planner has not reached this cell
@@ -139,12 +144,24 @@ template <uint8_t N>
 inline void markEdge(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d, bool wall)
 {
     typename ExplorerT<N>::Index other = 0;
-    const uint8_t here = wall ? (wallBit(d) | checkedBit(d)) : checkedBit(d);
-    e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | here);
+    e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | lookedBits(d, wall));
     if (ExplorerT<N>::neighbour(idx, d, other)) {
-        const Dir back = opposite(d);
-        const uint8_t there = wall ? (wallBit(back) | checkedBit(back)) : checkedBit(back);
-        e.cell[other] = static_cast<uint8_t>(e.cell[other] | there);
+        e.cell[other] = static_cast<uint8_t>(e.cell[other] | lookedBits(opposite(d), wall));
+    }
+}
+
+// The edges of the current cell in front, left and right of the heading that are flagged.
+template <uint8_t N>
+inline void markSides(ExplorerT<N> &e, bool front, bool left, bool right, bool wall)
+{
+    if (front) {
+        markEdge(e, e.pos, e.heading, wall);
+    }
+    if (left) {
+        markEdge(e, e.pos, turnLeft(e.heading), wall);
+    }
+    if (right) {
+        markEdge(e, e.pos, turnRight(e.heading), wall);
     }
 }
 
@@ -157,15 +174,15 @@ template <uint8_t N> inline void explorerInit(ExplorerT<N> &e)
     e.heading = Dir::North;
 }
 
-// A wall is recorded on both cells that share the edge and never erased: a wrong one can strand
-// the search, which ends with an answer, where a flickering one would keep it changing its mind.
+// Never erased: a wrong wall can strand the search, which ends with an answer; a flickering one
+// would keep it changing its mind.
 template <uint8_t N> inline void markWall(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d)
 {
     detail::markEdge(e, idx, d, true);
 }
 
-// An edge a sensor heard open: checked, no wall. Never set from a guess: a wrong "open" would make
-// a path through a wall look known.
+// An edge a sensor heard open. Never from a guess: a wrong "open" would make a path through a wall
+// look known.
 template <uint8_t N> inline void markOpen(ExplorerT<N> &e, typename ExplorerT<N>::Index idx, Dir d)
 {
     detail::markEdge(e, idx, d, false);
@@ -196,31 +213,15 @@ template <uint8_t N> inline bool explorerAheadVisited(const ExplorerT<N> &e)
 template <uint8_t N>
 inline void explorerObserve(ExplorerT<N> &e, bool frontWall, bool leftWall, bool rightWall)
 {
-    if (frontWall) {
-        markWall(e, e.pos, e.heading);
-    }
-    if (leftWall) {
-        markWall(e, e.pos, turnLeft(e.heading));
-    }
-    if (rightWall) {
-        markWall(e, e.pos, turnRight(e.heading));
-    }
+    detail::markSides(e, frontWall, leftWall, rightWall, true);
     markVisited(e, e.pos);
 }
 
-// Edges heard open from the current cell, relative to the heading.
+// Edges heard open from the current cell.
 template <uint8_t N>
 inline void explorerObserveOpen(ExplorerT<N> &e, bool frontOpen, bool leftOpen, bool rightOpen)
 {
-    if (frontOpen) {
-        markOpen(e, e.pos, e.heading);
-    }
-    if (leftOpen) {
-        markOpen(e, e.pos, turnLeft(e.heading));
-    }
-    if (rightOpen) {
-        markOpen(e, e.pos, turnRight(e.heading));
-    }
+    detail::markSides(e, frontOpen, leftOpen, rightOpen, false);
 }
 
 namespace detail
