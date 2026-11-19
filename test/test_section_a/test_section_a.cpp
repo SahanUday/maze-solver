@@ -1,7 +1,7 @@
 // ============================================================================
-//  test_section_a.cpp  --  the Section A mission in a simulated arena: the real planner, step,
-//  turn, perception and motion controller against ray-cast walls and a plant with stiction.
-//  No hardware needed.
+//  test_section_a.cpp  --  the mission manager (Section A, the way out, the line) in a simulated
+//  arena: the real planner, step, turn, perception and motion controller against ray-cast walls
+//  and a plant with stiction. No hardware needed.
 // ============================================================================
 
 #include <initializer_list>
@@ -27,6 +27,13 @@ struct Outcome {
     float tileOffsetMm = 1.0e9f; // from the white tile's centre
     int visited = 0;
 };
+
+// A manager ready to run: reset, and told the run has started.
+static void begin(MissionManager &ms)
+{
+    missionReset(ms);
+    ms.start.started = true;
+}
 
 static int visitedCells(const MissionManager &ms)
 {
@@ -105,8 +112,7 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
                 photoWorld(w);
                 w.start(i, j, facing);
                 MissionManager ms;
-                missionReset(ms);
-                ms.start.started = true;
+                begin(ms);
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
@@ -132,8 +138,7 @@ static void test_a_walls_only_run_explores_every_tile_and_stops()
     photoWorld(w);
     w.start(3, 0, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     MissionParams p = stopAtMarker();
     p.wallsOnly = true;
     const Outcome o = run(w, ms, p);
@@ -148,8 +153,7 @@ static void test_without_a_marker_the_run_ends_in_no_route()
     w.arena.markerI = -1;
     w.start(2, 0, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const MissionParams p = stopAtMarker();
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(o.phase));
@@ -185,8 +189,7 @@ static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start
             corridorToTheExit(w);
             w.start(i, 3, facing);
             MissionManager ms;
-            missionReset(ms);
-            ms.start.started = true;
+            begin(ms);
             const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                       static_cast<int>(o.phase), "did not reach the marker");
@@ -202,8 +205,7 @@ static void test_it_holds_still_once_done()
     photoWorld(w);
     w.start(3, 3, 2);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const MissionParams p = stopAtMarker();
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
@@ -227,8 +229,7 @@ static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
     photoWorld(w);
     w.start(1, 0, 2, -12.0f); // facing west at the wall between (0, 0) and (1, 0)
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
@@ -245,8 +246,7 @@ static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
     w.faults.obstacleToMs = 3750;
     w.start(3, 0, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(ms.explore.blocked > 0);
@@ -268,8 +268,7 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
             w.rng.s = 99u + static_cast<uint32_t>(i * 7 + j);
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
-            missionReset(ms);
-            ms.start.started = true;
+            begin(ms);
             const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
             TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
@@ -287,8 +286,7 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
     w.faults.gyroDriftDps = 0.15f;
     w.start(3, 0, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
     TEST_ASSERT_TRUE(w.minSideMm > world::BODY_HALF_MM - 15.0f);
@@ -313,8 +311,7 @@ static void test_every_start_finishes_on_wheels_that_roll_hard()
                 w.rng.s = 777u + static_cast<uint32_t>(i * 31 + j * 7 + facing);
                 w.start(i, j, facing);
                 MissionManager ms;
-                missionReset(ms);
-                ms.start.started = true;
+                begin(ms);
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
@@ -340,8 +337,7 @@ static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
                 w.rng.s = 31u + static_cast<uint32_t>(i * 5 + j);
                 w.start(i, j, (i + 2 * j) & 3);
                 MissionManager ms;
-                missionReset(ms);
-                ms.start.started = true;
+                begin(ms);
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
@@ -405,8 +401,7 @@ static void test_the_marker_leads_over_the_gap_and_onto_the_line()
         photoWorld(w);
         w.start(2, 1, facing);
         MissionManager ms;
-        missionReset(ms);
-        ms.start.started = true;
+        begin(ms);
         // 8 s of following: the straight, the ramp and the bend to the left after it.
         const LineOutcome o = runToLine(w, ms, missionParams(), 800);
         TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
@@ -430,8 +425,7 @@ static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
             w.rng.s = 55u + static_cast<uint32_t>(i * 9 + j);
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
-            missionReset(ms);
-            ms.start.started = true;
+            begin(ms);
             const LineOutcome o = runToLine(w, ms, missionParams(), 1000);
             TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Line),
                                       static_cast<int>(o.phase), "not following the line");
@@ -465,8 +459,7 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
         w.arena.build();
         w.start(0, 3, 0); // along the corridor; the tile ahead ends in a wall to the east
         MissionManager ms;
-        missionReset(ms);
-        ms.start.started = true;
+        begin(ms);
         const LineOutcome o = runToLine(w, ms, missionParams(), 500);
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase),
                                   "did not leave by the side");
@@ -486,8 +479,7 @@ static void test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line()
         w.gapIsDark = true;
         w.start(2, 1, facing);
         MissionManager ms;
-        missionReset(ms);
-        ms.start.started = true;
+        begin(ms);
         const LineOutcome o = runToLine(w, ms, missionParams(), 500);
         TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
         TEST_ASSERT_FALSE(ms.marker.gapSeen);
@@ -505,8 +497,7 @@ static void test_a_line_that_never_comes_is_no_line()
     MissionParams p = missionParams();
     p.noLineMm = 90.0f; // the gap is 180 mm out: the follower is never reached
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const LineOutcome o = runToLine(w, ms, p, 100);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::NoLine), static_cast<int>(o.fault));
@@ -518,8 +509,7 @@ static void test_a_line_lost_is_searched_for_and_then_the_motors_are_cut()
     photoWorld(w);
     w.start(0, 2, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     LineOutcome o = runToLine(w, ms, missionParams(), 100);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
     // The line is gone: nothing but white board.
@@ -546,8 +536,7 @@ static Outcome runWith(const MissionParams &p, float sticking = 1.0f, int obstac
     w.faults.obstacleToMs = static_cast<uint32_t>(obstacleTo);
     w.start(3, 0, 1);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     return run(w, ms, p);
 }
 
@@ -569,8 +558,7 @@ static void test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn()
     photoWorld(w);
     w.start(3, 0, 3);
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(o.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::StuckTurn), static_cast<int>(o.fault));
@@ -615,8 +603,7 @@ static void test_nothing_moves_until_the_start_button()
 static void test_a_failure_set_by_the_caller_cuts_the_motors()
 {
     MissionManager ms;
-    missionReset(ms);
-    ms.start.started = true;
+    begin(ms);
     missionFail(ms, MissionFault::NoImu);
     World w;
     photoWorld(w);
@@ -696,8 +683,7 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
             w.start(2, 1, 0);
         }
         MissionManager ms;
-        missionReset(ms);
-        ms.start.started = true;
+        begin(ms);
         MissionParams p = missionParams();
         p.parts.first = c.first;
         p.parts.last = c.last;

@@ -1,7 +1,8 @@
 # mission_manager
 
-The run, part by part. Pure logic in `include/mission/MissionManager.h` (with `Parts.h`, `RunStart.h`
-and `Fault.h`), tested through `test/test_section_a/` in a simulated arena and by `test/test_run_loop/`.
+The run, part by part. Pure logic in `include/mission/MissionManager.h` (with `Parts.h`, `RunStart.h`,
+`MissionParams.h` and `Fault.h`), tested through `test/test_section_a/` in a simulated arena and by
+`test/test_run_loop/`.
 The parts are defined, and the reasons for the cuts given, in
 [0016](../decisions/0016-cut-the-run-into-parts.md). Built parts: Section A's maze
 ([cell_explorer](cell_explorer.md)), the way out of the marker tile ([marker_exit](marker_exit.md))

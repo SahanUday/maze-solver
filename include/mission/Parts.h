@@ -1,10 +1,9 @@
 // ============================================================================
-//  mission/Parts.h  --  the parts the run is cut into. No hardware, no Arduino.h.
+//  mission/Parts.h  --  the parts of a run. Pure logic, no hardware.
 //
-//  A part is a stretch of the course where the robot runs one kind of logic: what it steers on,
-//  which sensors it trusts, what it is looking for. The robot tells it has left one and entered the
-//  next by an event of its own (the marker told, the line in view past the gap, ...), never by a
-//  clock or a position it was told. The parts (`enum Part`, spec/Mission.h), in course order:
+//  A part is a stretch of the course with one kind of logic. The robot tells it has left one by an
+//  event it senses (the marker told, the line in view past the gap), never by a clock or a
+//  position. In course order (`enum Part`, spec/Mission.h):
 //
 //    AExplore  Section A's maze: explore cell by cell until the approach marker is told
 //    AProve    Section A again: explore the rest, prove the path, return to the marker tile
@@ -23,7 +22,7 @@
 
 #include "spec/Mission.h" // enum Part, PART_COUNT and the parts this build runs
 
-// Is the part in this firmware? A run skips the parts that are not.
+// In this firmware? A run skips the parts that are not.
 constexpr bool partBuilt(Part p)
 {
     switch (p) {
@@ -40,9 +39,7 @@ constexpr bool partBuilt(Part p)
     return false;
 }
 
-// Can a run begin here, with the robot just placed and nothing handed over? The parts that carry
-// on a map (AProve, AExit, BProve) need the part before them; the others start from what the robot
-// senses where it stands.
+// Can a run begin here, nothing handed over? AProve, AExit and BProve carry on a map.
 constexpr bool partStartsAlone(Part p)
 {
     switch (p) {
@@ -59,7 +56,7 @@ constexpr bool partStartsAlone(Part p)
     return false;
 }
 
-// Does the part work in the explorer's map frame (map North is the heading where it started)?
+// Does the part work in the explorer's map frame (North = the heading at the start)?
 constexpr bool partUsesMap(Part p)
 {
     switch (p) {
@@ -76,7 +73,7 @@ constexpr bool partUsesMap(Part p)
     return false;
 }
 
-// Which parts to run: from `first` to `last`, in course order. The whole course by default.
+// The parts to run, `first` to `last`. The whole course by default.
 struct PartRange {
     Part first = Part::AExplore;
     Part last = Part::BProve;

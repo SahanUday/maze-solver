@@ -1,19 +1,12 @@
 // ============================================================================
-//  MissionManager.h  --  the run, part by part. No hardware, no Arduino.h - testable under
-//  env:native.
+//  MissionManager.h  --  the run, part by part. Pure logic, no hardware: testable under env:native.
 //
-//    WaitStart -> Running (one part at a time, in course order) -> Done
-//                 any -> Fault
+//    WaitStart -> Running (the parts from `first` to `last`, in course order) -> Done; any -> Fault
 //
-//  The parts are in Parts.h: Section A's maze (CellExplorer), the way out of the marker tile
-//  (MarkerExit) and the line zone (LineFollow) are built. The manager starts the run, runs the
-//  parts from `first` to `last` (the whole course, one part alone, or any stretch in between),
-//  moves on when a part reports its own end event, enforces the run limit, and makes the one
-//  motionControlStep() call: the parts only fill a MotionTarget.
-//
-//  A part ends in one of two ways. Done: the next part begins on the next tick. HandOver: the part
-//  ended while the robot was moving on, and the next part acts in the same tick, so nothing
-//  stops in between.
+//  The manager starts the run, moves on when a part reports its end, enforces the run limit and
+//  makes the one motionControlStep() call: a part only fills a MotionTarget. A part ends with Done
+//  (the next begins on the next tick) or HandOver (it ended while moving on: the next acts in
+//  the same tick, so nothing stops in between). Parts: Parts.h.
 //  docs/architecture/modules/mission_manager.md
 // ============================================================================
 
@@ -24,101 +17,27 @@
 #include "mission/CellExplorer.h"
 #include "mission/Fault.h"
 #include "mission/MarkerExit.h"
+#include "mission/MissionParams.h"
 #include "mission/Parts.h"
 #include "mission/RunStart.h"
 #include "motion/DriveCommand.h"
 #include "motion/LineFollow.h"
 #include "motion/MotionControl.h"
-#include "motion/MotionPrimitives.h"
 #include "sense/Perception.h"
-#include "spec/Drivetrain.h"
-#include "spec/FloorPattern.h"
-#include "spec/Imu.h"
-#include "spec/LineFollow.h"
-#include "spec/LineSensor.h"
+#include "spec/Competition.h"
 #include "spec/Mission.h"
-#include "spec/Motion.h"
-#include "spec/Platform.h"
 
-// What the status line prints. Approach and Line come last so the numbers the log prints for the
-// older phases stay.
+// The status line's phase numbers: Approach and Line come last so the older numbers stay.
 enum class MissionPhase : uint8_t { WaitStart, Sense, Turn, Step, Done, Fault, Approach, Line };
 
 enum class RunStage : uint8_t { WaitStart, Running, Done, Fault };
 
-struct MissionParams : CellExplorerParams, MarkerExitParams {
-    PartRange parts; // which parts to run: the whole course by default
-    MotionControlParams control;
-    LineParams line;
-    // The marker is told by the floor sensor; without it (the array not calibrated) the run
-    // explores every reachable tile and stops (wallsOnly, in CellExplorerParams).
-};
-
-// Every parameter at its spec/ value: what the robot runs with.
-inline MissionParams missionParams()
-{
-    MissionParams p;
-    PlanParams &plan = p.step.plan;
-    plan.accelMmS2 = ACCEL_MM_S2;
-    plan.turnRateMaxDps = TURN_RATE_MAX_DPS;
-    plan.turnAccelDps2 = TURN_ACCEL_DPS2;
-    plan.stepToleranceMm = STEP_TOLERANCE_MM;
-    plan.turnToleranceDeg = TURN_TOLERANCE_DEG;
-    plan.turnSettleMs = TURN_SETTLE_MS;
-    plan.progressMinMm = PROGRESS_MIN_MM;
-    plan.progressMinDeg = PROGRESS_MIN_DEG;
-    plan.patienceMs = PATIENCE_MS;
-
-    MotionControlParams &c = p.control;
-    c.kpDist = KP_DISTANCE;
-    c.kiDist = KI_DISTANCE;
-    c.kdDist = KD_DISTANCE;
-    c.kpTurn = KP_TURN;
-    c.kiTurn = KI_TURN;
-    c.kdTurn = KD_TURN;
-    c.kiHold = KI_TURN_HOLD;
-    c.ffScaleR = FEEDFORWARD_RIGHT_SCALE;
-    c.ffPwmPerMmS = FEEDFORWARD_PWM_PER_MM_S;
-    c.ffPwmPerDps = FEEDFORWARD_PWM_PER_DPS;
-    c.ffPwmFriction = FEEDFORWARD_FRICTION_DUTY;
-    c.minPwmL = CONTROL_MIN_PWM_L;
-    c.minPwmR = CONTROL_MIN_PWM_R;
-    c.pwmTop = MOTOR_PWM_TOP;
-    c.stallDuty = STALL_DUTY;
-    c.stallTimeMs = STALL_TIME_MS;
-    c.stallMinSpeedMmS = STALL_MIN_SPEED_MM_S;
-    c.stallMinYawDps = STALL_MIN_YAW_DPS;
-
-    p.pattern.frameMinMm = MARKER_FRAME_MIN_MM;
-    p.pattern.frameMaxMm = MARKER_FRAME_MAX_MM;
-    p.pattern.farFrameMinMm = MARKER_FAR_FRAME_MIN_MM;
-    p.pattern.centreMinMm = MARKER_CENTRE_MIN_MM;
-    p.pattern.centreMaxMm = MARKER_CENTRE_MAX_MM;
-    p.pattern.gapMinMm = GAP_MIN_MM;
-    p.pattern.glitchMm = FLOOR_GLITCH_MM;
-
-    LineParams &l = p.line;
-    l.kp = KP_LINE;
-    l.kd = KD_LINE;
-    l.steerMaxDeg = LINE_STEER_MAX_DEG;
-    l.speedMmS = LINE_SPEED_MM_S;
-    l.accelMmS2 = LINE_ACCEL_MM_S2;
-    l.slowdownErrMm = LINE_SLOWDOWN_ERR_MM;
-    l.slowdownPct = LINE_SLOWDOWN_PCT;
-    l.searchRateDps = LINE_SEARCH_RATE_DPS;
-    l.searchSpeedMmS = LINE_SEARCH_SPEED_MM_S;
-    l.lostTimeoutMs = LINE_LOST_TIMEOUT_MS;
-    l.endLostMm = LINE_END_LOST_MM;
-    l.rampInclineCounts = RAMP_INCLINE_COUNTS;
-    return p;
-}
-
 struct MissionManager {
-    MissionPhase phase = MissionPhase::WaitStart; // where the run is, as the log numbers it
+    MissionPhase phase = MissionPhase::WaitStart; // as the status line numbers it
     MissionFault fault = MissionFault::None;
     RunStage stage = RunStage::WaitStart;
-    Part part = Part::AExplore;     // the part running, or the last one that ran
-    Part lastPart = Part::AExplore; // where this run ends, once it has started
+    Part part = Part::AExplore;     // running, or the last one that ran
+    Part lastPart = Part::AExplore; // where this run ends, once started
     RunStart start;
 
     CellExplorer explore;
@@ -134,7 +53,7 @@ inline void missionReset(MissionManager &ms)
     motionControlReset(ms.control);
 }
 
-// The caller found a precondition missing before the run, or a part gave up.
+// A precondition was missing before the run, or a part gave up.
 inline void missionFail(MissionManager &ms, MissionFault code)
 {
     ms.stage = RunStage::Fault;
@@ -142,7 +61,7 @@ inline void missionFail(MissionManager &ms, MissionFault code)
     ms.fault = code;
 }
 
-// Degrees to subtract from the gyro heading (headingSet(hd, hd.deg - fix)); see StepCell.h.
+// Degrees to subtract from the gyro heading, once (headingSet(hd, hd.deg - fix)); see StepCell.h.
 inline float missionTakeHeadingFix(MissionManager &ms)
 {
     const float fix = ms.explore.headingFixDeg;
@@ -150,16 +69,16 @@ inline float missionTakeHeadingFix(MissionManager &ms)
     return fix;
 }
 
-enum class PartStatus : uint8_t {
-    Running,
-    Done,     // the part has ended; the next one begins on the next tick
-    HandOver, // ended while moving on: the next part acts in this tick
-    DoneHold, // ended and the wheels are to be held with no control step this tick
-    Fault,    // `fault` says why
-};
-
 namespace mission_detail
 {
+
+enum class PartStatus : uint8_t {
+    Running,
+    Done,     // the next part begins on the next tick
+    HandOver, // ended while moving on: the next part acts in this tick
+    DoneHold, // ended; hold the wheels with no control step this tick
+    Fault,    // `fault` says why
+};
 
 inline MissionPhase phaseOf(const MissionManager &ms)
 {
@@ -205,9 +124,9 @@ inline MissionPhase phaseOf(const MissionManager &ms)
     return MissionPhase::Fault;
 }
 
-// The first and last part of this run: false if the selection cannot run. The first part must be
-// built and able to start alone; the last is the last built part up to the one asked for. A run
-// without a line calibration (wallsOnly) has no marker to find, so it ends with the exploring.
+// The run's first and last part; false if the selection cannot run (the first is not built or
+// cannot start alone, or the last is before it). Without a marker to find (wallsOnly) it ends with
+// AExplore.
 inline bool resolveRange(const MissionParams &p, Part &first, Part &last)
 {
     first = p.parts.first;
@@ -221,13 +140,13 @@ inline bool resolveRange(const MissionParams &p, Part &first, Part &last)
     return partLastBuilt(cap, last) && static_cast<uint8_t>(last) >= static_cast<uint8_t>(first);
 }
 
-// Drive on from here, straight along the map direction the robot faces, over the strip and the gap.
+// Drive straight on along the map heading, over the strip and the gap.
 inline void beginApproach(MissionManager &ms, const MissionParams &p, const MotionFeedback &fb)
 {
     markerExitBeginApproach(ms.marker, p, fb, cellExplorerHeadingRef(ms.explore));
 }
 
-// Begin `next`: what a part needs to start from where the robot is.
+// Begin `next` from where the robot stands.
 inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
                       const MotionFeedback &fb)
 {
@@ -240,8 +159,7 @@ inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
             if (cellExplorerEdgeOpen(ms.explore, ms.explore.map.heading)) {
                 beginApproach(ms, p, fb);
             } else {
-                // With a wall ahead the way out is to a side: stand and read both sides before
-                // choosing.
+                // A wall ahead: the way out is to a side. Stand and read both sides first.
                 markerExitBeginStand(ms.marker);
             }
             break;
@@ -252,12 +170,12 @@ inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
         case Part::BEntry:
         case Part::BExplore:
         case Part::BProve:
-            break; // not built: a run never reaches them
+            break; // not built: resolveRange() keeps a run out of them
     }
 }
 
-// Section A's maze. Ends when the explorer stands on the marker's tile (Done), or, with the way out
-// straight on and the exit part next, as soon as the marker is told (HandOver: no stop).
+// Section A's maze. Done on the marker's tile; HandOver as soon as the marker is told when the way
+// out is straight on and AExit follows (no stop).
 inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const Perception &pc,
                               MotionTarget &target)
 {
@@ -266,7 +184,7 @@ inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const 
     const bool hasNext = partAfter(Part::AExplore, ms.lastPart, next);
     const bool exitFollows = hasNext && next == Part::AExit;
 
-    // The marker is told only while stepping; without a calibration there is none to tell.
+    // The marker is told only while stepping, and not without a calibration.
     ExploreInput in;
     in.brakeOnStop = !hasNext;
     float lateCentreMm = 0.0f;
@@ -301,7 +219,7 @@ inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const 
     return PartStatus::Fault;
 }
 
-// The marker tile and the way out of it. Ends (HandOver) when the line is in view past the gap.
+// The marker tile and the way out of it. HandOver when the line is in view past the gap.
 inline PartStatus runAExit(MissionManager &ms, const MissionParams &p, const Perception &pc,
                            MotionTarget &target)
 {
@@ -339,7 +257,7 @@ inline PartStatus runAExit(MissionManager &ms, const MissionParams &p, const Per
             const ApproachStatus as =
                 markerExitApproachStep(ms.marker, p, p.step.plan, pc, p.dtMs, target);
             if (as == ApproachStatus::HandOver) {
-                return PartStatus::HandOver; // the line is in view: the next part takes over
+                return PartStatus::HandOver;
             }
             if (as == ApproachStatus::NoLine) {
                 ms.fault = MissionFault::NoLine;
@@ -351,7 +269,7 @@ inline PartStatus runAExit(MissionManager &ms, const MissionParams &p, const Per
     return PartStatus::Fault;
 }
 
-// The line zone. Ends (Done) when the line is over and the robot has stopped.
+// The line zone. Done when the line is over and the robot has stopped.
 inline PartStatus runLine(MissionManager &ms, const MissionParams &p, const Perception &pc,
                           MotionTarget &target)
 {
@@ -388,8 +306,8 @@ inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perce
 {
     const MotionFeedback &fb = pc.motion;
     MotionTarget target;
-    target.distRefMm = fb.distMm; // default: stand where we are
-    // ... square to the map direction where there is a map, else on the heading it has
+    target.distRefMm = fb.distMm; // default: stand still
+    // Parts with a map square to its directions; the others hold the heading they have.
     target.headingRefDeg = ms.stage == RunStage::WaitStart || !partUsesMap(ms.part)
                                ? fb.headingDeg
                                : cellExplorerHeadingRef(ms.explore);
@@ -437,14 +355,14 @@ inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perce
             if (st == PartStatus::DoneHold) {
                 ms.stage = RunStage::Done;
                 DriveCommand hold;
-                hold.enable = true; // zero duty with the driver enabled holds the wheels
+                hold.enable = true; // enabled at zero duty: holds the wheels
                 return hold;
             }
             break;
         }
 
         case RunStage::Done:
-            cmd.enable = true; // zero duty with the driver enabled holds the wheels
+            cmd.enable = true; // holds the wheels
             break;
 
         case RunStage::Fault:
@@ -463,8 +381,7 @@ inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perce
 
 } // namespace mission_detail
 
-// One tick. Returns what the drivetrain should do. The run begins when `ms.start.started` is set
-// (missionTick does that from the button or the delay).
+// One tick without the start and the run limit, for a caller that sets `ms.start.started` itself.
 inline DriveCommand missionStep(MissionManager &ms, const MissionParams &p, const Perception &pc)
 {
     const DriveCommand cmd = mission_detail::tick(ms, p, pc);
@@ -475,7 +392,7 @@ inline DriveCommand missionStep(MissionManager &ms, const MissionParams &p, cons
 }
 
 // One tick of a run: the start, the run limit, then the parts. `buttonDown` is the raw start
-// button (ignored without one: the run begins RUN_START_DELAY_MS after the first tick).
+// button.
 inline DriveCommand missionTick(MissionManager &ms, const MissionParams &p, const Perception &pc,
                                 uint32_t nowMs, bool buttonDown)
 {

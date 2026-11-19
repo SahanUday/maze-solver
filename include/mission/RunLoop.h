@@ -2,9 +2,8 @@
 //  RunLoop.h  --  one control tick of a run: sensors in, drive command out. No hardware, no
 //  Arduino.h - testable under env:native.
 //
-//  What main.cpp does around the mission, kept here so it can be tested: RobotState goes through
-//  perceive(), the mission manager takes the tick (start, run limit, parts), and the mission's
-//  heading correction is handed back for the caller to apply.
+//  What main.cpp does around the mission, kept here to be testable: RobotState through perceive(),
+//  the tick through the mission manager, and its heading correction handed back to the caller.
 //  docs/architecture/modules/run_loop.md
 // ============================================================================
 
@@ -25,9 +24,8 @@ struct RunLoop {
     MissionParams params;
 };
 
-// `lineCal` is the IR array's calibration, or null if there is none. Without a usable channel the
-// floor cannot be read, so the run explores every reachable tile and stops (wallsOnly). `parts` is
-// which parts of the course to run: all of them by default.
+// `lineCal` is the IR array's calibration, or null. Without a usable channel the floor cannot be
+// read: the run explores every reachable tile and stops (wallsOnly). `parts`: all by default.
 inline void runLoopInit(RunLoop &rl, bool imuPresent, const LineCalibration *lineCal,
                         const PartRange &parts = PartRange{})
 {
@@ -45,8 +43,8 @@ inline void runLoopInit(RunLoop &rl, bool imuPresent, const LineCalibration *lin
     }
 }
 
-// One tick. `buttonDown` is the raw start button (ignored without one); `headingFixDeg` is what to
-// subtract from the gyro heading (headingSet(hd, hd.deg - fix)).
+// One tick. `buttonDown` is the raw start button; `headingFixDeg` is what to subtract from the
+// gyro heading (headingSet(hd, hd.deg - fix)).
 inline DriveCommand runLoopTick(RunLoop &rl, const RobotState &state, uint32_t nowMs,
                                 bool buttonDown, float &headingFixDeg)
 {

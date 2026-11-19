@@ -19,8 +19,8 @@ struct RunStart {
     uint32_t startedAtMs = 0;
 };
 
-// One tick. `buttonDown` is the raw start button (ignored without one: the run begins
-// RUN_START_DELAY_MS after the first tick).
+// One tick. `buttonDown` is the raw start button; without one the run begins RUN_START_DELAY_MS
+// after the first tick.
 inline void runStartTick(RunStart &rs, uint32_t nowMs, bool buttonDown)
 {
     if (rs.started) {

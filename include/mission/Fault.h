@@ -9,7 +9,7 @@
 enum class MissionFault : uint8_t {
     None,
     NoImu,        // set by the caller: no gyro, no heading, no turns
-    NoRoute,      // nothing left to explore, the rescans used, the white tile not found
+    NoRoute,      // nothing left to explore and the rescans used
     StuckTurn,    // a turn made no progress, retried
     StuckStep,    // a step made no progress
     Stall,        // motors pushed hard and nothing moved

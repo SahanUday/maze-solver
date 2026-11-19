@@ -46,7 +46,7 @@ used only when the run ends with `AExplore`, `Parts.h`); the firmware's default 
 From the refactoring plan's definition of done; none is a functional gap.
 
 - `src/main.cpp` is 103 lines against 80, mostly comments.
-- `CellExplorer.h` is about 540 lines and `MissionManager.h` about 440, against a goal of about 300. Helpers
+- `CellExplorer.h` is about 540 lines and `MissionManager.h` about 400, against a goal of about 300. Helpers
   (`planNext`, the vote handling) can move to a second header with no behaviour change.
 - Some inner state flags are still booleans in `CellExplorer` (`entered`, `decided`, `resumeNext`,
   `afterStop`, `braking`); they can become enums. Either change can be checked by comparing every tick of
