@@ -12,7 +12,12 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
 
 - `Part` - `AExplore`, `AProve`, `AExit`, `Line`, `BEntry`, `BExplore`, `BProve`, in course order.
   `partBuilt()`, `partStartsAlone()` and `partUsesMap()` say what each is; `PartRange {first, last}` is
-  which to run (the whole course by default).
+  which to run (the whole course by default). The enum is in `spec/Mission.h`.
+- `RUN_PART_FIRST`, `RUN_PART_LAST` (`spec/Mission.h`) - the parts this firmware runs: `main.cpp` passes
+  them to `runLoopInit()`. The whole course is the setting for the competition. To test one part or a
+  stretch, edit the two constants and flash; no switch selects the parts. Put the robot where the
+  first part expects it (the start tile for `AExplore`, on the line for `Line`). A first part after
+  the last is a compile error; a selection that cannot run is refused at the start (`BadConfig`).
 - `MissionManager` - the state: `stage` (`WaitStart`, `Running`, `Done`, `Fault`), the running `part`,
   `phase` as the status line numbers it, `fault`, the start latch (`RunStart`), the `CellExplorer`, the
   `MarkerExit`, the `LineFollow` and the motion controller's integrals.

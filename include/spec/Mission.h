@@ -10,6 +10,21 @@
 
 #include <stdint.h>
 
+// ---- The parts of a run ------------------------------------------------------ [CONFIG] --
+// The run is cut into these, in course order (mission/Parts.h says what each one is and which can
+// be built, started alone or refused).
+enum class Part : uint8_t { AExplore, AProve, AExit, Line, BEntry, BExplore, BProve };
+constexpr uint8_t PART_COUNT = 7;
+
+// Which parts this build runs, from FIRST to LAST. The competition runs the whole course. To test
+// on the robot set a shorter stretch (for example Line to Line), flash, and put the robot where
+// the first part expects it (the start tile for AExplore, on the line for Line). A selection that
+// cannot run is refused before the robot moves (MissionFault::BadConfig).
+constexpr Part RUN_PART_FIRST = Part::AExplore;
+constexpr Part RUN_PART_LAST = Part::BProve;
+static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_PART_LAST),
+              "RUN_PART_LAST comes before RUN_PART_FIRST");
+
 // ---- Section A mission --------------------------------------- [FROM TESTS] --
 // How long the robot stands and reads a cell's walls before it decides (a few refreshes of each
 // sensor: 4 at 60 ms), and how often a doubtful reading is tried again before it is acted on.
