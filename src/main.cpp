@@ -20,6 +20,7 @@
 #include "hal/ultrasonic.h"
 #include "line_cal_store.h"
 #include "mission/RunLoop.h"
+#include "spec/Mission.h"
 #include "spec/Platform.h"
 
 static RobotState g_state;
@@ -40,7 +41,8 @@ void setup()
     // reads walls only: it explores every reachable tile and stops, and cannot see the marker.
     LineCalibration cal;
     const bool haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
-    runLoopInit(g_run, imuPresent, haveCal ? &cal : nullptr);
+    runLoopInit(g_run, imuPresent, haveCal ? &cal : nullptr,
+                PartRange{RUN_PART_FIRST, RUN_PART_LAST});
     if (!imuPresent) {
         Serial.println(F("run: no gyro, will not start"));
     } else {
@@ -85,7 +87,7 @@ static void runAlgorithm(const RobotState &state)
     }
 
     telemetryTick(g_run, state, cmd);
-    operatorIoTick(state.timestampMs, g_run.mission.phase == SectionAPhase::Fault);
+    operatorIoTick(state.timestampMs, g_run.mission.phase == MissionPhase::Fault);
 }
 
 void loop()

@@ -12,10 +12,9 @@ its facts go into `architecture/` and this entry is deleted.
 | **D2 - IR calibration at the arena** | The only thing that ever wrote the stored calibration was the probe firmware, which is gone from the repo (it lives only at `refs/pull/28/head`). `main.cpp` can load a calibration from EEPROM but nothing can make a new one, so this is required before a new lighting. It needs hardware choices. | A switch on a free pin (`PIN_DIP`, pins 40-43, is reserved in `RobotConfig.h` but no driver reads it), a procedure for the operator, and an LED code for success or failure. The capture (`lineCalibrationReset/Accumulate/Finish`) and `lineCalSave()` exist and are tested. On the robot: calibrate and follow the line under two lightings. |
 | **D3 - emitters off (ambient sweep)** | New behaviour, not cleanup. `lineSensorsSetEmitters()` is unused. Each switch waits `IR_EMITTER_SETTLE_US` (1 ms) inside a 10 ms tick. Nobody has shown that ambient light matters. | A robot test of the line sensor under different lighting. If it does not matter, delete the function and its line in `modules/line_sensors.md`. |
 | **D4 - `dipSwitches`, `speedPotRaw`** | No driver writes them. | The switches of D2 and a pot driver, filled from `src/app/operator_io`. If no switch or pot will be fitted, delete the two fields. |
-| **R5 - one EEPROM layout** | Only needed once maps are saved; building it earlier would be a guess. The line calibration now lives in one struct at address 0 with an additive checksum. | The path-optimization design (what is stored: map A, map B, run info). Then one layout in `src/app/storage.cpp`: header with magic and version, and per block a fixed address and a CRC-16; a version bump invalidates old data. Move the line calibration into it. On the robot: a power cycle keeps the calibration. |
-| **R2 rest - maze library** | `ExplorerT<N>` is done ([0014](architecture/decisions/0014-explore-section-b-in-a-start-relative-map.md)). The rest has no user until the shortest-path run exists. | Known versus unknown edges (the map treats an unseen edge as open); flood fill from a goal with a shortest-path proof, and a turn-cost variant for the fastest path; map serialisation with a CRC-16 and rotation by 90 degrees for the speed-run start; a shared planner workspace if RAM needs it (the Section B map is about 1.16 KB). |
+| **R5 - one EEPROM layout** | Only needed once maps are saved; building it earlier would be a guess. The line calibration now lives in one struct at address 0 with an additive checksum. Whether the rules let a robot keep its own map across trials is not answered ([0017](architecture/decisions/0017-explore-then-prove-then-run-the-proven-path.md)). | Issue #63: one layout in `src/app/storage.cpp`: header with magic and version, and per block a fixed address and a CRC-16; a version bump invalidates old data. Save at the first finish. Section B is stored folded to 9x9 ([0019](architecture/decisions/0019-section-b-worst-case-map-and-fold-for-planning.md)). Move the line calibration into it. On the robot: a power cycle keeps the calibration. |
+| **R2 rest - maze library** | `ExplorerT<N>` is done. The rest has no user until the shortest-path run exists, and `lib/maze/Maze.h` is being changed by #55. | Known versus unknown edges and the shortest-path proof (#55, by tile count); the same by estimated time ([0018](architecture/decisions/0018-route-by-estimated-time-and-prove-it.md), #76); the fold of Section B's 17x17 map into the real 9x9 for planning ([0019](architecture/decisions/0019-section-b-worst-case-map-and-fold-for-planning.md), #75), after #55; map serialisation with a CRC-16 and rotation by 90 degrees for the speed-run start (#63, #65). |
 | **R4 rest - telemetry and operator I/O** | The `Telemetry` struct would change again with the Section B mission. A status line is about 100 characters against a 64-byte transmit buffer, so a print can block about 4 ms every 200 ms; nobody has measured whether that disturbs control. DIP, pot and battery have no hardware. | A `Telemetry` struct filled by the mission and formatted in `src/app/telemetry.cpp`. On the robot: check the log's effect on control, then send it in pieces across ticks if it matters. A battery reading needs a divider on A8/A9 (the architecture's port table lists the pins, no divider is confirmed) and must not write `DIDR2` wholesale (see `architecture/ARCHITECTURE.md`). |
-| **R7 rest - start and run limit in one place** | They are split between `RunLoop` and `SectionA`. The natural home is a mission manager, which only makes sense with a second mission. | The Section B mission. Then one manager owns the phase, the run limit, the start and the single `motionControlStep()`. |
 
 ## To check on the robot
 
@@ -27,9 +26,11 @@ should cover them all, with the same boot messages, status line, phase lines and
 - The Section A mission split into the explorer, the marker exit and the mission (#51). On the host
   every tick of the mission is identical before and after.
 - `RunLoop` and `Perception` start handling (#52).
+- The mission manager and the part model (INT-01): the start and the run limit now live in `RunStart` and
+  `MissionManager`.
 
 The host tests do not reach the explorer's "stop and brake at once" path (`ExploreStatus::Braked`,
-used only with `followLine` false); the firmware always has `followLine` true.
+used only when the run ends with `AExplore`, `Parts.h`); the firmware's default run goes on to the exit part.
 
 ## Decided not to do
 
@@ -37,7 +38,7 @@ used only with `followLine` false); the firmware always has `followLine` true.
 |---|---|---|
 | **R6 - spec defaults in every Params struct** | Changing `MotionControlParams` alone broke 15 tests: they start from a zero baseline on purpose, so unit tests do not depend on tuning. | A second mission needs its own parameters: then move `sectionAParams()` somewhere mission-agnostic. Do not change the defaults. |
 | **D9 - merge `LineFollow::Mode` and `LineStatus`** | Not the same: `Mode::Ended` reports `Searching` while braking. | The line follower is reworked for Section B's entry line. |
-| **D10 - natural order for `SectionAPhase`** | The phase numbers in the serial log would change. | Section B adds phases anyway; `phaseOf()` in `SectionA.h` is the one place to renumber. |
+| **D10 - natural order for `MissionPhase`** | The phase numbers in the serial log would change. | Section B adds phases anyway; `phaseOf()` in `MissionManager.h` is the one place to renumber. |
 | **D12 - one setter in `motors.cpp`** | Register code the host cannot test; about 20 lines of gain. | The robot is available to check the motors. |
 
 ## Quality targets not met
@@ -45,7 +46,7 @@ used only with `followLine` false); the firmware always has `followLine` true.
 From the refactoring plan's definition of done; none is a functional gap.
 
 - `src/main.cpp` is 103 lines against 80, mostly comments.
-- `CellExplorer.h` is about 540 lines and `SectionA.h` about 360, against a goal of about 300. Helpers
+- `CellExplorer.h` is about 540 lines and `MissionManager.h` about 400, against a goal of about 300. Helpers
   (`planNext`, the vote handling) can move to a second header with no behaviour change.
 - Some inner state flags are still booleans in `CellExplorer` (`entered`, `decided`, `resumeNext`,
   `afterStop`, `braking`); they can become enums. Either change can be checked by comparing every tick of

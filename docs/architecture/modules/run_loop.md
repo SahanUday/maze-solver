@@ -1,30 +1,28 @@
 # run_loop
 
-One control tick of a Section A run: sensors in, drive command out. Pure logic in
+One control tick of a run: sensors in, drive command out. Pure logic in
 `include/mission/RunLoop.h`, tested by `test/test_run_loop/`; `src/main.cpp` is the thin shell that reads the
 hardware and applies the result.
 
 ## Interface
 
-- `RunLoop` - the perceiver, the latest `Perception`, the mission ([section_a](section_a.md)) and
-  its parameters, the start-button latch.
-- `runLoopInit(rl, imuPresent, lineCal)` - a run not yet started. `lineCal` is the IR array's
-  calibration or null. Without a usable channel the run is `wallsOnly`; without a gyro it is
-  failed (`NoImu`).
+- `RunLoop` - the perceiver, the latest `Perception`, the mission manager
+  ([mission_manager](mission_manager.md)) and its parameters.
+- `runLoopInit(rl, imuPresent, lineCal, parts)` - a run not yet started. `lineCal` is the IR array's
+  calibration or null. Without a usable channel the run is `wallsOnly`; without a gyro it is failed
+  (`NoImu`). `parts` is which parts of the course to run (all of them by default).
 - `runLoopTick(rl, state, nowMs, buttonDown, headingFixDeg)` - one tick; returns the
   `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading. `buttonDown` is
   ignored while no button is fitted.
 
 ## How it works
 
-1. The run starts. With no button fitted (`RUN_START_BUTTON_FITTED` false, as now) it begins by
-   itself `RUN_START_DELAY_MS` after the first tick: the power switch is the start, `setup()`
-   has zeroed the gyro with the robot held still by then, and the delay lets the hands come off. With
-   a button, the raw press is debounced (`RUN_START_DEBOUNCE_TICKS` in a row) and latched: one press
-   begins the run, and releasing it does nothing.
-2. `RobotState` goes through `perceive()` (with the button as the latch) and the mission steps.
-3. The run limit (`RUN_LIMIT_MS`, 8 minutes from the press) fails a run still in progress
-   (`TimeUp`). A run that is `Done` or `Fault` is left alone.
+1. `RobotState` goes through `perceive()`.
+2. The mission manager takes the tick: it starts the run (by itself `RUN_START_DELAY_MS` after the first
+   tick, as no button is fitted: the power switch is the start, `setup()` has zeroed the gyro with the
+   robot held still by then, and the delay lets the hands come off; with a button, a debounced press),
+   enforces the run limit and steps the parts.
+3. The mission's heading correction is handed back for the caller to apply.
 
 `main.cpp` applies the command: `motorsEnable()` when `enable` changes, `motorSet()` for both
 wheels, and the heading fix through the heading estimator (`src/app/heading_estimator.*`). The

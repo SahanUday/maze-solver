@@ -215,8 +215,8 @@ Per-module detail is in [`modules/`](modules/); the measured values are in `incl
 | Cell step | `include/mission/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
 | Cell explorer | `include/mission/CellExplorer.h` | explores a maze cell by cell (sense, turn, step) through the cell step and `lib/maze`, generic in the maze size; the caller can ask it to stop on a tile |
 | Marker exit | `include/mission/MarkerExit.h` | tells the approach marker, finds the way out of its tile and drives over the gap to the line |
-| Section A mission | `include/mission/SectionA.h` | the per-tick state machine for Section A: composes the cell explorer, the marker exit and the line follower, and owns the one motion controller |
-| Run loop | `include/mission/RunLoop.h` | one tick of a run: start button, perception, mission, run limit; `src/main.cpp` applies it to the motors |
+| Mission manager | `include/mission/MissionManager.h`, `MissionParams.h`, `Parts.h`, `RunStart.h` | the run, part by part ([0016](decisions/0016-cut-the-run-into-parts.md)): starts it, runs the parts from a first to a last (the whole course, one part, or a stretch), enforces the run limit and owns the one motion controller |
+| Run loop | `include/mission/RunLoop.h` | one tick of a run: perception, then the mission manager; `src/main.cpp` applies it to the motors |
 | Wall sensing | `include/sense/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |
 | Incline | `include/sense/Tilt.h` | nose-up slope in accelerometer counts from the forward axis, and a level capture that nothing calls yet (the bench level is used) |
 | Line view | `include/sense/LineView.h` | one sweep of the IR array to where the line is |

@@ -30,17 +30,17 @@ static void test_without_a_button_the_run_begins_after_the_delay()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    TEST_ASSERT_FALSE(rl.waitForButton);
+    TEST_ASSERT_FALSE(rl.mission.start.waitForButton);
     RobotState s;
     const uint32_t bootMs = 1500; // the gyro zeroing took this long
     for (uint32_t t = bootMs; t < bootMs + RUN_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
         const DriveCommand c = tick(rl, s, t, false);
         TEST_ASSERT_FALSE(c.enable);
-        TEST_ASSERT_FALSE(rl.started);
+        TEST_ASSERT_FALSE(rl.mission.start.started);
     }
     tick(rl, s, bootMs + RUN_START_DELAY_MS, false);
-    TEST_ASSERT_TRUE(rl.started);
-    TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::WaitStart);
+    TEST_ASSERT_TRUE(rl.mission.start.started);
+    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
 }
 
 static void test_a_button_is_ignored_when_none_is_fitted()
@@ -49,21 +49,21 @@ static void test_a_button_is_ignored_when_none_is_fitted()
     runLoopInit(rl, true, nullptr);
     RobotState s;
     tick(rl, s, 0, true); // a floating pin reading low must not matter
-    TEST_ASSERT_FALSE(rl.started);
+    TEST_ASSERT_FALSE(rl.mission.start.started);
 }
 
 static void test_nothing_moves_until_the_button_is_held()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    rl.waitForButton = true;
+    rl.mission.start.waitForButton = true;
     RobotState s;
     for (uint32_t t = 0; t < 100; ++t) {
         const DriveCommand c = tick(rl, s, t * 10, false);
         TEST_ASSERT_FALSE(c.enable);
     }
-    TEST_ASSERT_FALSE(rl.started);
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::WaitStart),
+    TEST_ASSERT_FALSE(rl.mission.start.started);
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::WaitStart),
                       static_cast<int>(rl.mission.phase));
 }
 
@@ -71,31 +71,31 @@ static void test_a_bounce_does_not_start_a_run()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    rl.waitForButton = true;
+    rl.mission.start.waitForButton = true;
     RobotState s;
     for (uint32_t t = 0; t < 40; ++t) {
         tick(rl, s, t * 10, t % 3 == 2); // never five in a row
     }
-    TEST_ASSERT_FALSE(rl.started);
+    TEST_ASSERT_FALSE(rl.mission.start.started);
 }
 
 static void test_one_press_starts_the_run_and_releasing_does_not_stop_it()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    rl.waitForButton = true;
+    rl.mission.start.waitForButton = true;
     RobotState s;
     uint32_t t = 0;
     for (; t < RUN_START_DEBOUNCE_TICKS + 2; ++t) {
         tick(rl, s, t * 10, true);
     }
-    TEST_ASSERT_TRUE(rl.started);
-    TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::WaitStart);
+    TEST_ASSERT_TRUE(rl.mission.start.started);
+    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
     for (; t < RUN_START_DEBOUNCE_TICKS + 20; ++t) {
         tick(rl, s, t * 10, false);
     }
-    TEST_ASSERT_TRUE(rl.started);
-    TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::WaitStart);
+    TEST_ASSERT_TRUE(rl.mission.start.started);
+    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
 }
 
 static void test_no_gyro_means_no_run()
@@ -108,8 +108,8 @@ static void test_no_gyro_means_no_run()
         c = tick(rl, s, t * 10, true);
         TEST_ASSERT_FALSE(c.enable);
     }
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(rl.mission.phase));
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::NoImu), static_cast<int>(rl.mission.fault));
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(rl.mission.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::NoImu), static_cast<int>(rl.mission.fault));
     TEST_ASSERT_FALSE(c.enable);
 }
 
@@ -133,13 +133,13 @@ static void test_the_run_limit_ends_the_run()
     for (uint32_t t = 0; t <= RUN_START_DELAY_MS / 10 + 5; ++t) {
         tick(rl, s, t * 10, false);
     }
-    TEST_ASSERT_TRUE(rl.started);
-    const uint32_t startedAt = rl.startedAtMs;
+    TEST_ASSERT_TRUE(rl.mission.start.started);
+    const uint32_t startedAt = rl.mission.start.startedAtMs;
     DriveCommand c = tick(rl, s, startedAt + RUN_LIMIT_MS - 10, false);
-    TEST_ASSERT_TRUE(rl.mission.phase != SectionAPhase::Fault);
+    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::Fault);
     c = tick(rl, s, startedAt + RUN_LIMIT_MS, false);
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Fault), static_cast<int>(rl.mission.phase));
-    TEST_ASSERT_EQUAL(static_cast<int>(SectionAFault::TimeUp), static_cast<int>(rl.mission.fault));
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(rl.mission.phase));
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::TimeUp), static_cast<int>(rl.mission.fault));
     TEST_ASSERT_FALSE(c.enable);
 }
 
@@ -166,17 +166,16 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
                 headingSet(w.heading, w.heading.deg - fix);
             }
             w.drive(c);
-            if (rl.mission.phase == SectionAPhase::Fault) {
+            if (rl.mission.phase == MissionPhase::Fault) {
                 break;
             }
-            if (rl.mission.phase == SectionAPhase::Line) {
+            if (rl.mission.phase == MissionPhase::Line) {
                 ++lineTicks;
                 const float e = w.lineErrorMm();
                 worstMm = e > worstMm ? e : worstMm;
             }
         }
-        TEST_ASSERT_EQUAL(static_cast<int>(SectionAPhase::Line),
-                          static_cast<int>(rl.mission.phase));
+        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(rl.mission.phase));
         TEST_ASSERT_TRUE(worstMm < 45.0f);
         TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
     }

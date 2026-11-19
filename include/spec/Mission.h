@@ -1,5 +1,5 @@
 // ============================================================================
-//  spec/Mission.h  --  Section A, bridge hand-over, run start and the status line.
+//  spec/Mission.h  --  the parts a run covers, Section A, bridge hand-over, run start, status line.
 //  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
 //
 //  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
@@ -10,6 +10,36 @@
 
 #include <stdint.h>
 
+// ---- The parts of a run ------------------------------------------------------ [CONFIG] --
+// The run is cut into these, in course order (mission/Parts.h says what each one is and which can
+// be built, started alone or refused).
+enum class Part : uint8_t { AExplore, AProve, AExit, Line, BEntry, BExplore, BProve };
+constexpr uint8_t PART_COUNT = 7;
+
+// Which parts this build runs, from FIRST to LAST. The competition runs the whole course. To test
+// on the robot set a shorter stretch, flash, and put the robot where the first part expects it.
+// A selection that cannot run is refused before the robot moves (MissionFault::BadConfig).
+//
+//   FIRST      LAST       what runs                                  put the robot
+//   AExplore   BProve     the whole course (the competition): today  on the Section A start tile
+//                         it is AExplore, AExit, Line, because the
+//                         Section B parts are not built and are skipped
+//   AExplore   Line       Section A, out to the line, then the line  on the Section A start tile
+//   AExplore   AExit      Section A and out to the line, then stop   on the Section A start tile
+//   AExplore   AExplore   explore until the marker, then stop        on the Section A start tile
+//                         (the stop-and-brake is not covered by host tests)
+//   Line       Line       follow the line (no end rule yet, #60)     on the line, past the gap
+//   Line       BProve     the same today; later the line, Section B  on the line, past the gap
+//
+//   Refused (BadConfig): FIRST = AProve, AExit or BProve (they carry on a map and cannot start
+//   alone), FIRST = BEntry or BExplore (not built yet), LAST before FIRST (does not compile).
+//   Without a line calibration the run is walls-only and ends after AExplore whatever LAST says;
+//   Line alone is then refused. Parts and what they need: mission/Parts.h.
+constexpr Part RUN_PART_FIRST = Part::AExplore;
+constexpr Part RUN_PART_LAST = Part::BProve;
+static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_PART_LAST),
+              "RUN_PART_LAST comes before RUN_PART_FIRST");
+
 // ---- Section A mission --------------------------------------- [FROM TESTS] --
 // How long the robot stands and reads a cell's walls before it decides (a few refreshes of each
 // sensor: 4 at 60 ms), and how often a doubtful reading is tried again before it is acted on.
@@ -19,12 +49,10 @@ constexpr uint8_t SECTION_A_RESCANS = 3;     // map forgotten and explored again
 constexpr uint8_t SECTION_A_RESUMES = 3;     // stops no wall explains, carried on to the centre
 constexpr uint8_t SECTION_A_TURN_RETRIES = 3;
 constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before it gives up
-// After the marker the mission drives on (SECTION_A_FOLLOW_LINE) and hands over to the line
-// follower; false stops on the marker's tile instead, for a first run that does not leave the
-// maze. The hand-over is the first line view BRIDGE_HANDOVER_MIN_MM past the end of the gap (the
-// ~8 mm dark patch right after it must not count); no line within APPROACH_NO_LINE_MM of the
-// marker's centre is `NoLine` (marker centre to the ramp's line is ~300 mm).
-constexpr bool SECTION_A_FOLLOW_LINE = true;
+// After the marker the mission drives on and hands over to the line follower. The hand-over is the
+// first line view BRIDGE_HANDOVER_MIN_MM past the end of the gap (the ~8 mm dark patch right after
+// it must not count); no line within APPROACH_NO_LINE_MM of the marker's centre is `NoLine`
+// (marker centre to the ramp's line is ~300 mm).
 constexpr float BRIDGE_HANDOVER_MIN_MM = 4.0f;
 // Without a seen gap, hand over at the first line view this far past the marker's box centre (the
 // gap ends ~182 mm and the dark patch ~190 mm from the tile's centre; the line is on the board
