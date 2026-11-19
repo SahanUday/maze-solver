@@ -17,9 +17,24 @@ enum class Part : uint8_t { AExplore, AProve, AExit, Line, BEntry, BExplore, BPr
 constexpr uint8_t PART_COUNT = 7;
 
 // Which parts this build runs, from FIRST to LAST. The competition runs the whole course. To test
-// on the robot set a shorter stretch (for example Line to Line), flash, and put the robot where
-// the first part expects it (the start tile for AExplore, on the line for Line). A selection that
-// cannot run is refused before the robot moves (MissionFault::BadConfig).
+// on the robot set a shorter stretch, flash, and put the robot where the first part expects it.
+// A selection that cannot run is refused before the robot moves (MissionFault::BadConfig).
+//
+//   FIRST      LAST       what runs                                  put the robot
+//   AExplore   BProve     the whole course (the competition): today  on the Section A start tile
+//                         it is AExplore, AExit, Line, because the
+//                         Section B parts are not built and are skipped
+//   AExplore   Line       Section A, out to the line, then the line  on the Section A start tile
+//   AExplore   AExit      Section A and out to the line, then stop   on the Section A start tile
+//   AExplore   AExplore   explore until the marker, then stop        on the Section A start tile
+//                         (the stop-and-brake is not covered by host tests)
+//   Line       Line       follow the line (no end rule yet, #60)     on the line, past the gap
+//   Line       BProve     the same today; later the line, Section B  on the line, past the gap
+//
+//   Refused (BadConfig): FIRST = AProve, AExit or BProve (they carry on a map and cannot start
+//   alone), FIRST = BEntry or BExplore (not built yet), LAST before FIRST (does not compile).
+//   Without a line calibration the run is walls-only and ends after AExplore whatever LAST says;
+//   Line alone is then refused. Parts and what they need: mission/Parts.h.
 constexpr Part RUN_PART_FIRST = Part::AExplore;
 constexpr Part RUN_PART_LAST = Part::BProve;
 static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_PART_LAST),
