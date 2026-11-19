@@ -52,9 +52,10 @@ the first step of the way to it.
 
 Host tests (`env:native`, `env:native_san`). A simulator runs the photo maze from all 16 tiles and
 4 headings: every start reaches the white tile without driving into a wall, in at most 31 tile
-moves, and still does with 40 % of the side readings missed (5 seeds each). The start tile is
-re-entered in 10 of the 60 runs that do not start on the white tile, all starts whose only way on
-goes through it. Ignoring walls in the planner fails six tests.
+moves, and still does with 40 % of the side readings missed (5 seeds each). Every checked edge in
+the map is what the maze has there. The start tile is re-entered in 10 of the 60 runs that do not
+start on the white tile, all starts whose only way on goes through it. Ignoring walls in the planner
+fails six tests.
 
 The maze in the test was read from the photograph of the arena and its eight wall edges checked
 against it; it has not been measured in the arena. It ran on the robot as part of the Section A run
