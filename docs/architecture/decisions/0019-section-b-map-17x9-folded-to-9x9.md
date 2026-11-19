@@ -8,14 +8,20 @@ Supersedes [0014](0014-explore-section-b-in-a-start-relative-map.md).
 ## Context
 
 0014 chose a 17x17 start-relative map for Section B because the robot was thought not to know where
-the entry tile sits. Re-reading the rules and the arena figures (`docs/Maze_Solver.pdf` p. 3-4,
-Figure 1): the bridge enters Section B through a **corner tile**, the robot arrives facing into the
-maze with the wall behind it, and the marker is on that tile. The robot does not know the **finish**,
-and which of the two entry corners is used is announced on the day, with no input allowed to the robot
-except switch settings.
+the entry tile sits. What `docs/Maze_Solver.pdf` says (p. 3-4):
 
-So the entry is known to be on the back row, in a corner, facing in. Rows ahead are bounded: at
-most 9 including the entry row. Only the side is unknown, so the width must cover 8 tiles to each side.
+- The bridge "enters a corner tile of Section B (the bridge-in tile)" (stated, p. 3).
+- "The specific corners used, and the direction of the bridge, will be disclosed at the event; do not
+  assume fixed compass directions" (stated, p. 3). The finish location is variable and announced too.
+  That is told to the teams; the robot may be given no information once the maze is revealed, only
+  switch settings (p. 5).
+- Figure 1 shows the line board joining the corner tile through an opening in the outer wall, with the
+  marker on that tile. **That the robot arrives facing into the maze with the opening behind it is read
+  from the figure, not stated in the text.** The post-entry line corridor "may include bends" (p. 3), so
+  the last direction of the line is not fixed either.
+
+Taking the figure as the rule, the entry is on the back row, in a corner, facing in. Rows ahead are
+bounded: at most 9 including the entry row. Only the side is unknown, so the width must cover 8 tiles to each side.
 17x17 is twice what is needed, and a planner over `(tile, heading)` on 17x17 would need about 1156
 states: roughly 5 KB of arrays against a 6 KB RAM budget (static RAM is 2000 B now).
 
