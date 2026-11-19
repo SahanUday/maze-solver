@@ -169,6 +169,8 @@ inline void observe(CellExplorerT<N> &ce, bool front, bool frontHeard, bool left
                     bool right, bool rightHeard)
 {
     maze::explorerObserve(ce.map, front && frontHeard, left && leftHeard, right && rightHeard);
+    maze::explorerObserveOpen(ce.map, !front && frontHeard, !left && leftHeard,
+                              !right && rightHeard);
     ce.frontHeard = frontHeard;
 }
 

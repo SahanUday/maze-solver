@@ -6,29 +6,39 @@ hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. Decision:
 
 ## Interface
 
-- `ExplorerT<N>` - the map of an N x N maze (`cell[]`), the planner's scratch, `pos` and `heading`.
+- `ExplorerT<N>` - the map of an N x N maze (`cell[]`, `visited[]`), the planner's scratch, `pos` and
+  `heading`.
   Its cell `kStart` is where the run began; North is the start heading. `Explorer` is the Section A
   map (N = 4, with `kSide`, `kCells`, `kStartCell`); Section B is `ExplorerT<SECTION_B_SIZE_TILES>`
   ([0014](../decisions/0014-explore-section-b-in-a-start-relative-map.md)).
 - `explorerInit(e)` - empty map, at the start cell, facing North.
-- `explorerObserve(e, front, left, right)` - walls seen from the current cell, relative to the
+- `explorerObserve(e, front, left, right)` - walls heard from the current cell, relative to the
   heading; marks the cell visited. `false` means no wall *or* not heard.
+- `explorerObserveOpen(e, front, left, right)` - the edges heard open from the current cell.
+- `explorerVisited(e, idx)` - the robot has been in the cell. `markWall`, `markOpen` and `markVisited`
+  are what the observations use.
 - `explorerPlan(e, step)` - first step toward the nearest unvisited cell, keeping out of the start
   tile when another way exists. `false` when none is reachable.
 - `explorerFace(e, dir)`, `explorerAdvance(e)` - record a turn, and a move of one tile (refused
   through a known wall or off the map).
 - `explorerRetreat(e)` - undo one `explorerAdvance`, for a move that did not happen (refused only
   off the map).
-- `explorerRescan(e)` - forget every wall and visit, keep the pose.
+- `explorerRescan(e)` - forget every wall, checked edge and visit, keep the pose.
 
 ## How it works
 
 One cell visit: observe, plan, turn to the step and observe again (the new front may be an edge
-nothing has looked at), then drive. A wall is stored on both cells that share the edge and is never
-erased. Planning is a breadth-first search over edges that are not walls, expanding straight, right,
-left, back, and stopping at the first unvisited cell it finds, which is also the nearest. It runs
-first with the start tile closed and again with it open if that finds nothing. Each cell's scratch
-byte is the first step of the way to it.
+nothing has looked at), then drive.
+
+A cell byte holds the four walls (bits 0-3, N E S W) and the same four edges as *checked* (bits 4-7):
+an edge is unknown until a sensor has looked at it, then open or a wall. A wall is always checked.
+Both are stored on both cells that share the edge. A wall is never erased. "Open" is set only from a
+sensor that heard the edge open, never from a guess.
+
+Planning is a breadth-first search over edges that are not walls, expanding straight, right, left,
+back, and stopping at the first unvisited cell it finds, which is also the nearest. It runs first
+with the start tile closed and again with it open if that finds nothing. Each cell's scratch byte is
+the first step of the way to it.
 
 ## Invariants
 
@@ -36,15 +46,16 @@ byte is the first step of the way to it.
   any direction. Cells are indexed with a byte up to 255 of them and with 16 bits beyond.
 - A forward drive follows an observation whose front reading was heard. The planner treats an
   unobserved edge as open.
-- No recursion and no heap. One `Explorer` is 149 B; `ExplorerT<9>` is about 1.16 KB.
+- No recursion and no heap. One `Explorer` is 156 B; `ExplorerT<9>` is about 1.2 KB.
 
 ## Status
 
 Host tests (`env:native`, `env:native_san`). A simulator runs the photo maze from all 16 tiles and
 4 headings: every start reaches the white tile without driving into a wall, in at most 31 tile
-moves, and still does with 40 % of the side readings missed (5 seeds each). The start tile is
-re-entered in 10 of the 60 runs that do not start on the white tile, all starts whose only way on
-goes through it. Ignoring walls in the planner fails six tests.
+moves, and still does with 40 % of the side readings missed (5 seeds each). Every checked edge in
+the map is what the maze has there. The start tile is re-entered in 10 of the 60 runs that do not
+start on the white tile, all starts whose only way on goes through it. Ignoring walls in the planner
+fails six tests.
 
 The maze in the test was read from the photograph of the arena and its eight wall edges checked
 against it; it has not been measured in the arena. It ran on the robot as part of the Section A run

@@ -31,6 +31,10 @@ constexpr int kN = SECTION_A_SIZE_TILES;
 constexpr int kFinishRow = 0;
 constexpr int kFinishCol = 0;
 
+// Row and column step of each Dir.
+constexpr int kDRow[4] = {-1, 0, 1, 0};
+constexpr int kDCol[4] = {0, 1, 0, -1};
+
 struct Edge {
     uint8_t row, col;
     Dir dir; // the wall on this side of (row, col)
@@ -49,22 +53,8 @@ constexpr Edge kWallEdges[] = {
 
 static bool truthWall(int row, int col, Dir d)
 {
-    int r = row;
-    int c = col;
-    switch (d) {
-        case Dir::North:
-            --r;
-            break;
-        case Dir::South:
-            ++r;
-            break;
-        case Dir::East:
-            ++c;
-            break;
-        case Dir::West:
-            --c;
-            break;
-    }
+    const int r = row + kDRow[static_cast<uint8_t>(d)];
+    const int c = col + kDCol[static_cast<uint8_t>(d)];
     if (r < 0 || c < 0 || r >= kN || c >= kN) {
         return true;
     }
@@ -85,6 +75,7 @@ struct SimResult {
     uint16_t moves = 0;
     uint16_t turns = 0;
     uint16_t startReentries = 0; // times it came back to the start tile before the finish
+    bool mapWrong = false;       // a checked edge says something else than the maze
 };
 
 struct Sim {
@@ -100,13 +91,44 @@ struct Sim {
     }
 };
 
-// The front is always heard; a side may be silent and is then reported as "no wall".
+// The front is always heard; a side may be silent, and then nothing is recorded for it.
 static void observe(Explorer &e, Sim &s)
 {
     const bool front = truthWall(s.row, s.col, s.heading);
-    const bool left = !s.miss() && truthWall(s.row, s.col, turnLeft(s.heading));
-    const bool right = !s.miss() && truthWall(s.row, s.col, turnRight(s.heading));
-    explorerObserve(e, front, left, right);
+    const bool leftHeard = !s.miss();
+    const bool rightHeard = !s.miss();
+    const bool left = truthWall(s.row, s.col, turnLeft(s.heading));
+    const bool right = truthWall(s.row, s.col, turnRight(s.heading));
+    explorerObserve(e, front, leftHeard && left, rightHeard && right);
+    explorerObserveOpen(e, !front, leftHeard && !left, rightHeard && !right);
+}
+
+// A checked edge must say what the maze has there, and a wall must be checked. The map's North is
+// the start heading, so a map cell is turned by `offset` quarters to reach the maze's.
+static bool mapDisagrees(const Explorer &e, int startRow, int startCol, uint8_t offset)
+{
+    for (uint8_t i = 0; i < kCells; ++i) {
+        const int mapRow = i / kSide - kSide / 2;
+        const int mapCol = i % kSide - kSide / 2;
+        const int row =
+            startRow + mapRow * kDRow[(2 + offset) & 3] + mapCol * kDRow[(1 + offset) & 3];
+        const int col =
+            startCol + mapRow * kDCol[(2 + offset) & 3] + mapCol * kDCol[(1 + offset) & 3];
+        const bool inside = row >= 0 && col >= 0 && row < kN && col < kN;
+        for (uint8_t d = 0; d < 4; ++d) {
+            const Dir dir = static_cast<Dir>(d);
+            const bool wall = (e.cell[i] & wallBit(dir)) != 0;
+            const bool checked = (e.cell[i] & checkedBit(dir)) != 0;
+            if (wall && !checked) {
+                return true;
+            }
+            if (checked && inside &&
+                wall != truthWall(row, col, static_cast<Dir>((d + offset) & 3))) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missPct, uint32_t seed)
@@ -120,17 +142,21 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
     auto toTruth = [offset](Dir mapDir) {
         return static_cast<Dir>((static_cast<uint8_t>(mapDir) + offset) & 3);
     };
+    auto finish = [&]() {
+        out.mapWrong = mapDisagrees(e, startRow, startCol, offset);
+        return out;
+    };
 
     for (uint16_t guard = 0; guard < 2000; ++guard) {
         if (s.row == kFinishRow && s.col == kFinishCol) {
             out.reachedFinish = true;
-            return out;
+            return finish();
         }
         s.heading = toTruth(e.heading);
         observe(e, s);
         Dir step;
         if (!explorerPlan(e, step)) {
-            return out;
+            return finish();
         }
         if (step != e.heading) {
             explorerFace(e, step);
@@ -141,31 +167,19 @@ static SimResult run(int startRow, int startCol, Dir startHeading, uint8_t missP
         }
         if (truthWall(s.row, s.col, toTruth(e.heading))) {
             out.hitWall = true;
-            return out;
+            return finish();
         }
         if (!explorerAdvance(e)) {
-            return out;
+            return finish();
         }
-        switch (toTruth(e.heading)) {
-            case Dir::North:
-                --s.row;
-                break;
-            case Dir::South:
-                ++s.row;
-                break;
-            case Dir::East:
-                ++s.col;
-                break;
-            case Dir::West:
-                --s.col;
-                break;
-        }
+        s.row += kDRow[static_cast<uint8_t>(toTruth(e.heading))];
+        s.col += kDCol[static_cast<uint8_t>(toTruth(e.heading))];
         ++out.moves;
         if (s.row == startRow && s.col == startCol) {
             ++out.startReentries;
         }
     }
-    return out;
+    return finish();
 }
 
 // ---- Unit tests ----------------------------------------------------------------------------
@@ -182,16 +196,25 @@ static void test_turns()
     TEST_ASSERT_EQUAL(static_cast<int>(Dir::South), static_cast<int>(opposite(Dir::North)));
 }
 
-static void test_wall_is_recorded_on_both_sides_of_the_edge()
+// A wall and an edge heard open are both checked, on both cells that share the edge; only the
+// wall is a wall.
+static void test_an_edge_looked_at_is_recorded_on_both_sides_of_the_edge()
 {
-    Explorer e;
-    explorerInit(e);
-    explorerObserve(e, true, false, false); // wall to the North
-    uint8_t north = 0;
-    TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
-    TEST_ASSERT_BITS_HIGH(wallBit(Dir::North), e.cell[e.pos]);
-    TEST_ASSERT_BITS_HIGH(wallBit(Dir::South), e.cell[north]);
-    TEST_ASSERT_BITS_HIGH(kVisited, e.cell[e.pos]);
+    for (const bool wall : {true, false}) {
+        Explorer e;
+        explorerInit(e);
+        explorerObserve(e, wall, false, false); // the front to the North; the sides not heard
+        explorerObserveOpen(e, !wall, false, false);
+        uint8_t north = 0;
+        TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
+        TEST_ASSERT_BITS_HIGH(checkedBit(Dir::North), e.cell[e.pos]);
+        TEST_ASSERT_BITS_HIGH(checkedBit(Dir::South), e.cell[north]);
+        TEST_ASSERT_EQUAL(wall, (e.cell[e.pos] & wallBit(Dir::North)) != 0);
+        TEST_ASSERT_EQUAL(wall, (e.cell[north] & wallBit(Dir::South)) != 0);
+        TEST_ASSERT_BITS_LOW(checkedBit(Dir::East) | checkedBit(Dir::West), e.cell[e.pos]);
+        TEST_ASSERT_TRUE(explorerVisited(e, e.pos));
+        TEST_ASSERT_FALSE(explorerVisited(e, north));
+    }
 }
 
 static void test_side_walls_follow_the_heading()
@@ -272,6 +295,8 @@ static void test_rescan_forgets_the_walls_and_keeps_the_pose()
     explorerRescan(e);
     TEST_ASSERT_EQUAL_UINT8(kStartCell, e.pos);
     TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(e.heading));
+    TEST_ASSERT_EQUAL_UINT8(0, e.cell[e.pos]); // walls and checked edges are gone
+    TEST_ASSERT_FALSE(explorerVisited(e, e.pos));
     explorerObserve(e, false, false, false);
     TEST_ASSERT_TRUE(explorerPlan(e, step));
     TEST_ASSERT_EQUAL(static_cast<int>(Dir::East), static_cast<int>(step));
@@ -323,7 +348,7 @@ static void test_plan_keeps_out_of_the_start_tile_when_another_way_exists()
     TEST_ASSERT_TRUE(Explorer::neighbour(east1, Dir::North, northEast));
     TEST_ASSERT_TRUE(Explorer::neighbour(kStartCell, Dir::North, north));
     for (const uint8_t idx : {kStartCell, east1, northEast, north}) {
-        e.cell[idx] = static_cast<uint8_t>(e.cell[idx] | kVisited);
+        markVisited(e, idx);
     }
     markWall(e, kStartCell, Dir::South);
     markWall(e, kStartCell, Dir::North);
@@ -395,6 +420,7 @@ static void test_every_start_tile_and_heading_reaches_the_white_tile()
                 const SimResult res = run(r, c, static_cast<Dir>(h), 0, 1);
                 TEST_ASSERT_TRUE_MESSAGE(res.reachedFinish, "did not reach the finish");
                 TEST_ASSERT_FALSE_MESSAGE(res.hitWall, "drove into a wall");
+                TEST_ASSERT_FALSE_MESSAGE(res.mapWrong, "a checked edge disagrees with the maze");
                 if (res.moves > worstMoves) {
                     worstMoves = res.moves;
                 }
@@ -414,6 +440,8 @@ static void test_missed_side_readings_cost_time_not_the_finish()
                     const SimResult res = run(r, c, static_cast<Dir>(h), 40, seed);
                     TEST_ASSERT_TRUE_MESSAGE(res.reachedFinish, "did not reach the finish");
                     TEST_ASSERT_FALSE_MESSAGE(res.hitWall, "drove into a wall");
+                    TEST_ASSERT_FALSE_MESSAGE(res.mapWrong,
+                                              "a checked edge disagrees with the maze");
                 }
             }
         }
@@ -467,10 +495,9 @@ static void test_the_section_b_map_plans_a_path_longer_than_62_tiles()
     using B = ExplorerT<SECTION_B_SIZE_TILES>;
     B e;
     explorerInit(e);
-    for (uint16_t i = 0; i < B::kCells; ++i) {
-        e.cell[i] = kVisited;
+    for (uint16_t i = 1; i < B::kCells; ++i) {
+        markVisited(e, static_cast<B::Index>(i));
     }
-    e.cell[0] = 0;
     const uint8_t gapCol[4] = {0, 16, 0, 16};
     const uint8_t lineRow[4] = {14, 10, 6, 2}; // the wall is south of this row
     for (uint8_t k = 0; k < 4; ++k) {
@@ -498,7 +525,7 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_the_spec_is_native_safe);
     RUN_TEST(test_turns);
-    RUN_TEST(test_wall_is_recorded_on_both_sides_of_the_edge);
+    RUN_TEST(test_an_edge_looked_at_is_recorded_on_both_sides_of_the_edge);
     RUN_TEST(test_side_walls_follow_the_heading);
     RUN_TEST(test_a_wall_is_never_erased);
     RUN_TEST(test_plan_goes_straight_when_everything_is_open);

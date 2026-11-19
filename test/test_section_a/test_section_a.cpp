@@ -39,7 +39,7 @@ static int visitedCells(const MissionManager &ms)
 {
     int n = 0;
     for (uint8_t i = 0; i < maze::kCells; ++i) {
-        n += (ms.explore.map.cell[i] & maze::kVisited) != 0 ? 1 : 0;
+        n += maze::explorerVisited(ms.explore.map, i) ? 1 : 0;
     }
     return n;
 }
