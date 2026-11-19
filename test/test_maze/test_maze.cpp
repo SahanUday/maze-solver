@@ -196,33 +196,25 @@ static void test_turns()
     TEST_ASSERT_EQUAL(static_cast<int>(Dir::South), static_cast<int>(opposite(Dir::North)));
 }
 
-static void test_wall_is_recorded_on_both_sides_of_the_edge()
+// A wall and an edge heard open are both checked, on both cells that share the edge; only the
+// wall is a wall.
+static void test_an_edge_looked_at_is_recorded_on_both_sides_of_the_edge()
 {
-    Explorer e;
-    explorerInit(e);
-    explorerObserve(e, true, false, false); // wall to the North
-    uint8_t north = 0;
-    TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
-    TEST_ASSERT_BITS_HIGH(wallBit(Dir::North), e.cell[e.pos]);
-    TEST_ASSERT_BITS_HIGH(wallBit(Dir::South), e.cell[north]);
-    TEST_ASSERT_BITS_HIGH(checkedBit(Dir::North), e.cell[e.pos]); // a wall is a checked edge
-    TEST_ASSERT_BITS_HIGH(checkedBit(Dir::South), e.cell[north]);
-    TEST_ASSERT_TRUE(explorerVisited(e, e.pos));
-}
-
-static void test_an_edge_heard_open_is_checked_on_both_sides_and_is_no_wall()
-{
-    Explorer e;
-    explorerInit(e);
-    explorerObserve(e, false, false, false);    // nothing heard
-    explorerObserveOpen(e, true, false, false); // the front heard open
-    uint8_t north = 0;
-    TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
-    TEST_ASSERT_BITS_HIGH(checkedBit(Dir::North), e.cell[e.pos]);
-    TEST_ASSERT_BITS_HIGH(checkedBit(Dir::South), e.cell[north]);
-    TEST_ASSERT_BITS_LOW(wallBit(Dir::North) | wallBit(Dir::South), e.cell[e.pos] | e.cell[north]);
-    TEST_ASSERT_BITS_LOW(checkedBit(Dir::East), e.cell[e.pos]); // the sides were not heard
-    TEST_ASSERT_FALSE(explorerVisited(e, north));
+    for (const bool wall : {true, false}) {
+        Explorer e;
+        explorerInit(e);
+        explorerObserve(e, wall, false, false); // the front to the North; the sides not heard
+        explorerObserveOpen(e, !wall, false, false);
+        uint8_t north = 0;
+        TEST_ASSERT_TRUE(Explorer::neighbour(e.pos, Dir::North, north));
+        TEST_ASSERT_BITS_HIGH(checkedBit(Dir::North), e.cell[e.pos]);
+        TEST_ASSERT_BITS_HIGH(checkedBit(Dir::South), e.cell[north]);
+        TEST_ASSERT_EQUAL(wall, (e.cell[e.pos] & wallBit(Dir::North)) != 0);
+        TEST_ASSERT_EQUAL(wall, (e.cell[north] & wallBit(Dir::South)) != 0);
+        TEST_ASSERT_BITS_LOW(checkedBit(Dir::East) | checkedBit(Dir::West), e.cell[e.pos]);
+        TEST_ASSERT_TRUE(explorerVisited(e, e.pos));
+        TEST_ASSERT_FALSE(explorerVisited(e, north));
+    }
 }
 
 static void test_side_walls_follow_the_heading()
@@ -533,8 +525,7 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_the_spec_is_native_safe);
     RUN_TEST(test_turns);
-    RUN_TEST(test_wall_is_recorded_on_both_sides_of_the_edge);
-    RUN_TEST(test_an_edge_heard_open_is_checked_on_both_sides_and_is_no_wall);
+    RUN_TEST(test_an_edge_looked_at_is_recorded_on_both_sides_of_the_edge);
     RUN_TEST(test_side_walls_follow_the_heading);
     RUN_TEST(test_a_wall_is_never_erased);
     RUN_TEST(test_plan_goes_straight_when_everything_is_open);
