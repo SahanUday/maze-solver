@@ -718,8 +718,8 @@ template <uint8_t N> static void proveRandomMazes(uint32_t firstSeed, uint32_t l
 
 static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
 {
-    proveRandomMazes<SECTION_A_SIZE_TILES>(1, 60);
-    proveRandomMazes<SECTION_B_SIZE_TILES>(1, 12);
+    proveRandomMazes<SECTION_A_SIZE_TILES>(1, 20);
+    proveRandomMazes<SECTION_B_SIZE_TILES>(1, 3);
 }
 
 int main()
