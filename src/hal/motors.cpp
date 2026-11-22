@@ -10,8 +10,9 @@
 #include <avr/io.h>
 
 #include "motion/MotorDrive.h"
-#include "config/RobotConfig.h"
-#include "spec/Drivetrain.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/pins/PinMap.h"
 
 // The register code below is hand-mapped to these pins.
 static_assert(PIN_MOTOR_L_RPWM == 6 && PIN_MOTOR_L_LPWM == 7 && PIN_MOTOR_L_EN == 8,

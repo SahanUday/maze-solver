@@ -20,10 +20,10 @@
 #include "sense/FloorPattern.h"
 #include "sense/LineView.h"
 #include "sense/Perception.h"
-#include "spec/FloorPattern.h"
-#include "spec/LineSensor.h"
-#include "spec/Mission.h"
-#include "spec/Ultrasonic.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/tuning/LineFollow.h"
+#include "spec/tuning/MarkerExit.h"
 
 // After the gap, the robot hands over to the line follower. Not at the first sweep that is not air:
 // the dark patch just past the gap reads black, and the gap's trailing edge can show a false line.

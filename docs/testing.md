@@ -85,7 +85,7 @@ compiler can't. They run on the **whole project**, not just changed files.
   `PINx`) or names a pin bit (`PC1`) that no `static_assert` on a `PIN_*` covers,
   and two drivers using the same timer, interrupt, USART, ADC, I2C or SPI block
   (Timer0 belongs to the Arduino core). The pin rules make sure a driver's
-  hardcoded pin is tied to `RobotConfig.h` by an assert on that port and bit; what
+  hardcoded pin is tied to `PinMap.h` by an assert on that port and bit; what
   the assert compares (`PIN_X == 36`) is still for the author and reviewer to get
   right.
   *Deliberate sharing:* add `// pin-check: shared timer4 - <reason>` in every

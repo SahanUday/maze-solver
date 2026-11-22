@@ -9,12 +9,12 @@
 
 #include "mission/MissionManager.h"
 #include "../support/world.h"
-#include "spec/Competition.h"
-#include "spec/Drivetrain.h"
-#include "spec/Imu.h"
-#include "spec/Mission.h"
-#include "spec/Motion.h"
-#include "spec/Platform.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/fixed/Rules.h"
+#include "spec/tuning/CellExplorer.h"
+#include "spec/tuning/Imu.h"
+#include "spec/tuning/Motion.h"
+#include "spec/tuning/Run.h"
 
 using world::World;
 

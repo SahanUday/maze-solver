@@ -8,7 +8,7 @@ conflict. This script finds those collisions from the code itself, so there is
 no second pin table to keep in sync.
 
 Checks (stdlib only, ~100 ms):
-  pins      every PIN_* in include/config/RobotConfig.h resolves to a real Mega pin
+  pins      every PIN_* in include/spec/pins/PinMap.h resolves to a real Mega pin
             (literal or A0-A15), no two names share a pin, reserved pins
             (0/1 USB serial, 20/21 I2C) are used only by their owner. A second
             name for an existing pin (`constexpr uint8_t PIN_X = PIN_Y;`) must
@@ -23,7 +23,7 @@ Checks (stdlib only, ~100 ms):
   registers a src/hal module that touches a GPIO port register (DDRx/PORTx/PINx)
             or names a pin bit (PC1) has a static_assert naming a PIN_* on that
             same port / bit. A driver that never mentions a PIN_* is invisible
-            to the `asserts` rule, so moving its pin in RobotConfig.h would
+            to the `asserts` rule, so moving its pin in PinMap.h would
             still pass CI. This makes sure the tie exists; what the assert
             compares is still up to the author.
   owners    each peripheral (timerN, intN, pcintN, usartN, adc, twi, spi) is
@@ -59,6 +59,7 @@ MEGA_PINS = (
 ).split()
 NUM_PINS = len(MEGA_PINS)  # 70
 ANALOG_BASE = 54
+PIN_MAP = "include/spec/pins/PinMap.h"
 
 # Datasheet alternate functions: name -> port bit.
 ALT_FUNCTIONS = {
@@ -194,7 +195,7 @@ def parse_pins(text: str):
 
 
 def check_pins(root: Path, findings: list[Finding]):
-    rel = "include/config/RobotConfig.h"
+    rel = PIN_MAP
     path = root / rel
     if not path.exists():
         return []
@@ -320,7 +321,7 @@ def check_hal(root: Path, findings: list[Finding], pins=()):
         asserted_bits = set().union(*(bits_of[name] for name in covered)) if covered else set()
         asserted_ports = {bit[1] for bit in asserted_bits}
         none_on = f"none of the PIN_* it asserts ({', '.join(sorted(covered))}) is" if covered else "no static_assert in it names a PIN_* that is"
-        fix = "assert the pin from include/config/RobotConfig.h so moving it breaks the build"
+        fix = f"assert the pin from {PIN_MAP} so moving it breaks the build"
 
         flagged_ports = set()
         for bit, (path, ln) in sorted(bits_used.items()):
@@ -395,6 +396,9 @@ def main(argv=None) -> int:
 
     if not (args.root / "include").is_dir() and not (args.root / "src").is_dir():
         print(f"{args.root}: no include/ or src/ - wrong --root?", file=sys.stderr)
+        return 2
+    if (args.root / "src/hal").is_dir() and not (args.root / PIN_MAP).exists():
+        print(f"{args.root / PIN_MAP}: not found, so no pin would be checked - moved? Update PIN_MAP", file=sys.stderr)
         return 2
 
     if args.core_header:

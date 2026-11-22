@@ -30,7 +30,7 @@ The floor sensor tells the marker: white, black, white under the array along the
 ([floor_pattern](floor_pattern.md)), at the odometer position of the array's sensing line
 (`IR_ARRAY_FORWARD_OFFSET_MM` ahead of the axle). It is fed only while stepping: a pivot at a centre
 sweeps the array across the frame with the odometer standing still. The event comes as the far frame
-reaches `MARKER_FAR_FRAME_MIN_MM`, about 15 mm before the robot's centre is on the tile's. A stop
+reaches `MARKER_A_FAR_FRAME_MIN_MM`, about 15 mm before the robot's centre is on the tile's. A stop
 short of it still counts (`floorPatternMarkerPending`: near frame and box complete, far frame
 begun).
 

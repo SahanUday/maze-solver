@@ -19,10 +19,10 @@
 
 #include "core/MathUtil.h"
 #include "motion/MotionPrimitives.h"
-#include "spec/Competition.h"
-#include "spec/Motion.h"
-#include "spec/Ultrasonic.h"
-#include "spec/WallFollow.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Arena.h"
+#include "spec/tuning/Motion.h"
+#include "spec/tuning/WallFollow.h"
 #include "sense/WallSense.h"
 
 struct StepCellParams {

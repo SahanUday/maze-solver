@@ -11,7 +11,8 @@
 
 #include <stdint.h>
 
-#include "spec/LineSensor.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/tuning/LineSensor.h"
 
 struct LineCalibration {
     uint16_t white[IR_CHANNEL_COUNT]; // lowest count seen

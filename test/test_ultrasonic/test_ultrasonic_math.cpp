@@ -6,7 +6,7 @@
 #include <unity.h>
 
 #include "sense/UltrasonicMath.h"
-#include "spec/Ultrasonic.h"
+#include "spec/fixed/Hardware.h"
 
 static void test_zero_ticks_is_invalid()
 {
@@ -33,7 +33,7 @@ static void test_wall_height_distance()
 
 static void test_corridor_width_distance()
 {
-    // USABLE_CORRIDOR_MM = 235 -> 2740 ticks -> 234 after truncation.
+    // A 235 mm corridor -> 2740 ticks -> 234 after truncation.
     const UltrasonicReading r = ultrasonicReadingFromTicks(2740);
     TEST_ASSERT_TRUE(r.valid);
     TEST_ASSERT_EQUAL_UINT16(234, r.distanceMm);

@@ -8,7 +8,8 @@
 
 #include <stdint.h>
 
-#include "spec/Ultrasonic.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
 
 static_assert(US_RANGE_CAP_MM <= US_MAX_RANGE_MM, "cap must be within sensor range");
 static_assert(US_RANGE_CAP_MM > US_MIN_RANGE_MM, "cap must exceed the dead zone");

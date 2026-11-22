@@ -13,8 +13,8 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
 
 - `Part` - `AExplore`, `AProve`, `AExit`, `Line`, `BEntry`, `BExplore`, `BProve`, in course order.
   `partBuilt()`, `partStartsAlone()` and `partUsesMap()` say what each is; `PartRange {first, last}` is
-  which to run (the whole course by default). The enum is in `spec/Mission.h`.
-- `RUN_PART_FIRST`, `RUN_PART_LAST` (`spec/Mission.h`) - the parts this firmware runs: `main.cpp` passes
+  which to run (the whole course by default). The enum is in `spec/tuning/Run.h`.
+- `RUN_PART_FIRST`, `RUN_PART_LAST` (`spec/tuning/Run.h`) - the parts this firmware runs: `main.cpp` passes
   them to `runLoopInit()`. The whole course is the setting for the competition. To test one part or a
   stretch, edit the two constants and flash; no switch selects the parts. Put the robot where the
   first part expects it (the start tile for `AExplore`, on the line for `Line`). A first part after

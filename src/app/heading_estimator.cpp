@@ -8,8 +8,9 @@
 
 #include "hal/imu.h"
 #include "motion/Heading.h"
-#include "spec/Imu.h"
-#include "spec/Platform.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/tuning/Imu.h"
 
 namespace
 {

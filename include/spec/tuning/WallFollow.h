@@ -1,18 +1,14 @@
 // ============================================================================
-//  spec/WallFollow.h  --  wall presence and centring thresholds, heading trim, front-echo
+//  spec/tuning/WallFollow.h  --  wall presence and centring thresholds, heading trim, front-echo
 //  filtering.
-//  No pins (see config/RobotConfig.h), no Arduino.h (needed for env:native).
-//
-//  `<<TBD HARDWARE>>` / `<<TBD CALIBRATION>>` = not yet measured/tuned.
-//  See scripts/list-tbds.sh.
 // ============================================================================
 
 #pragma once
 
 #include <stdint.h>
-#include "spec/Motion.h"
+#include "spec/tuning/Motion.h"
 
-// ---- Wall centring gains ------------------------------------- [PARTIAL] --
+// ---- Wall centring gains ---------------------------- [TUNED, HOST MODEL] --
 // Wall centring: a lateral error (mm) to a heading offset (deg). KP_WALL tuned on the floor,
 // 2026-10-14; KI_WALL and the bias limits from the host model with the measured sensor figures.
 constexpr float KP_WALL = 0.1f;       // deg per mm; 0.2 and up swings the heading at KI_TURN 60
@@ -35,7 +31,7 @@ constexpr float WALL_BIAS_RESET_DEG = 20.0f;
 constexpr uint16_t WALL_BIAS_HOLD_MS = 2000;
 constexpr float WALL_BIAS_FADE_DEG_S = 4.0f;
 
-// ---- Wall sensing ------------------------------------------- [MEASURED] --
+// ---- Wall sensing ----------------------------------------------- [TUNED] --
 // Readings are the offset-corrected values in RobotState: the front from the axle, the sides from
 // the centreline. A wall reads 117 +-30 mm at the side and a gap 396 mm or more, never "no echo".
 // The front reads true to ~3 mm up to 300 mm and up to 6% short beyond; the wall that ends the

@@ -11,11 +11,11 @@
 #include "motion/LineFollow.h"
 #include "motion/MotionControl.h"
 #include "motion/MotionPrimitives.h"
-#include "spec/Drivetrain.h"
-#include "spec/FloorPattern.h"
-#include "spec/Imu.h"
-#include "spec/LineFollow.h"
-#include "spec/Motion.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/tuning/FloorPattern.h"
+#include "spec/tuning/Imu.h"
+#include "spec/tuning/LineFollow.h"
+#include "spec/tuning/Motion.h"
 
 struct MissionParams : CellExplorerParams, MarkerExitParams {
     PartRange parts; // which parts to run: the whole course by default
@@ -58,11 +58,11 @@ inline MissionParams missionParams()
     c.stallMinSpeedMmS = STALL_MIN_SPEED_MM_S;
     c.stallMinYawDps = STALL_MIN_YAW_DPS;
 
-    p.pattern.frameMinMm = MARKER_FRAME_MIN_MM;
-    p.pattern.frameMaxMm = MARKER_FRAME_MAX_MM;
-    p.pattern.farFrameMinMm = MARKER_FAR_FRAME_MIN_MM;
-    p.pattern.centreMinMm = MARKER_CENTRE_MIN_MM;
-    p.pattern.centreMaxMm = MARKER_CENTRE_MAX_MM;
+    p.pattern.frameMinMm = MARKER_A_FRAME_MIN_MM;
+    p.pattern.frameMaxMm = MARKER_A_FRAME_MAX_MM;
+    p.pattern.farFrameMinMm = MARKER_A_FAR_FRAME_MIN_MM;
+    p.pattern.centreMinMm = MARKER_A_CENTRE_MIN_MM;
+    p.pattern.centreMaxMm = MARKER_A_CENTRE_MAX_MM;
     p.pattern.gapMinMm = GAP_MIN_MM;
     p.pattern.glitchMm = FLOOR_GLITCH_MM;
 

@@ -8,9 +8,9 @@
 
 #include "mission/RunLoop.h"
 #include "../support/world.h"
-#include "spec/Competition.h"
-#include "spec/Mission.h"
-#include "spec/Platform.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/fixed/Rules.h"
+#include "spec/tuning/Run.h"
 
 using world::World;
 

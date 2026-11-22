@@ -14,7 +14,7 @@ Firmware builds/uploads are handled by the PlatformIO VS Code extension - no sep
 
 The run is cut into parts (`AExplore`, `AProve`, `AExit`, `Line`, `BEntry`, `BExplore`, `BProve`;
 [ADR 0016](docs/architecture/decisions/0016-cut-the-run-into-parts.md)). The firmware runs the stretch
-set by `RUN_PART_FIRST` and `RUN_PART_LAST` in [include/spec/Mission.h](include/spec/Mission.h). The
+set by `RUN_PART_FIRST` and `RUN_PART_LAST` in [include/spec/tuning/Run.h](include/spec/tuning/Run.h). The
 competition setting is the whole course (`AExplore` to `BProve`). To test one part on the robot, edit the
 two constants, flash, and place the robot where the first part expects it:
 

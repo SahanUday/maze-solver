@@ -61,7 +61,7 @@ in the readings alone can tell the two apart.
 
 - `headingUpdate()` is a no-op until `gyroBiasFinish()` has returned `true`.
 - A bias holds only for the chip, its temperature and the mounting it was taken
-  on. It is captured at run time and never written into `spec/Imu.h`.
+  on. It is captured at run time and never written into `spec/`.
 - `deg` stays in [-180, 180), so it never grows without bound; +180 wraps to
   -180.
 - One `GyroBias` is 24 B and one `Heading` is 4 B.

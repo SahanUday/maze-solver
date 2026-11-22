@@ -63,7 +63,7 @@ register or an Arduino I/O call directly:
 ## Fixed-period control loop
 
 `src/main.cpp`'s `loop()` runs `readSensors()` then `runAlgorithm()` once
-every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/spec/Platform.h`). The
+every `CONTROL_LOOP_PERIOD_MS` (10ms / 100Hz — `include/spec/fixed/Hardware.h`). The
 tick-due/drift-resync logic itself lives in `include/core/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
@@ -101,11 +101,11 @@ with function bodies in it must appear in the coverage report or declare
 
 `include/` is grouped by layer and headers are included by path
 (`#include "motion/Heading.h"`; [ADR 0012](decisions/0012-group-headers-by-layer.md)):
-`config/` (pins), `core/` (`RobotState`, `Scheduler`, `MathUtil`), `sense/`, `motion/`,
-`mission/`, and `spec/` for the constants (below).
+`core/` (`RobotState`, `Scheduler`, `MathUtil`), `sense/`, `motion/`, `mission/`, and `spec/` for
+the constants ([Spec layout](#spec-layout)).
 
 Each HAL `.cpp` hand-maps registers to specific pins and `static_assert`s the
-`RobotConfig.h` pin constants it depends on, so moving a pin without updating
+`spec/pins/PinMap.h` pin constants it depends on, so moving a pin without updating
 the driver fails the build. The allocation is summarised under
 [Hardware allocation](#hardware-allocation) below.
 
@@ -180,21 +180,13 @@ This is what lets `lib/maze` compile and run its unit tests on a laptop
 (`env:native`) with no robot attached: its input is a plain struct, not a
 pin.
 
-## Config split: pins vs. spec
+## Spec layout
 
-`include/config/RobotConfig.h` holds pin assignments only, and needs `Arduino.h` for
-the `A0`-`A15` pin-name macros — fine, since it's only ever consumed by
-`env:mega`-only code. `include/spec/` holds everything else (geometry, timing, motion, control, PID gains),
-one header per module: `Competition`, `Platform`, `Drivetrain`, `Imu`, `LineSensor`,
-`FloorPattern`, `Ultrasonic`, `Motion`, `WallFollow`, `LineFollow`, `Mission`. A file
-includes only the ones it uses. They are Arduino-free, so `lib/maze` can include
-`spec/Competition.h` directly for constants like `TILE_PITCH_MM`/`SECTION_A_SIZE_TILES`
-without pulling in a framework the host build doesn't have.
-
-Placeholder values not yet measured (`<<TBD HARDWARE>>`) or tuned
-(`<<TBD CALIBRATION>>`) are named now with their real unit, left at `0`, and
-tracked via `scripts/list-tbds.sh` rather than a comment someone has to
-happen to read.
+`include/spec/` holds every constant, in four folders by why a value changes: `pins/`,
+`measurements/` (arena and robot), `tuning/` and `fixed/` (rules and datasheets)
+([ADR 0020](decisions/0020-group-the-spec-constants-by-why-they-change.md)). The headers are
+Arduino-free, so the host builds and `lib/maze` can include them. How to use and update them, and the
+provenance tags: [`include/spec/README.md`](../../include/spec/README.md).
 
 ## Control layer
 
@@ -202,7 +194,7 @@ Motion control, perception and the cell step are pure headers in `include/`, no 
 the host (the motion headers against a simulated plant, `test/support/sim.h`). `RunLoop` calls them
 every tick from `main.cpp`, and the Section A run, line follower included, ran on the robot at the
 mid-evaluation (tag `v0.1-section-a`), with a stored IR calibration that `main.cpp` loads at boot.
-Per-module detail is in [`modules/`](modules/); the measured values are in `include/spec/`.
+Per-module detail is in [`modules/`](modules/); the measured values are in `include/spec/measurements/`.
 
 | Piece | File | Role |
 |---|---|---|

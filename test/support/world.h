@@ -10,12 +10,12 @@
 #include "motion/Heading.h"
 #include "sense/LineSense.h"
 #include "sense/Perception.h"
-#include "spec/Drivetrain.h"
-#include "spec/Imu.h"
-#include "spec/LineSensor.h"
-#include "spec/Motion.h"
-#include "spec/Platform.h"
-#include "spec/Ultrasonic.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/fixed/Rules.h"
+#include "spec/measurements/Arena.h"
+#include "spec/measurements/Robot.h"
+#include "spec/tuning/Imu.h"
+#include "spec/tuning/Motion.h"
 #include "core/RobotState.h"
 
 namespace world
@@ -34,28 +34,21 @@ struct Lcg {
     }
 };
 
-constexpr int N = 4;
-constexpr float PITCH = 250.0f;
-constexpr float WALL_T = 17.0f;       // wall thickness
+constexpr int N = SECTION_A_SIZE_TILES;
+constexpr float PITCH = TILE_PITCH_MM;
+constexpr float WALL_T = WALL_THICKNESS_MM;
 constexpr float NOSE_MM = 89.0f;      // axle to the front of the body (assumed)
 constexpr float BODY_HALF_MM = 90.0f; // axle half width over the tyres
 constexpr float ARRAY_AHEAD_MM = IR_ARRAY_FORWARD_OFFSET_MM; // IR array ahead of the axle
-constexpr float MARKER_OUTER_MM = 191.0f; // white frame, 36.5 mm each side of the black box
-constexpr float MARKER_BOX_MM = 118.0f;
-constexpr int16_t WHITE_COUNTS = 500; // channel k reads this + 6k on white
-constexpr int16_t BLACK_COUNTS = 990; // the maze floor reads 976-1013
-constexpr int16_t AIR_COUNTS = 1020;  // nothing under the array
-// Beyond the marker tile's open edge, along the exit direction from the tile's centre: the edge
-// at 125 mm, ~20 mm of black strip, the ~37 mm gap, a dark patch, then the white ramp board with
-// the black line down the middle: straight for 600 mm, then a bend to the left.
-constexpr float STRIP_FROM_MM = 125.0f;
-constexpr float GAP_FROM_MM = 145.0f;
-constexpr float GAP_TO_MM = 182.0f;
-constexpr float PATCH_TO_MM = 190.0f;
+constexpr int16_t WHITE_COUNTS = 500;                        // channel k reads this + 6k on white
+constexpr int16_t BLACK_COUNTS = 990;                        // the maze floor reads 976-1013
+constexpr int16_t AIR_COUNTS = 1020;                         // nothing under the array
+// The floor beyond the marker tile's open edge is BRIDGE_OUT_* (Arena.h). On the white board the
+// black line runs straight to LINE_STRAIGHT_TO_MM from the tile's centre, then bends to the left.
 constexpr float LINE_STRAIGHT_TO_MM = 800.0f;
 constexpr float BAR_LENGTH_MM = 1500.0f; // the bend's bar, to the left of the line's end
-constexpr float LINE_HALF_MM = 12.0f;    // the line is 24 mm
-constexpr float RAMP_SLOPE_DEG = 10.0f;  // the ramp's slope, from PATCH_TO_MM for 300 mm
+constexpr float LINE_HALF_MM = BRIDGE_OUT_LINE_WIDTH_MM / 2;
+constexpr float RAMP_SLOPE_DEG = 10.0f; // the ramp's slope, from the board's start for 300 mm
 constexpr float RAMP_LENGTH_MM = 300.0f;
 
 struct Rect {
@@ -338,23 +331,23 @@ struct World {
         float along = 0.0f;
         float lat = 0.0f;
         exitFrame(px, py, along, lat);
-        if (along < STRIP_FROM_MM) {
+        if (along < BRIDGE_OUT_STRIP_FROM_MM) {
             // The maze: black, and the marker's white frame around its black box.
             const float dx = fabsf(px - PITCH * static_cast<float>(arena.markerI));
             const float dy = fabsf(py - PITCH * static_cast<float>(arena.markerJ));
-            const float o = MARKER_OUTER_MM / 2;
-            const float b = MARKER_BOX_MM / 2;
+            const float b = MARKER_A_BOX_MM / 2;
+            const float o = b + MARKER_A_FRAME_MM;
             return dx < o && dy < o && !(dx < b && dy < b) ? white
                                                            : static_cast<uint16_t>(BLACK_COUNTS);
         }
-        if (along < GAP_FROM_MM) {
+        if (along < BRIDGE_OUT_GAP_FROM_MM) {
             return BLACK_COUNTS;
         }
-        if (along < GAP_TO_MM) {
+        if (along < BRIDGE_OUT_GAP_TO_MM) {
             return gapIsDark ? static_cast<uint16_t>(BLACK_COUNTS)
                              : static_cast<uint16_t>(AIR_COUNTS);
         }
-        if (along < PATCH_TO_MM) {
+        if (along < BRIDGE_OUT_BOARD_FROM_MM) {
             return BLACK_COUNTS;
         }
         if (lineGone) {
@@ -386,8 +379,8 @@ struct World {
         const float a = static_cast<float>(yawDeg) * 0.0174533f;
         exitFrame(static_cast<float>(x) + ARRAY_AHEAD_MM * cosf(a),
                   static_cast<float>(y) + ARRAY_AHEAD_MM * sinf(a), along, lat);
-        const float c = along < PATCH_TO_MM
-                            ? PATCH_TO_MM
+        const float c = along < BRIDGE_OUT_BOARD_FROM_MM
+                            ? BRIDGE_OUT_BOARD_FROM_MM
                             : (along > LINE_STRAIGHT_TO_MM ? LINE_STRAIGHT_TO_MM : along);
         const float dA = sqrtf((along - c) * (along - c) + lat * lat);
         const float l = lat < 0.0f ? 0.0f : (lat > BAR_LENGTH_MM ? BAR_LENGTH_MM : lat);
@@ -423,7 +416,8 @@ struct World {
         float lat = 0.0f;
         exitFrame(static_cast<float>(x), static_cast<float>(y), along, lat);
         float counts = 0.0f;
-        if (arena.markerI >= 0 && along >= PATCH_TO_MM && along <= PATCH_TO_MM + RAMP_LENGTH_MM) {
+        if (arena.markerI >= 0 && along >= BRIDGE_OUT_BOARD_FROM_MM &&
+            along <= BRIDGE_OUT_BOARD_FROM_MM + RAMP_LENGTH_MM) {
             counts = static_cast<float>(IMU_ACCEL_ONE_G_COUNTS) * sinf(RAMP_SLOPE_DEG * 0.0174533f);
         }
         counts = IMU_ACCEL_NOSE_UP_NEGATIVE ? -counts : counts;

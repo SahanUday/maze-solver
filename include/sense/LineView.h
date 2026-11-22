@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#include "spec/LineSensor.h"
+#include "spec/fixed/Hardware.h"
 
 struct LineView {
     bool valid = false;    // at least one usable channel; otherwise the three below are all false

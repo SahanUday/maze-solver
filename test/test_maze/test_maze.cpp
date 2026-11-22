@@ -23,7 +23,8 @@
 
 #include "Maze.h"
 #include "Proof.h"
-#include "spec/Competition.h"
+#include "spec/fixed/Rules.h"
+#include "spec/measurements/Arena.h"
 
 using namespace maze;
 
