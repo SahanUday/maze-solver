@@ -44,6 +44,14 @@ static int visitedCells(const MissionManager &ms)
     return n;
 }
 
+// How far the robot is from the marker tile's centre.
+static float markerOffsetMm(const World &w)
+{
+    const float dx = static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
+    const float dy = static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
+    return sqrtf(dx * dx + dy * dy);
+}
+
 static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
                    uint32_t maxTicks = RUN_TICKS)
 {
@@ -63,9 +71,7 @@ static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
     out.phase = ms.phase;
     out.fault = ms.fault;
     out.visited = visitedCells(ms);
-    const float dx = static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
-    const float dy = static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
-    out.tileOffsetMm = sqrtf(dx * dx + dy * dy);
+    out.tileOffsetMm = markerOffsetMm(w);
     return out;
 }
 
@@ -232,7 +238,7 @@ static ExploreStatus driveExplorer(World &w, CellExplorer &ce, MotionControl &mc
     return st;
 }
 
-// Explore everything, then drive to the marker's tile over the cells it knows, and stand on it.
+// Explore everything, then drive to the marker tile over checked edges and stand on it.
 static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cells()
 {
     const struct {
@@ -258,11 +264,7 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
                                     w.arena.markerI, w.arena.markerJ, st.i, st.j, st.facing)));
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::AtTarget),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
-        const float dx =
-            static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
-        const float dy =
-            static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
-        TEST_ASSERT_TRUE_MESSAGE(sqrtf(dx * dx + dy * dy) < 40.0f, "stopped off the marker tile");
+        TEST_ASSERT_TRUE_MESSAGE(markerOffsetMm(w) < 40.0f, "stopped off the marker tile");
         TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
         TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.startTileEntries, "crossed the start tile");
 

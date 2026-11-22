@@ -19,17 +19,16 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 - `cellExplorerStart(ce, fb)` - begin from where the robot stands: map North is its heading now.
 - `cellExplorerStep(ce, params, input, perception, target)` - one tick. Fills the `MotionTarget`
   (the caller owns the motion controller) and returns an `ExploreStatus`:
-  `Running`, `Explored` (every reachable tile entered, `wallsOnly`), `AtTarget` (standing on the target
-  tile, see `cellExplorerDriveTo`), `Stopped` (standing on the tile a
-  stop was asked for), `Braked` (a stop that braked at once, wheels still) or `Fault` (`ce.fault`:
+  `Running`, `Explored` (every reachable tile entered, `wallsOnly`), `AtTarget` (standing on the tile
+  `cellExplorerDriveTo` was given), `Stopped` (standing on the tile a stop was asked for), `Braked` (a stop that braked at once, wheels still) or `Fault` (`ce.fault`:
   `NoRoute`, `StuckTurn`, `StuckStep`, `TooManyStops`, `TargetUnreachable`).
 - The caller's say in what ends the search: `cellExplorerStopHere(ce)` asks for a stop on the tile the
   step is heading for, and `ExploreInput` says each tick whether a stop brakes at once
   (`brakeOnStop`) and whether one is due only once the step has ended (`lateStopOffer`; the explorer
   sets `lateTaken` when it takes it).
-- `cellExplorerDriveTo(ce, target)` - drive to the map tile `target` (an `ExplorerT<N>::Index`) instead of
-  the nearest unvisited one. Call it standing on a centre, after `Explored` or `AtTarget`; it lasts
-  until the next reset.
+- `cellExplorerDriveTo(ce, target)` - head for map tile `target` over checked edges instead of
+  exploring. Call it standing on a centre, after `Explored` or `AtTarget`. It lasts until the next
+  reset.
 - `cellExplorerBeginTurn(ce, fb, dir)` and `cellExplorerTurnStep(...)` - a turn the caller starts
   (the marker exit uses it), with the same retries.
 - `cellExplorerEdgeOpen(ce, dir)`, `cellExplorerHeadingRef(ce)` - the map's view of the tile the
@@ -46,17 +45,14 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
 
-**Drive-to-tile mode** (`cellExplorerDriveTo`) runs the same Sense, Turn and Step; only the choice of the next
-tile differs. The planner is replaced by `explorerRoute` ([maze](maze.md)): the first step of the
-shortest path over checked edges, keeping out of the start tile when another way exists. The start
-tile is the map's own: Section A's START tile, or Section B's entry tile (the rules say only that
-re-entering "the START tile" before the FINISH aborts the attempt, so the entry tile is avoided too).
-The way
-ahead is a checked edge, so the explorer does not look again at a silent front, peek or retry it, and
-rolls through a centre when the route goes straight on. It still reads the walls on the way, and a
-wall it finds changes the route. On the target tile it stops on the centre and returns `AtTarget`; with
-no path over checked edges it faults with `TargetUnreachable` and forgets nothing (no rescan). A tile the
-robot drove through but no sensor heard open is not on a route: see the Status.
+**Drive-to-tile mode** (`cellExplorerDriveTo`) runs the same Sense, Turn and Step; only the next tile
+differs. It comes from `explorerRoute` ([maze](maze.md)): the shortest path over checked edges,
+keeping out of the map's start tile (Section A's START, Section B's entry tile) when another way
+exists. The rules say only that re-entering "the START tile" before the FINISH aborts the attempt, so
+the entry tile is avoided too. The way ahead is a checked edge, so a silent front is not retried or
+peeked at, and a centre on a straight route is rolled through. The walls are still read and recorded
+on the way, and a new wall changes the route. On the target tile the explorer stops on the centre and
+returns `AtTarget`. With no checked path it faults with `TargetUnreachable`, with no rescan.
 
 A requested stop (`cellExplorerStopHere`) means no wall or planner decides the centre any more: the
 step ends on it, and the status is `Stopped`. With `brakeOnStop` the step brakes at once, wherever it
@@ -95,12 +91,13 @@ part of the Section A run, before the mission was split. The split changed no ou
 every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the
 robot since.
 
-Drive-to-tile mode is tested by exploring the Section A arena from four start tiles, then driving to the marker
-tile: it stops within 40 mm, touches no wall and does not cross the start tile; with every checked bit
-cleared the same target is `TargetUnreachable`. It has not run on the robot. An edge the robot crossed but no sensor heard open stays
-unchecked ([maze](maze.md)), so a route over it is refused. A one-off simulator check (script not kept)
-found none: in 16 explorations, without noise and with 30 % dropped readings and 5 % stray echoes,
-every open edge between two entered cells was already checked. Of 45 noisy runs that explored
-everything and then drove to the marker, 9 were refused, all because a wall was on the map that cut
-the target off (a stray echo marked it, and a wall is never erased), none because of an unchecked
-edge. What the Section A return (A-02) does on `TargetUnreachable` is for that issue to decide.
+Drive-to-tile mode is tested by exploring the Section A arena from four start tiles and driving to
+the marker tile: it stops within 40 mm, touches no wall and does not cross START; with every checked
+bit cleared the target is `TargetUnreachable`. It has not run on the robot, and its cost on the AVR
+(up to four floods per tile) is not measured.
+
+An edge the robot drove over but no sensor heard open stays unchecked ([maze](maze.md)), so a route
+over it is refused. A one-off simulator check (script not kept) found none: in 16 explorations, clean
+and with 30 % dropped readings and 5 % stray echoes, every open edge between two entered cells was
+checked. Of 45 noisy runs, 9 were refused, all because a false wall cut the target off (walls are
+never erased). What the Section A return (A-02) does on `TargetUnreachable` is for that issue.

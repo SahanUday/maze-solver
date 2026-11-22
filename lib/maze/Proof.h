@@ -7,8 +7,7 @@
 //      closed  only checked edges count: the shortest path known
 //  Equal: no unchecked edge can do better. Otherwise the unchecked edge nearest the start on the
 //  open path is the next to look at.
-//
-//  explorerRoute() is the closed flood alone: the way to drive to a tile over known edges.
+//  explorerRoute() is the closed flood alone: the first step of the way to a tile.
 //  docs/architecture/modules/maze.md
 // ============================================================================
 
@@ -40,8 +39,8 @@ namespace detail
 constexpr uint16_t kNoPath = 0xFFFF;
 
 // Steps from `from` to `goal` by breadth-first search, or kNoPath. `closed`: only checked edges
-// pass. `avoidStart`: the start tile does not (the goal is not reached through it). Leaves the
-// direction each reached cell was entered by in `e.seen`.
+// pass. `avoidStart`: the start tile does not. Leaves the direction each reached cell was entered
+// by in `e.seen`.
 template <uint8_t N>
 inline uint16_t flood(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
                       typename ExplorerT<N>::Index goal, bool closed, bool avoidStart = false)
@@ -116,10 +115,9 @@ inline Proof explorerProof(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
     return p;
 }
 
-// First step of the shortest path from `from` to `goal` over checked edges only: every edge on it
-// was looked at. The start tile is kept out of it when there is another way (re-entering it before
-// the finish aborts the attempt). False: there is no such path, or `from` is the goal. Uses the
-// planner's scratch.
+// First step of the shortest path from `from` to `goal` over checked edges, keeping out of the
+// start tile when another way exists (re-entering it before the finish aborts the attempt). False:
+// no such path, or `from` is the goal. Uses the planner's scratch.
 template <uint8_t N>
 inline bool explorerRoute(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
                           typename ExplorerT<N>::Index goal, Dir &step)
@@ -132,7 +130,7 @@ inline bool explorerRoute(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
         detail::flood(e, from, goal, true, false) == detail::kNoPath) {
         return false;
     }
-    // Walk the path back from the goal; the step that leaves `from` is the first.
+    // Walk back from the goal: the step that leaves `from` is the first.
     for (Index cur = goal;;) {
         const Dir d = static_cast<Dir>(e.seen[cur]);
         Index prev = 0;

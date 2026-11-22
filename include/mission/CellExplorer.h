@@ -11,9 +11,8 @@
 //  Its caller can ask it to stop on the tile it is heading for (cellExplorerStopHere) and says,
 //  each tick, whether a stop that was not yet asked for is due (ExploreInput); it tells the caller
 //  when it has explored everything reachable, or has stopped where asked.
-//  cellExplorerDriveTo() changes the search for a target tile: drive to a chosen tile over edges
-//  that were looked at, with the same sensing, turning and stepping, and say when it is at the
-//  target. docs/architecture/modules/cell_explorer.md
+//  cellExplorerDriveTo() sends it to a chosen tile over checked edges instead.
+//  docs/architecture/modules/cell_explorer.md
 // ============================================================================
 
 #pragma once
@@ -40,10 +39,10 @@ enum class ExplorePhase : uint8_t { Sense, Turn, Step };
 enum class ExploreStatus : uint8_t {
     Running,
     Explored, // nothing reachable is left unvisited (wallsOnly)
-    AtTarget, // standing on the tile cellExplorerDriveTo() was given
     Stopped,  // standing on the tile a stop was asked for, the map in step with the odometer
     Braked,   // the stop braked at once and the wheels have stopped
     Fault,    // `fault` says why
+    AtTarget, // standing on the tile cellExplorerDriveTo() was given
 };
 
 struct CellExplorerParams {
@@ -76,7 +75,7 @@ template <uint8_t N> struct CellExplorerT {
     MissionFault fault = MissionFault::None;
 
     maze::ExplorerT<N> map;
-    // Drive to `target` instead of to the nearest unvisited tile (cellExplorerDriveTo).
+    // cellExplorerDriveTo(): head for `target`, not the nearest unvisited tile.
     bool targetMode = false;
     typename maze::ExplorerT<N>::Index target = 0;
     float h0 = 0.0f; // the gyro heading at the start; map North is this
@@ -282,7 +281,7 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
         }
         const uint8_t headBit = static_cast<uint8_t>(1u << static_cast<uint8_t>(ce.map.heading));
         const bool openOnApproach = ((ce.openHeard | ce.peekedOpen) & headBit) != 0;
-        // The route runs over edges that were looked at: the way ahead is open, heard or not now.
+        // The route runs over checked edges: the way ahead is known to be open.
         if (!ce.targetMode && !ce.frontHeard && !openOnApproach &&
             !maze::explorerAheadVisited(ce.map)) {
             if (ce.sideEverHeard && (ce.peekTried & headBit) == 0) {
@@ -357,9 +356,10 @@ template <uint8_t N> inline bool onWallsReady(CellExplorerT<N> &ce, const CellEx
                                             ((w.leftHeard && !w.left ? 1u : 0u) << ((h + 3) & 3)));
     }
     maze::Dir next = ce.map.heading;
-    const bool straightOn = ce.targetMode ? maze::explorerRoute(ce.map, ce.map.pos, ce.target, next)
-                                          : maze::explorerPlan(ce.map, next) && ce.frontHeard;
-    if (!ce.stopHere && straightOn && next == ce.map.heading) {
+    const bool straightOn =
+        !ce.stopHere && (ce.targetMode ? maze::explorerRoute(ce.map, ce.map.pos, ce.target, next)
+                                       : maze::explorerPlan(ce.map, next) && ce.frontHeard);
+    if (straightOn && next == ce.map.heading) {
         stepCellContinue(ce.step, p.step); // the next tile is straight on: no stop
         ce.step.openAhead =
             ce.step.openAhead || ce.targetMode || (w.frontHeard && !w.front && !ce.stopHere);
@@ -370,7 +370,7 @@ template <uint8_t N> inline bool onWallsReady(CellExplorerT<N> &ce, const CellEx
     return true;
 }
 
-// What the search ending means: every tile entered, or the target reached.
+// The status for a finished search.
 template <uint8_t N> inline ExploreStatus searchOver(const CellExplorerT<N> &ce)
 {
     return ce.targetMode ? ExploreStatus::AtTarget : ExploreStatus::Explored;
@@ -385,18 +385,14 @@ template <uint8_t N> inline void cellExplorerStart(CellExplorerT<N> &ce, const M
     cell_explorer_detail::beginSense(ce);
 }
 
-// Drive to tile `target` of the map (an index, `ExplorerT<N>::Index`) over edges that were looked
-// at, whether or not its cells were entered. Call it with the robot standing on a centre, after
-// Explored or AtTarget: it stands and reads the walls first. It ends with AtTarget, or with the
-// fault TargetUnreachable when no such path exists (nothing is forgotten and rescanned). It stays
-// in force until the next reset; it keeps reading the walls on the way, and a wall it finds can
-// change the route.
+// Head for map tile `target` over checked edges instead of exploring. Call it standing on a centre,
+// after Explored or AtTarget. Ends with AtTarget, or the fault TargetUnreachable when no checked
+// path exists (the map is kept). Lasts until the next reset.
 template <uint8_t N>
 inline void cellExplorerDriveTo(CellExplorerT<N> &ce, typename maze::ExplorerT<N>::Index target)
 {
     ce.targetMode = true;
     ce.target = target;
-    ce.frontTries = 0;
     cell_explorer_detail::beginSense(ce);
 }
 
