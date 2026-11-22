@@ -17,6 +17,7 @@
 #include "spec/tuning/Imu.h"
 #include "spec/tuning/Motion.h"
 #include "core/RobotState.h"
+#include "Fingerprint.h"
 
 namespace world
 {
@@ -442,6 +443,7 @@ struct World {
         state.usValid = valid;
         arrayCounts(state.irRaw);
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = forwardAccel();
+        trace(state);
         Perception out;
         perceive(pc, state, pp, out);
         return out;
@@ -480,6 +482,7 @@ struct World {
             y += mid * sin(a) * 0.001;
         }
         tMs += CONTROL_LOOP_PERIOD_MS;
+        trace(cmd, x, y, yawDeg, v[0], v[1]);
 
         const float front = rayFromAxle(static_cast<float>(yawDeg));
         const float left = rayFromAxle(static_cast<float>(yawDeg) + 90.0f);
