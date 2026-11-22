@@ -30,14 +30,14 @@ The arena is hand-built, so marker A, marker B, the bridge-out line and the brid
 
 ## Tags
 
-One per section heading.
+One per section heading (two where a section mixes).
 
 | Tag | Meaning |
 |---|---|
 | `[RULES]` | from the competition rules (nominal) |
 | `[DESIGN]` | datasheet or design choice |
 | `[MEASURED]` | measured on the robot or arena |
-| `[TUNED]` | tuned on the robot |
+| `[TUNED]` | tuned or chosen while testing on the robot |
 | `[HOST MODEL]` | found in the host simulation, not yet checked on the robot |
 | `<<TBD HARDWARE>>` | not yet measured; holds a stand-in value |
 | `<<TBD CALIBRATION>>` | not yet tuned; holds a stand-in value |

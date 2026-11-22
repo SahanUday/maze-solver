@@ -1,13 +1,12 @@
 // ============================================================================
 //  spec/tuning/Run.h  --  the parts a run covers, run start, status line.
-//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once
 
 #include <stdint.h>
 
-// ---- The parts of a run ------------------------------------------------ [TUNED] --
+// ---- The parts of a run ----------------------------------------- [TUNED] --
 // The run is cut into these, in course order (mission/Parts.h says what each one is and which can
 // be built, started alone or refused).
 enum class Part : uint8_t { AExplore, AProve, AExit, Line, BEntry, BExplore, BProve };
@@ -37,7 +36,7 @@ constexpr Part RUN_PART_LAST = Part::BProve;
 static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_PART_LAST),
               "RUN_PART_LAST comes before RUN_PART_FIRST");
 
-// ---- Run start and status line ---------------------------------------- [TUNED] --
+// ---- Run start and status line ---------------------------------- [TUNED] --
 // No start button is fitted: the run begins by itself, RUN_START_DELAY_MS after the loop starts
 // (the gyro has been zeroed by then, with the robot held still), so the power switch is the start.
 // With a button fitted, set this true and the run waits for a press.

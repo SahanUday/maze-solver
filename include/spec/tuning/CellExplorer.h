@@ -1,14 +1,13 @@
 // ============================================================================
 //  spec/tuning/CellExplorer.h  --  how the explorer senses a cell and how often it retries
 //  (mission/CellExplorer.h).
-//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once
 
 #include <stdint.h>
 
-// ---- Section A mission ------------------------------------------ [HOST MODEL] --
+// ---- Section A mission ------------------------------------- [HOST MODEL] --
 // How long the robot stands and reads a cell's walls before it decides (a few refreshes of each
 // sensor: 4 at 60 ms), and how often a doubtful reading is tried again before it is acted on.
 constexpr uint16_t SECTION_A_SENSE_MS = 250;

@@ -397,6 +397,9 @@ def main(argv=None) -> int:
     if not (args.root / "include").is_dir() and not (args.root / "src").is_dir():
         print(f"{args.root}: no include/ or src/ - wrong --root?", file=sys.stderr)
         return 2
+    if (args.root / "src/hal").is_dir() and not (args.root / PIN_MAP).exists():
+        print(f"{args.root / PIN_MAP}: not found, so no pin would be checked - moved? Update PIN_MAP", file=sys.stderr)
+        return 2
 
     if args.core_header:
         try:

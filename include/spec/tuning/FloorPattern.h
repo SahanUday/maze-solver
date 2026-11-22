@@ -1,7 +1,6 @@
 // ============================================================================
 //  spec/tuning/FloorPattern.h  --  what the IR array must see to call the approach marker, the gap
 //  and the air (sense/FloorPattern.h).
-//  Layout, tags and how to update: spec/README.md.
 //  The sizes the windows surround: measurements/Arena.h.
 // ============================================================================
 
@@ -10,8 +9,8 @@
 #include <stdint.h>
 #include "spec/measurements/Arena.h"
 
-// ---- Approach marker A: detection windows --------------------------------- [TUNED] --
-// Crossing the marker along its middle the array sees white, black, white (sizes in Arena.h).
+// ---- Marker A windows ------------------------------------------- [TUNED] --
+// Crossing the marker the array sees white, black, white (sizes: Arena.h).
 constexpr float MARKER_A_FRAME_MIN_MM = 25.0f; // each white frame
 constexpr float MARKER_A_FRAME_MAX_MM = 55.0f;
 // The far frame counts once this much of it is under the array: with the array 86 mm ahead of the
@@ -25,7 +24,7 @@ static_assert(MARKER_A_FRAME_MM >= MARKER_A_FRAME_MIN_MM &&
                   MARKER_A_BOX_MM <= MARKER_A_CENTRE_MAX_MM,
               "marker A's measured sizes must lie inside its detection windows");
 
-// ---- Approach marker B: detection windows ------------------ <<TBD CALIBRATION>> --
+// ---- Marker B windows ------------------------------- <<TBD CALIBRATION>> --
 // A's windows until marker B is measured (#54).
 constexpr float MARKER_B_FRAME_MIN_MM = 25.0f;
 constexpr float MARKER_B_FRAME_MAX_MM = 55.0f;
@@ -38,7 +37,8 @@ static_assert(MARKER_B_FRAME_MM >= MARKER_B_FRAME_MIN_MM &&
                   MARKER_B_BOX_MM <= MARKER_B_CENTRE_MAX_MM,
               "marker B's measured sizes must lie inside its detection windows");
 
-// ---- Gap and air ------------------------------------------------------- [TUNED] --
+// ---- Gap and air ------------------------------------------------ [TUNED] --
+// The ~37 mm gap reads as air for about 21 mm of it.
 constexpr float GAP_MIN_MM = 12.0f;     // air for this long = the gap
 constexpr float FLOOR_GLITCH_MM = 4.0f; // a change shorter than this is noise
 // Air: at least IR_AIR_CHANNELS channels at IR_AIR_COUNTS or more. On the robot (2026-10-15, bench,

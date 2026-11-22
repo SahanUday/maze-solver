@@ -1,6 +1,5 @@
 // ============================================================================
 //  spec/tuning/Imu.h  --  gyro bias capture, incline level capture and the ramp threshold.
-//  Layout, tags and how to update: spec/README.md.
 //  The chip's settings: fixed/Hardware.h; its orientation and level: measurements/Robot.h.
 // ============================================================================
 
@@ -9,7 +8,7 @@
 #include <stdint.h>
 #include "spec/measurements/Robot.h"
 
-// ---- Gyro bias capture ------------------------------------------------- [TUNED] --
+// ---- Gyro bias capture ------------------------------------------ [TUNED] --
 // Averaged at boot with the robot held still. Integrating an
 // uncorrected bias of 2 deg/s over RUN_LIMIT_MS would accumulate ~960 deg.
 constexpr uint16_t GYRO_BIAS_SAMPLES = 1000;
@@ -29,14 +28,14 @@ static_assert(GYRO_BIAS_MAX_ATTEMPTS >= 1, "at least one capture attempt");
 // again at START made the 8-minute error smaller in 2 of 4 cases and larger in the other 2, so the
 // boot capture stays as it is. Numbers: docs/calibration/.
 
-// ---- Incline level capture ------------------------------------- [HOST MODEL] --
+// ---- Incline level capture --------------------------------- [HOST MODEL] --
 // Tilt.h averages the forward-axis reading at boot. A still capture scattered 16-25 counts (std)
 // on the bench, a range of about 150 over 1000 samples; one taken while the robot is carried or
 // tilted by hand spreads far wider. Not yet checked with the motors running.
 constexpr uint16_t INCLINE_LEVEL_MIN_SAMPLES = 50;
 constexpr uint16_t INCLINE_LEVEL_MAX_RANGE_COUNTS = 600; // about 2 deg; 4x a still capture
 
-// ---- Ramp incline ---------------------------------------------- [HOST MODEL] --
+// ---- Ramp incline ------------------------------------------ [HOST MODEL] --
 // On the ramp the array may be lifted and read white floor as dark (or dark as white): an all-white
 // view is ignored above this nose-up slope. 6 deg: flat floor reads ~0.8 deg and a hard start or
 // stop fakes a few; the slope itself reads ~12. In accel counts (Tilt.h).

@@ -1,6 +1,5 @@
 // ============================================================================
 //  spec/tuning/LineSensor.h  --  line calibration limits and the black / white thresholds.
-//  Layout, tags and how to update: spec/README.md.
 //  The array's channel count and ADC: fixed/Hardware.h; its mounting: measurements/Robot.h.
 // ============================================================================
 
@@ -9,7 +8,7 @@
 #include <stdint.h>
 #include "spec/fixed/Hardware.h"
 
-// ---- Line detection ---------------------------------- <<TBD CALIBRATION>> --
+// ---- Line detection --------------------------------- <<TBD CALIBRATION>> --
 // A channel whose white-to-black range is below the minimum is unusable.
 constexpr uint16_t LINE_CAL_MIN_SPAN_COUNTS = 30;
 
@@ -24,7 +23,7 @@ static_assert(static_cast<uint32_t>(LINE_CAL_MIN_SPAN_COUNTS) *
                   6u * ADC_NOISE_COUNTS,
               "LINE_CAL_MIN_SPAN_COUNTS is too small for the hysteresis band against ADC noise");
 
-// ---- Stored calibration check ------------------------------------- [DESIGN] --
+// ---- Stored calibration check ---------------------------------- [DESIGN] --
 // A stored calibration is only believed if it looks like this array on this floor: the whites read
 // at least this high (lower is an array without its emitter supply) and differ from each other by
 // at least IR_CAL_WHITE_SPREAD_COUNTS (eight identical whites is the same fault).

@@ -1,12 +1,10 @@
 // ============================================================================
 //  spec/pins/PinMap.h  --  single source of truth for pin assignments.
-//  Layout, tags and how to update: spec/README.md.
 //
 //  Rules:
 //    1. Every pin number lives HERE.
 //    2. Use `constexpr`, never `#define`.
-//    3. Analog pins are numbers (A0..A15 = 54..69 on the Mega): no Arduino.h, so the host builds
-//       can include this file. The A-name goes in the comment.
+//    3. Analog pins are numbers (A0..A15 = 54..69), so no Arduino.h. Put the A-name in a comment.
 // ============================================================================
 
 #pragma once

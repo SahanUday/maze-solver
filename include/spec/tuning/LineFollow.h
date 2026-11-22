@@ -1,6 +1,5 @@
 // ============================================================================
 //  spec/tuning/LineFollow.h  --  line-following gains, speed, search and slowdown.
-//  Layout, tags and how to update: spec/README.md.
 //  The line's width: BRIDGE_OUT_LINE_WIDTH_MM / BRIDGE_IN_LINE_WIDTH_MM in measurements/Arena.h.
 // ============================================================================
 
@@ -8,7 +7,7 @@
 
 #include <stdint.h>
 
-// ---- Line following ------------------------------------------------- [TUNED] --
+// ---- Line following --------------------------------------------- [TUNED] --
 // Line following (PR #28, 2026-10-15, tools/probe/motion.cpp `L`, a 24 mm black line on a white
 // floor, 50 cm runs from 11 mm off-centre, 170 mm/s). The follower steers by adding a heading
 // offset to the CURRENT heading, so with proportional gain alone the error behaves like an

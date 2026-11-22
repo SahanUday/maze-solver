@@ -1,7 +1,6 @@
 // ============================================================================
 //  spec/measurements/Robot.h  --  the robot as built: wheels, sensor mounting and offsets,
 //  polarity, IMU orientation. Re-measure after a chassis change.
-//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once
@@ -9,7 +8,7 @@
 #include <stdint.h>
 #include "spec/fixed/Hardware.h"
 
-// ---- Drivetrain polarity ------------------------------------ [MEASURED] --
+// ---- Drivetrain polarity ------------------------------------- [MEASURED] --
 // The motors are mounted mirrored, so one side needs its direction flipped.
 // Set on the bench: command a positive speed, the robot must roll forward and
 // the encoder count must rise.
@@ -20,7 +19,7 @@ constexpr bool ENC_R_INVERT = false;
 // Measured 2026-10-13 on the compact chassis, wheels free, duty 300 for 800 ms: each wheel rolled
 // forward and its own encoder rose (left +1155, right +1154; both together +1173 / +1154).
 
-// ---- Wheel / drivetrain geometry --------------------------- [MEASURED] --
+// ---- Wheel / drivetrain geometry ----------------------------- [MEASURED] --
 constexpr uint16_t WHEEL_DIAMETER_MM = 65; // ruler, rolled circumference / pi
 // Effective track: a 109 deg gyro pivot against the encoder difference. Tyre-centre spacing is
 // ~155 mm; the rest is tyre scrub.
@@ -29,14 +28,14 @@ constexpr uint16_t ENCODER_COUNTS_PER_REV = 898; // 10 hand turns: left 8978, ri
 constexpr float MM_PER_ENCODER_COUNT =
     3.14159265f * WHEEL_DIAMETER_MM / ENCODER_COUNTS_PER_REV; // ~0.2274
 
-// ---- Motor start duty -------------------------------------------- [MEASURED] --
+// ---- Motor start duty ---------------------------------------- [MEASURED] --
 // Start-from-rest duty (0..MOTOR_PWM_TOP), forward, on the floor, from single 150 ms pulses.
 // A wheel already turning keeps going down to ~100-120. Measure at MOTOR_PWM_FREQ_HZ.
 // What the controller lifts commands to: CONTROL_MIN_PWM_* in tuning/Motion.h.
 constexpr uint16_t MOTOR_MIN_PWM_L = 160; // the lowest duty tried
 constexpr uint16_t MOTOR_MIN_PWM_R = 250;
 
-// ---- IR array mounting ---------------------------------------- [MEASURED] --
+// ---- IR array mounting --------------------------------------- [MEASURED] --
 // Fixed by the chassis. Measured on the robot (PR #28, 2026-10-14/15).
 // Sensor face to floor: the signal falls steeply with height.
 constexpr float IR_RIDE_HEIGHT_MM = 7.0f;
@@ -46,7 +45,7 @@ constexpr float IR_ARRAY_FORWARD_OFFSET_MM = 86.0f; // wheel axle to the array's
 // saturated channels 0 and 1, under only the left end channels 6 and 7.
 constexpr bool IR_D1_ON_RIGHT = true;
 
-// ---- Ultrasonic offsets --------------------------- <<TBD CALIBRATION>> --
+// ---- Ultrasonic offsets ----------------------------- <<TBD CALIBRATION>> --
 // Added to the raw face-to-target reading, per sensor.
 // offset = true distance from the reference point to the wall - raw reading. A sensor that sits
 // ahead of its reference point therefore needs a positive offset.
@@ -67,7 +66,12 @@ constexpr int16_t US_OFFSET_LEFT_MM = 35;
 // capture read 197.3; the wall had slipped, and a retake gave 202.1).
 constexpr int16_t US_OFFSET_RIGHT_MM = 47;
 
-// ---- IMU mounting and polarity ----------------------------- [MEASURED] --
+// ---- Ultrasonic range ---------------------------------------- <<TBD HARDWARE>> --
+// Datasheet capability; confirm on the bench.
+constexpr uint16_t US_MIN_RANGE_MM = 20;
+constexpr uint16_t US_MAX_RANGE_MM = 4000;
+
+// ---- IMU mounting and polarity ------------------------------- [MEASURED] --
 constexpr uint8_t IMU_GYRO_AXIS_YAW = 2; // board mounted flat, so yaw is Z
 // Set on the bench: rotate the robot counter-clockwise, headingDeg must rise.
 constexpr bool GYRO_YAW_INVERT = false;
