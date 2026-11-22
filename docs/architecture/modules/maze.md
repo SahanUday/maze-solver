@@ -29,6 +29,9 @@ Decision:
   shortest it can be? `Proved` with its length; `NotYet` with the cell and direction of the first
   unchecked edge on the best possible path (and that path's length); or `NoRoute`. It uses the
   planner's scratch and stores nothing.
+- `explorerRoute(e, from, goal, step)` (`Proof.h`) - the first step of the shortest path from `from`
+  to `goal` over checked edges, keeping out of the start tile when another way exists. `false` when
+  there is none or `from` is the goal. The explorer's drive-to-tile mode uses it.
 
 ## How it works
 
@@ -77,6 +80,8 @@ The proof is tested on random mazes with loops on the Section A and Section B ma
 and a goal it looks at the edge the proof names until it says proved, and the length is the true
 shortest of a search over the maze itself. Letting unchecked edges pass the closed flood, or naming
 the farthest unchecked edge instead of the nearest, each fails it.
+
+`explorerRoute` is tested through the explorer (`test_section_a`, [cell_explorer](cell_explorer.md)).
 
 A test on the 17x17 map (`ExplorerT<9>`) plans a 96-tile serpentine to the far corner. The Section B
 map has not run on the robot.

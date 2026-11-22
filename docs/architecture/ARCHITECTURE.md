@@ -213,7 +213,7 @@ Per-module detail is in [`modules/`](modules/); the measured values are in `incl
 | Output | `include/motion/DriveCommand.h` | the `{left, right, enable}` handed to the motors |
 | Perception | `include/sense/Perception.h` | once per tick, `RobotState` in and one derived `Perception` out: distance, speed, yaw rate, incline, the wall view and the line view |
 | Cell step | `include/mission/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
-| Cell explorer | `include/mission/CellExplorer.h` | explores a maze cell by cell (sense, turn, step) through the cell step and `lib/maze`, generic in the maze size; the caller can ask it to stop on a tile |
+| Cell explorer | `include/mission/CellExplorer.h` | explores a maze cell by cell (sense, turn, step) through the cell step and `lib/maze`, generic in the maze size; the caller can ask it to stop on a tile or to drive to a chosen one over checked edges |
 | Marker exit | `include/mission/MarkerExit.h` | tells the approach marker, finds the way out of its tile and drives over the gap to the line |
 | Mission manager | `include/mission/MissionManager.h`, `MissionParams.h`, `Parts.h`, `RunStart.h` | the run, part by part ([0016](decisions/0016-cut-the-run-into-parts.md)): starts it, runs the parts from a first to a last (the whole course, one part, or a stretch), enforces the run limit and owns the one motion controller |
 | Run loop | `include/mission/RunLoop.h` | one tick of a run: perception, then the mission manager; `src/main.cpp` applies it to the motors |

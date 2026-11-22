@@ -7,6 +7,7 @@
 //      closed  only checked edges count: the shortest path known
 //  Equal: no unchecked edge can do better. Otherwise the unchecked edge nearest the start on the
 //  open path is the next to look at.
+//  explorerRoute() is the closed flood alone: the first step of the way to a tile.
 //  docs/architecture/modules/maze.md
 // ============================================================================
 
@@ -38,10 +39,11 @@ namespace detail
 constexpr uint16_t kNoPath = 0xFFFF;
 
 // Steps from `from` to `goal` by breadth-first search, or kNoPath. `closed`: only checked edges
-// pass. Leaves the direction each reached cell was entered by in `e.seen`.
+// pass. `avoidStart`: the start tile does not. Leaves the direction each reached cell was entered
+// by in `e.seen`.
 template <uint8_t N>
 inline uint16_t flood(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
-                      typename ExplorerT<N>::Index goal, bool closed)
+                      typename ExplorerT<N>::Index goal, bool closed, bool avoidStart = false)
 {
     using E = ExplorerT<N>;
     using Index = typename E::Index;
@@ -64,7 +66,8 @@ inline uint16_t flood(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
                 Index next = 0;
                 if ((e.cell[cur] & wallBit(dir)) != 0 ||
                     (closed && (e.cell[cur] & checkedBit(dir)) == 0) ||
-                    !E::neighbour(cur, dir, next) || e.seen[next] != kUnseen) {
+                    !E::neighbour(cur, dir, next) || e.seen[next] != kUnseen ||
+                    (avoidStart && next == E::kStart)) {
                     continue;
                 }
                 e.seen[next] = d;
@@ -110,6 +113,34 @@ inline Proof explorerProof(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
         cur = prev;
     }
     return p;
+}
+
+// First step of the shortest path from `from` to `goal` over checked edges, keeping out of the
+// start tile when another way exists (re-entering it before the finish aborts the attempt). False:
+// no such path, or `from` is the goal. Uses the planner's scratch.
+template <uint8_t N>
+inline bool explorerRoute(ExplorerT<N> &e, typename ExplorerT<N>::Index from,
+                          typename ExplorerT<N>::Index goal, Dir &step)
+{
+    using Index = typename ExplorerT<N>::Index;
+    if (from == goal) {
+        return false;
+    }
+    if (detail::flood(e, from, goal, true, true) == detail::kNoPath &&
+        detail::flood(e, from, goal, true, false) == detail::kNoPath) {
+        return false;
+    }
+    // Walk back from the goal: the step that leaves `from` is the first.
+    for (Index cur = goal;;) {
+        const Dir d = static_cast<Dir>(e.seen[cur]);
+        Index prev = 0;
+        ExplorerT<N>::neighbour(cur, opposite(d), prev); // always inside the map
+        if (prev == from) {
+            step = d;
+            return true;
+        }
+        cur = prev;
+    }
 }
 
 } // namespace maze

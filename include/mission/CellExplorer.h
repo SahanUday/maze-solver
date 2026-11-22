@@ -11,6 +11,7 @@
 //  Its caller can ask it to stop on the tile it is heading for (cellExplorerStopHere) and says,
 //  each tick, whether a stop that was not yet asked for is due (ExploreInput); it tells the caller
 //  when it has explored everything reachable, or has stopped where asked.
+//  cellExplorerDriveTo() sends it to a chosen tile over checked edges instead.
 //  docs/architecture/modules/cell_explorer.md
 // ============================================================================
 
@@ -19,6 +20,7 @@
 #include <stdint.h>
 
 #include "Maze.h"
+#include "Proof.h"
 #include "core/MathUtil.h"
 #include "mission/Fault.h"
 #include "mission/StepCell.h"
@@ -40,6 +42,7 @@ enum class ExploreStatus : uint8_t {
     Stopped,  // standing on the tile a stop was asked for, the map in step with the odometer
     Braked,   // the stop braked at once and the wheels have stopped
     Fault,    // `fault` says why
+    AtTarget, // standing on the tile cellExplorerDriveTo() was given
 };
 
 struct CellExplorerParams {
@@ -72,6 +75,9 @@ template <uint8_t N> struct CellExplorerT {
     MissionFault fault = MissionFault::None;
 
     maze::ExplorerT<N> map;
+    // cellExplorerDriveTo(): head for `target`, not the nearest unvisited tile.
+    bool targetMode = false;
+    typename maze::ExplorerT<N>::Index target = 0;
     float h0 = 0.0f; // the gyro heading at the start; map North is this
 
     StepCell step;
@@ -247,7 +253,15 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
     using namespace maze;
     for (;;) {
         Dir next = Dir::North;
-        if (!explorerPlan(ce.map, next)) {
+        if (ce.targetMode) {
+            if (ce.map.pos == ce.target) {
+                return true; // at the target
+            }
+            if (!explorerRoute(ce.map, ce.map.pos, ce.target, next)) {
+                ce.fault = MissionFault::TargetUnreachable;
+                return false;
+            }
+        } else if (!explorerPlan(ce.map, next)) {
             if (p.wallsOnly) {
                 return true; // every reachable tile has been entered
             }
@@ -267,7 +281,9 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
         }
         const uint8_t headBit = static_cast<uint8_t>(1u << static_cast<uint8_t>(ce.map.heading));
         const bool openOnApproach = ((ce.openHeard | ce.peekedOpen) & headBit) != 0;
-        if (!ce.frontHeard && !openOnApproach && !maze::explorerAheadVisited(ce.map)) {
+        // The route runs over checked edges: the way ahead is known to be open.
+        if (!ce.targetMode && !ce.frontHeard && !openOnApproach &&
+            !maze::explorerAheadVisited(ce.map)) {
             if (ce.sideEverHeard && (ce.peekTried & headBit) == 0) {
                 // Silent: a wall inside the front sensor's dead zone, or nothing for metres (the
                 // maze's exit). Turn a quarter left so the right-hand sensor, which has no dead
@@ -292,7 +308,7 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
         }
         ce.frontTries = 0;
         stepCellBegin(ce.step, p.step, fb, gridHeading(ce.h0, ce.map.heading));
-        ce.step.openAhead = openOnApproach || maze::explorerAheadVisited(ce.map);
+        ce.step.openAhead = ce.targetMode || openOnApproach || maze::explorerAheadVisited(ce.map);
         ce.entered = false;
         ce.advanced = 0;
         ce.decided = false;
@@ -340,15 +356,24 @@ template <uint8_t N> inline bool onWallsReady(CellExplorerT<N> &ce, const CellEx
                                             ((w.leftHeard && !w.left ? 1u : 0u) << ((h + 3) & 3)));
     }
     maze::Dir next = ce.map.heading;
-    if (!ce.stopHere && maze::explorerPlan(ce.map, next) && next == ce.map.heading &&
-        ce.frontHeard) {
+    const bool straightOn =
+        !ce.stopHere && (ce.targetMode ? maze::explorerRoute(ce.map, ce.map.pos, ce.target, next)
+                                       : maze::explorerPlan(ce.map, next) && ce.frontHeard);
+    if (straightOn && next == ce.map.heading) {
         stepCellContinue(ce.step, p.step); // the next tile is straight on: no stop
-        ce.step.openAhead = ce.step.openAhead || (w.frontHeard && !w.front && !ce.stopHere);
+        ce.step.openAhead =
+            ce.step.openAhead || ce.targetMode || (w.frontHeard && !w.front && !ce.stopHere);
         ce.entered = false;
         return true;
     }
     ce.decided = true; // the step stops on this centre by itself
     return true;
+}
+
+// The status for a finished search.
+template <uint8_t N> inline ExploreStatus searchOver(const CellExplorerT<N> &ce)
+{
+    return ce.targetMode ? ExploreStatus::AtTarget : ExploreStatus::Explored;
 }
 
 } // namespace cell_explorer_detail
@@ -357,6 +382,17 @@ template <uint8_t N> inline bool onWallsReady(CellExplorerT<N> &ce, const CellEx
 template <uint8_t N> inline void cellExplorerStart(CellExplorerT<N> &ce, const MotionFeedback &fb)
 {
     ce.h0 = fb.headingDeg;
+    cell_explorer_detail::beginSense(ce);
+}
+
+// Head for map tile `target` over checked edges instead of exploring. Call it standing on a centre,
+// after Explored or AtTarget. Ends with AtTarget, or the fault TargetUnreachable when no checked
+// path exists (the map is kept). Lasts until the next reset.
+template <uint8_t N>
+inline void cellExplorerDriveTo(CellExplorerT<N> &ce, typename maze::ExplorerT<N>::Index target)
+{
+    ce.targetMode = true;
+    ce.target = target;
     cell_explorer_detail::beginSense(ce);
 }
 
@@ -445,13 +481,13 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
                     reconcile(ce, p.step, fb); // the cell it stopped on, by the odometer
                     observeVotes(ce);
                     if (planNext(ce, p, fb)) {
-                        return ExploreStatus::Explored;
+                        return searchOver(ce);
                     }
                 }
             } else if (ce.senseMs >= p.senseMs) {
                 observeVotes(ce);
                 if (planNext(ce, p, fb)) {
-                    return ExploreStatus::Explored;
+                    return searchOver(ce);
                 }
             }
             break;
@@ -535,7 +571,7 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
                 } else {
                     ce.resumes = 0;
                     if (planNext(ce, p, fb)) {
-                        return ExploreStatus::Explored;
+                        return searchOver(ce);
                     }
                 }
             }
