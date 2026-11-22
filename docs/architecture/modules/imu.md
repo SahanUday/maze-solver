@@ -72,7 +72,7 @@ error.
 ## Invariants
 
 - SDA stays pin 20 and SCL stays pin 21: `static_assert`s against
-  `RobotConfig.h` fail the build otherwise. They exist because the pull-up clear
+  `PinMap.h` fail the build otherwise. They exist because the pull-up clear
   writes `PORTD` directly, which is also what `check-pin-map.py`'s `registers`
   rule looks for.
 - `IMU_GYRO_AXIS_YAW` must index `ImuRaw::gyro`, and the 14-byte burst must fit

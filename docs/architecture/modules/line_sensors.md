@@ -1,7 +1,7 @@
 # line_sensors
 
 8-channel analog IR reflectance array for the bridge between Section A and B,
-where a 30mm black line (`BRIDGE_LINE_WIDTH_MM`) is the only lateral reference.
+where a black line (`BRIDGE_OUT_LINE_WIDTH_MM`, `BRIDGE_IN_LINE_WIDTH_MM`) is the only lateral reference.
 Code: `src/hal/line_sensors.{h,cpp}`. Decision and bench measurements:
 [0005](../decisions/0005-analog-ir-array-adc-sampling.md).
 
@@ -36,7 +36,7 @@ travel at 1 m/s.
 ## Invariants
 
 - A0-A7 stay on `ADC0`-`ADC7` in order and the emitter enable stays on pin 36:
-  `static_assert`s against `RobotConfig.h` fail the build otherwise.
+  `static_assert`s against `PinMap.h` fail the build otherwise.
 - The module owns the ADC registers. A boot-time `analogRead(PIN_POT)` in
   `main.cpp` is fine, since every conversion re-selects its channel group; a
   second register-level ADC driver must declare

@@ -15,7 +15,7 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
   `StepCell`, the `Turn`, the votes and the counters. `cellExplorerReset(ce)`.
 - `CellExplorerParams` - `StepCellParams` and the explorer's limits (`senseMs`, `frontTries`,
   `rescans`, `resumes`, `turnRetries`, `maxBlocked`, `stuckAcceptMm`, `wallsOnly`, `dtMs`), at their
-  `spec/Mission.h` values.
+  `spec/tuning/CellExplorer.h` values.
 - `cellExplorerStart(ce, fb)` - begin from where the robot stands: map North is its heading now.
 - `cellExplorerStep(ce, params, input, perception, target)` - one tick. Fills the `MotionTarget`
   (the caller owns the motion controller) and returns an `ExploreStatus`:

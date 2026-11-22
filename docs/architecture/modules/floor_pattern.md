@@ -11,8 +11,9 @@ line view ([line_view](line_view.md)) and takes the odometer position of the arr
 - `floorPatternStep(f, seen, distMm, params, centreMm)` - feed one sweep per tick; returns `PatternEvent::None`,
   `Marker` (with `centreMm`, the middle of the marker's black box) or `Gap`.
 - `PatternParams` - the frame and centre windows, the minimum gap, and the glitch length. Values in
-  `spec/FloorPattern.h`: `MARKER_FRAME_MIN/MAX_MM`, `MARKER_CENTRE_MIN/MAX_MM`, `GAP_MIN_MM`, `FLOOR_GLITCH_MM`,
-  `IR_AIR_COUNTS`, `IR_AIR_CHANNELS`.
+  `spec/tuning/FloorPattern.h`: the windows of each marker (`MARKER_A_FRAME_MIN/MAX_MM`,
+  `MARKER_A_CENTRE_MIN/MAX_MM`; marker B has its own set), `GAP_MIN_MM`, `FLOOR_GLITCH_MM`,
+  `IR_AIR_COUNTS`, `IR_AIR_CHANNELS`. The marker sizes the windows surround: `spec/measurements/Arena.h`.
 
 ## How it works
 
