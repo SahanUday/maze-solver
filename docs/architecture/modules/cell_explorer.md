@@ -48,7 +48,10 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 
 **Drive-to-tile mode** (`cellExplorerDriveTo`) runs the same Sense, Turn and Step; only the choice of the next
 tile differs. The planner is replaced by `explorerRoute` ([maze](maze.md)): the first step of the
-shortest path over checked edges, keeping out of the start tile when another way exists. The way
+shortest path over checked edges, keeping out of the start tile when another way exists. The start
+tile is the map's own: Section A's START tile, or Section B's entry tile (the rules say only that
+re-entering "the START tile" before the FINISH aborts the attempt, so the entry tile is avoided too).
+The way
 ahead is a checked edge, so the explorer does not look again at a silent front, peek or retry it, and
 rolls through a centre when the route goes straight on. It still reads the walls on the way, and a
 wall it finds changes the route. On the target tile it stops on the centre and returns `AtTarget`; with
@@ -94,7 +97,10 @@ robot since.
 
 Drive-to-tile mode is tested by exploring the Section A arena from four start tiles, then driving to the marker
 tile: it stops within 40 mm, touches no wall and does not cross the start tile; with every checked bit
-cleared the same target is `TargetUnreachable`. It has not run on the robot. Open question for the Section A
-return (A-02): an edge the robot crossed but no sensor heard open stays unchecked ([maze](maze.md)),
-so a route over it is refused. The noise-free simulation never hit one; a run with missed readings
-has not been tried.
+cleared the same target is `TargetUnreachable`. It has not run on the robot. An edge the robot crossed but no sensor heard open stays
+unchecked ([maze](maze.md)), so a route over it is refused. A one-off simulator check (script not kept)
+found none: in 16 explorations, without noise and with 30 % dropped readings and 5 % stray echoes,
+every open edge between two entered cells was already checked. Of 45 noisy runs that explored
+everything and then drove to the marker, 9 were refused, all because a wall was on the map that cut
+the target off (a stray echo marked it, and a wall is never erased), none because of an unchecked
+edge. What the Section A return (A-02) does on `TargetUnreachable` is for that issue to decide.
