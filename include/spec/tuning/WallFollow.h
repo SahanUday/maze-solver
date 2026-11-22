@@ -1,7 +1,7 @@
 // ============================================================================
 //  spec/tuning/WallFollow.h  --  wall presence and centring thresholds, heading trim, front-echo
 //  filtering.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/tuning/LineSensor.h  --  line calibration limits and the black / white thresholds.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  The array's channel count and ADC: fixed/Hardware.h; its mounting: measurements/Robot.h.
 // ============================================================================
 

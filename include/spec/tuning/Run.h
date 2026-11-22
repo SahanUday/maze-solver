@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/tuning/Run.h  --  the parts a run covers, run start, status line.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/tuning/Imu.h  --  gyro bias capture, incline level capture and the ramp threshold.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  The chip's settings: fixed/Hardware.h; its orientation and level: measurements/Robot.h.
 // ============================================================================
 

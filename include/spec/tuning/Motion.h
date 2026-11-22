@@ -1,6 +1,7 @@
 // ============================================================================
 //  spec/tuning/Motion.h  --  distance and turn PID, speed limits, feedforward, move tolerances,
-//  stall. Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  stall.
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

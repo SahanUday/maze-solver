@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/tuning/LineFollow.h  --  line-following gains, speed, search and slowdown.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  The line's width: BRIDGE_OUT_LINE_WIDTH_MM / BRIDGE_IN_LINE_WIDTH_MM in measurements/Arena.h.
 // ============================================================================
 

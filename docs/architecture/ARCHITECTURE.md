@@ -182,30 +182,11 @@ pin.
 
 ## Spec layout
 
-`include/spec/` holds every constant, grouped by what you would do if a value were wrong
-([ADR 0020](decisions/0020-group-the-spec-constants-by-why-they-change.md)):
-
-| Folder | Holds | Changes when |
-|---|---|---|
-| `pins/` | `PinMap.h`: every pin number | the robot is re-wired |
-| `measurements/` | `Arena.h` (tiles, walls, markers A and B, bridge floor), `Robot.h` (wheels, sensor mounting and offsets, polarity, IMU orientation) | something is re-measured |
-| `tuning/` | one header per logic module: `Motion`, `WallFollow`, `LineFollow`, `LineSensor`, `FloorPattern`, `Imu`, `CellExplorer`, `MarkerExit`, `Run` | the robot is run and adjusted |
-| `fixed/` | `Rules.h` (competition limits), `Hardware.h` (clock, PWM, chip and module settings) | never: rules and datasheets |
-
-- A file includes only the headers whose constants it uses. Includes point one way: `tuning/` to
-  `measurements/` to `fixed/`; `pins/` and `fixed/` include nothing of the spec.
-- Every constant is in exactly one file. Marker A, marker B, the bridge-out line and the bridge-in
-  line have separate constants even where the rules say they match: the arena is hand-built.
-- The headers are Arduino-free (`PinMap.h` writes `A0`-`A15` as 54-69), so the host builds and
-  `lib/maze` can include them.
-- `constexpr`, never `#define`; the unit is in the name (`_MM`, `_MS`, `_US`, `_DEG`, `_MV`, `_PWM`).
-- Each section heading carries a provenance tag: `[RULES]` (competition rules, nominal), `[DESIGN]`
-  (datasheet or design choice), `[MEASURED]` (measured on the robot or arena), `[TUNED]` (tuned on the
-  robot), `[HOST MODEL]` (found in the host simulation, not yet checked on the robot). Pin headings
-  use `[FIXED]` / `[PROPOSED]` instead (explained in `PinMap.h`).
-- A value not yet measured (`<<TBD HARDWARE>>`) or tuned (`<<TBD CALIBRATION>>`) is named now with
-  its real unit and a stand-in value, and listed by `scripts/list-tbds.sh` rather than in a comment
-  someone has to happen to read.
+`include/spec/` holds every constant, in four folders by why a value changes: `pins/`,
+`measurements/` (arena and robot), `tuning/` and `fixed/` (rules and datasheets)
+([ADR 0020](decisions/0020-group-the-spec-constants-by-why-they-change.md)). The headers are
+Arduino-free, so the host builds and `lib/maze` can include them. How to use and update them, and the
+provenance tags: [`include/spec/README.md`](../../include/spec/README.md).
 
 ## Control layer
 

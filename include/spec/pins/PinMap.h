@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/pins/PinMap.h  --  single source of truth for pin assignments.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //
 //  Rules:
 //    1. Every pin number lives HERE.

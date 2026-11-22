@@ -1,7 +1,7 @@
 // ============================================================================
 //  spec/tuning/MarkerExit.h  --  where the mission hands over to the line follower after the marker
 //  (mission/MarkerExit.h).
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  The floor it drives over: BRIDGE_OUT_* in measurements/Arena.h.
 // ============================================================================
 

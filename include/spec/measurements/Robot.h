@@ -1,7 +1,7 @@
 // ============================================================================
 //  spec/measurements/Robot.h  --  the robot as built: wheels, sensor mounting and offsets,
-//  polarity, IMU orientation. Re-measure after a chassis change. Layout, tags and the TBD legend:
-//  docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  polarity, IMU orientation. Re-measure after a chassis change.
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

@@ -1,7 +1,7 @@
 // ============================================================================
 //  spec/tuning/CellExplorer.h  --  how the explorer senses a cell and how often it retries
 //  (mission/CellExplorer.h).
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

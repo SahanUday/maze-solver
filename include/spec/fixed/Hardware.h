@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/fixed/Hardware.h  --  clock, loop period, motor PWM and the chip and module settings.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 // ============================================================================
 
 #pragma once

@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/fixed/Rules.h  --  competition rules and project budgets.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  Sizes of the arena as built (tiles, walls): measurements/Arena.h.
 // ============================================================================
 

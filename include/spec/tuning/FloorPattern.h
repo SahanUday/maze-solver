@@ -1,7 +1,7 @@
 // ============================================================================
 //  spec/tuning/FloorPattern.h  --  what the IR array must see to call the approach marker, the gap
 //  and the air (sense/FloorPattern.h).
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //  The sizes the windows surround: measurements/Arena.h.
 // ============================================================================
 

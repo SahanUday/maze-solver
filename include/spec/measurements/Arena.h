@@ -1,6 +1,6 @@
 // ============================================================================
 //  spec/measurements/Arena.h  --  the arena as built: tiles, walls, approach markers, bridge floor.
-//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
+//  Layout, tags and how to update: spec/README.md.
 //
 //  The rules give nominal sizes; the arena is hand-built, so each marker and each bridge line has
 //  its own constants even where the rules say they match. A is the mid-evaluation arena (tag
