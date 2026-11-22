@@ -7,7 +7,7 @@
 #include <unity.h>
 
 #include "mission/RunLoop.h"
-#include "../../support/world.h"
+#include "../../support/world/Presets.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/fixed/Rules.h"
 #include "spec/tuning/Run.h"
@@ -149,7 +149,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
 {
     for (int facing : {0, 2}) {
         World w;
-        w.arena.photo();
+        world::photo(w);
         w.start(2, 1, facing);
         const LineCalibration cal = World::calibration();
         RunLoop rl;
@@ -177,7 +177,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
         }
         TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(rl.mission.phase));
         TEST_ASSERT_TRUE(worstMm < 45.0f);
-        TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
+        TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
     }
 }
 
