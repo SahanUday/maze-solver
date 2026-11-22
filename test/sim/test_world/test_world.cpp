@@ -145,13 +145,10 @@ static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
     }
 }
 
-// Placed on the line and set going, the robot climbs the ramp and its array lifts at the crest;
-// placed on the entry tile, it stands on it facing in.
+// From every entry: placed on the line and set going, the robot climbs the ramp and its array lifts
+// at the crest without leaving the line; placed on the entry tile, it stands on it facing in.
 static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run()
 {
-    World w;
-    bridgeIn(w, {1, 2, 1, 1u});
-    startOnLine(w);
     const float speedMmS = 200.0f;
     DriveCommand cmd;
     cmd.enable = true;
@@ -159,27 +156,34 @@ static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run
         static_cast<int16_t>(model::KEEP_ROLLING_DUTY + speedMmS * model::WHEEL_DUTY_PER_MM_S);
     cmd.right = static_cast<int16_t>(
         model::KEEP_ROLLING_DUTY + speedMmS * model::WHEEL_DUTY_PER_MM_S / model::RIGHT_WHEEL_GAIN);
-    const float startAlong = w.arrayAlongMm();
-    bool climbed = false;
-    bool lifted = false;
-    float worstMm = 0.0f;
-    for (int t = 0; t < 350; ++t) {
-        const Perception pc = w.sense();
-        climbed = climbed || pc.inclineCounts > RAMP_INCLINE_COUNTS;
-        lifted = lifted || pc.floor == FloorClass::Air;
-        worstMm = w.lineErrorMm() > worstMm ? w.lineErrorMm() : worstMm;
-        w.drive(cmd);
-    }
-    TEST_ASSERT_TRUE(startAlong - w.arrayAlongMm() > 500.0f); // 3.5 s toward the tile
-    TEST_ASSERT_TRUE(climbed);
-    TEST_ASSERT_TRUE(lifted);
-    TEST_ASSERT_TRUE(worstMm < 20.0f); // still on the first straight
+    for (int corner = 0; corner < 4; ++corner) {
+        for (int opening = 0; opening < 2; ++opening) {
+            World w;
+            bridgeIn(w, {1, corner, opening, 1u});
+            startOnLine(w);
+            const float startAlong = w.arrayAlongMm();
+            bool climbed = false;
+            bool lifted = false;
+            float worstMm = 0.0f;
+            for (int t = 0; t < 350; ++t) {
+                const Perception pc = w.sense();
+                climbed = climbed || pc.inclineCounts > RAMP_INCLINE_COUNTS;
+                lifted = lifted || pc.floor == FloorClass::Air;
+                worstMm = w.lineErrorMm() > worstMm ? w.lineErrorMm() : worstMm;
+                w.drive(cmd);
+            }
+            TEST_ASSERT_TRUE(startAlong - w.arrayAlongMm() > 500.0f); // 3.5 s toward the tile
+            TEST_ASSERT_TRUE(climbed);
+            TEST_ASSERT_TRUE(lifted);
+            TEST_ASSERT_TRUE(worstMm < 20.0f); // still on the first straight
 
-    startOnEntryTile(w);
-    TEST_ASSERT_EQUAL(w.floor.originI(), w.cellI());
-    TEST_ASSERT_EQUAL(w.floor.originJ(), w.cellJ());
-    TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f * ((w.floor.frame.dir + 2) & 3),
-                             static_cast<float>(w.plant.yawDeg));
+            startOnEntryTile(w);
+            TEST_ASSERT_EQUAL(w.floor.originI(), w.cellI());
+            TEST_ASSERT_EQUAL(w.floor.originJ(), w.cellJ());
+            TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f * ((w.floor.frame.dir + 2) & 3),
+                                     static_cast<float>(w.plant.yawDeg));
+        }
+    }
 }
 
 // Each surface, drawn alone, reads its measured level, and the firmware's air rule calls only the

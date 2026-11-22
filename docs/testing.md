@@ -172,13 +172,14 @@ register code isn't.
 | Tier | Holds |
 |---|---|
 | `test/unit/` | one header or module, in milliseconds. A few (`test_motion_primitives`, `test_step_cell`) run closed loop on `support/sim.h`, a plant with generic numbers that does not follow the robot's tuning |
-| `test/sim/` | the mission in the host world (`support/world.h`): `test_section_a`, `test_run_loop` |
-| `test/support/` | shared fixtures, not suites: `sim.h` and `world.h` |
+| `test/sim/` | the mission in the host world, and the world itself: `test_section_a`, `test_run_loop`, `test_world` |
+| `test/support/` | shared fixtures, not suites: `sim.h`, `world/` (the host world), `MazeGen.h` (seeded random mazes), `Fingerprint.h` |
+| `test/model/` | the numbers only the simulator needs: IR levels, plant, noise, ramp |
 
 Current suites: `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`,
 `test_floor_pattern`, `test_line_follow`, `test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`,
 `test_motion_profile`, `test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
-`test_step_cell` and `test_maze` (all in `unit/`), and `test_section_a` and `test_run_loop` (in `sim/`).
+`test_step_cell` and `test_maze` (all in `unit/`), and `test_section_a`, `test_run_loop` and `test_world` (in `sim/`).
 A test file looks like this (Unity is the test framework):
 ```cpp
 #include <unity.h>
@@ -198,6 +199,41 @@ int main()
 ```
 **To add a test:** create `test/<tier>/test_<name>/test_<name>.cpp` like the above, run
 `pio test -e native -f "<tier>/test_<name>"`, then run all three envs before pushing.
+
+### The host world (`test/support/world/`)
+The mission tests run the firmware's own code against a simulated arena, so the arena is only as
+true as the numbers in it. It is built in layers, one header each, behind one door:
+
+| Layer | Header | Does |
+|---|---|---|
+| Arena | `Arena.h` | the walls of an n x n arena (up to 9x9) and the ray cast the ultrasonic modules use |
+| Floor | `Floor.h` | what lies on the floor, as patches of surface in a frame (marker, gap, board, line, finish) and ramps; it says what a point is, never what the array reads |
+| Plant | `Plant.h` | two wheels with stiction, the pose, the wall that stops the nose |
+| Sensors | `Sensors.h` | echoes, gyro counts, the IR array, the accelerometer axis |
+| World | `World.h` | the door: `start`, `sense`, `drive`, `metrics`; what the firmware reads, run through `perceive()` |
+| Presets | `Presets.h` | `photo()` (Section A), `bridgeIn()` (the line board and a maze behind it, entered at any corner and either outer wall), `startOnLine`, `startOnEntryTile` |
+
+**Numbers.** The world reads `spec/measurements/` and `spec/fixed/` for what the firmware also uses,
+and `test/model/` for what only it needs; never `spec/tuning/`, which is the firmware's choice and not
+a fact about the robot. Each value is tagged like the spec: `[MEASURED]`, or `<<TBD HARDWARE>>`
+where it is a stand-in, which `scripts/list-tbds.sh` lists. A number lives in one place: include it,
+do not copy it. What stays in the tests is the layout of a scenario and the faults a test injects
+(`World::faults`).
+
+**Noise** comes from seeded streams, so a run repeats exactly. Each new noise source gets a stream of
+its own (`World::irRng`); sharing `World::rng` would move the existing sensors' noise.
+
+**Checking the world.** `test_world` checks what the world draws and its shortcuts: each surface reads
+its level, only air reads as air (the air threshold that failed on the robot fails it), the board
+meets the entry tile from every corner and opening, and the clearance shortcut never hides a wall the
+brute-force ray would hit.
+
+**Changing the world without changing a tick.** Build with `-DWORLD_FINGERPRINT` and compare the line
+each sim suite prints at exit before and after:
+`PLATFORMIO_BUILD_FLAGS=-DWORLD_FINGERPRINT pio test -e native -f "sim/*" -vv | grep FINGERPRINT`.
+The same `ticks` and `hash` mean the robot sensed and commanded the same at every tick. A change
+meant to alter the readings, such as new levels, changes the line on purpose: keep it a commit of its
+own.
 
 ### 9. Tests of the checks (`scripts/tests/`)
 **What:** a check that quietly stops working protects nothing, so the check
