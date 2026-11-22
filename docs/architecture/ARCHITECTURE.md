@@ -68,7 +68,7 @@ tick-due/drift-resync logic itself lives in `include/core/Scheduler.h`
 (`tickDue()`), not inline in `main.cpp` — it's plain arithmetic with no
 hardware dependency, so keeping it Arduino-free is what lets it run under
 `env:native`'s test suite instead of only being checked by reading it.
-`test/test_scheduler/` covers the jitter, catch-up-resync, and
+`test/unit/test_scheduler/` covers the jitter, catch-up-resync, and
 `millis()`-wraparound cases directly.
 
 ## Application glue

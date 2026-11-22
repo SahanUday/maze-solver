@@ -2,8 +2,8 @@
 
 From the approach marker out of the maze: tell the marker, find the way out of its tile, drive on over
 the strip and the gap, and hand over to the line follower. Pure logic in
-`include/mission/MarkerExit.h`, tested through the mission manager (`test/test_section_a/`) and
-`test/test_floor_pattern/` (`BridgeHandover`). Decisions:
+`include/mission/MarkerExit.h`, tested through the mission manager (`test/integration/test_section_a/`) and
+`test/unit/test_floor_pattern/` (`BridgeHandover`). Decisions:
 [0010](../decisions/0010-finish-on-the-approach-marker.md),
 [0011](../decisions/0011-leave-the-maze-onto-the-line-without-stopping.md) and
 [0015](../decisions/0015-split-the-section-a-mission.md).

@@ -8,7 +8,7 @@
 #include <unity.h>
 
 #include "mission/MissionManager.h"
-#include "../support/world.h"
+#include "../../support/world/Presets.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/fixed/Rules.h"
 #include "spec/tuning/CellExplorer.h"
@@ -16,7 +16,10 @@
 #include "spec/tuning/Motion.h"
 #include "spec/tuning/Run.h"
 
+using world::Arena;
 using world::World;
+
+constexpr int N = SECTION_A_SIZE_TILES;
 
 constexpr uint32_t RUN_TICKS = RUN_LIMIT_MS / CONTROL_LOOP_PERIOD_MS;
 
@@ -47,8 +50,8 @@ static int visitedCells(const MissionManager &ms)
 // How far the robot is from the marker tile's centre.
 static float markerOffsetMm(const World &w)
 {
-    const float dx = static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
-    const float dy = static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
+    const float dx = static_cast<float>(w.plant.x) - w.floor.frame.x;
+    const float dy = static_cast<float>(w.plant.y) - w.floor.frame.y;
     return sqrtf(dx * dx + dy * dy);
 }
 
@@ -103,24 +106,19 @@ static MissionParams stopAtMarker()
     return p;
 }
 
-static void photoWorld(World &w)
-{
-    w.arena.photo();
-}
-
 // ---- Photo maze ----------------------------------------------------------------------------
 static void test_every_start_tile_and_heading_reaches_the_marker()
 {
     int reentered = 0;
     int runs = 0;
-    for (int i = 0; i < world::N; ++i) {
-        for (int j = 0; j < world::N; ++j) {
-            if (i == 0 && j == world::N - 1) {
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            if (i == 0 && j == N - 1) {
                 continue; // the white tile itself
             }
             for (int facing = 0; facing < 4; ++facing) {
                 World w;
-                photoWorld(w);
+                world::photoMaze(w);
                 w.start(i, j, facing);
                 MissionManager ms;
                 begin(ms);
@@ -130,10 +128,10 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
                 TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the white tile");
                 TEST_ASSERT_TRUE_MESSAGE(mapMatchesTruth(w, ms, i, j, facing),
                                          "map position wrong");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
-                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > world::BODY_HALF_MM - 15.0f,
+                TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.metrics.minSideMm > model::BODY_HALF_WIDTH_MM - 15.0f,
                                          "rubbed a wall");
-                reentered += w.startTileEntries > 0 ? 1 : 0;
+                reentered += w.metrics.startTileEntries > 0 ? 1 : 0;
                 ++runs;
             }
         }
@@ -146,7 +144,7 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
 static void test_a_walls_only_run_explores_every_tile_and_stops()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(3, 0, 1);
     MissionManager ms;
     begin(ms);
@@ -160,8 +158,8 @@ static void test_a_walls_only_run_explores_every_tile_and_stops()
 static void test_without_a_marker_the_run_ends_in_no_route()
 {
     World w;
-    photoWorld(w);
-    w.arena.markerI = -1;
+    world::photoMaze(w);
+    w.floor = world::Floor{};
     w.start(2, 0, 1);
     MissionManager ms;
     begin(ms);
@@ -177,19 +175,18 @@ static void test_without_a_marker_the_run_ends_in_no_route()
 // turned to look, the sides it measured on the way in, and cells it has already been in.
 static void corridorToTheExit(World &w)
 {
-    for (int j = 0; j < world::N; ++j) {
-        w.arena.vw[0 * world::N + j] = true;
-        w.arena.vw[world::N * world::N + j] = j != 3; // the marker tile's east edge is open
+    Arena &a = w.arena;
+    for (int j = 0; j < N; ++j) {
+        a.side(0, j, 2) = true;
+        a.side(N - 1, j, 0) = j != 3; // the marker tile's east edge is open
     }
-    for (int i = 0; i < world::N; ++i) {
-        w.arena.hw[0 * world::N + i] = true;
-        w.arena.hw[world::N * world::N + i] = true;
-        w.arena.hw[3 * world::N + i] = true; // the corridor is row 3
+    for (int i = 0; i < N; ++i) {
+        a.side(i, 0, 3) = true;
+        a.side(i, N - 1, 1) = true;
+        a.side(i, 3, 3) = true; // the corridor is row 3
     }
-    w.arena.markerI = 3;
-    w.arena.markerJ = 3;
-    w.arena.exitDir = 0; // east
-    w.arena.build();
+    a.build();
+    w.floor = world::bridgeOutFloor(3, 3, 0);
 }
 
 static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start()
@@ -205,7 +202,7 @@ static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start
             TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                       static_cast<int>(o.phase), "did not reach the marker");
             TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the marker");
-            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+            TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         }
     }
 }
@@ -246,7 +243,7 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
     } starts[] = {{3, 0, 1}, {2, 1, 2}, {0, 0, 0}, {3, 3, 3}};
     for (const auto &st : starts) {
         World w;
-        photoWorld(w);
+        world::photoMaze(w);
         w.start(st.i, st.j, st.facing);
         MissionParams p = missionParams();
         p.wallsOnly = true;
@@ -259,14 +256,15 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
                                   static_cast<int>(driveExplorer(w, ce, mc, p)),
                                   "did not explore it all");
 
-        const int entriesBefore = w.startTileEntries;
+        const int entriesBefore = w.metrics.startTileEntries;
         cellExplorerDriveTo(ce, static_cast<maze::Explorer::Index>(mapIndexOf(
-                                    w.arena.markerI, w.arena.markerJ, st.i, st.j, st.facing)));
+                                    w.floor.originI(), w.floor.originJ(), st.i, st.j, st.facing)));
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::AtTarget),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
         TEST_ASSERT_TRUE_MESSAGE(markerOffsetMm(w) < 40.0f, "stopped off the marker tile");
-        TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
-        TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.startTileEntries, "crossed the start tile");
+        TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
+        TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.metrics.startTileEntries,
+                                  "crossed the start tile");
 
         // Forget that any edge was looked at (the walls stay): there is a way to the start tile,
         // but not over edges that were looked at.
@@ -285,23 +283,23 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
 static void test_it_holds_still_once_done()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(3, 3, 2);
     MissionManager ms;
     begin(ms);
     const MissionParams p = stopAtMarker();
     const Outcome o = run(w, ms, p);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    const double x0 = w.x;
-    const double y0 = w.y;
+    const double x0 = w.plant.x;
+    const double y0 = w.plant.y;
     DriveCommand last;
     for (int i = 0; i < 200; ++i) {
         last = missionStep(ms, p, w.sense());
         w.drive(last);
     }
     TEST_ASSERT_TRUE(last.enable); // holds the wheels
-    TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, static_cast<float>(w.x - x0));
-    TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, static_cast<float>(w.y - y0));
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, static_cast<float>(w.plant.x - x0));
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, static_cast<float>(w.plant.y - y0));
 }
 
 // ---- Edge cases ----------------------------------------------------------------------------
@@ -309,13 +307,13 @@ static void test_it_holds_still_once_done()
 static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(1, 0, 2, -12.0f); // facing west at the wall between (0, 0) and (1, 0)
     MissionManager ms;
     begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
     TEST_ASSERT_EQUAL_UINT16(0, ms.explore.blocked); // taken as a wall without driving at it
 }
 
@@ -324,7 +322,7 @@ static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
 static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.faults.obstacleFromMs = 3500;
     w.faults.obstacleToMs = 3750;
     w.start(3, 0, 1);
@@ -337,7 +335,7 @@ static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
     TEST_ASSERT_TRUE(ms.explore.resumes == 0); // reset once the centre was reached
     TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
     TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, 3, 0, 1));
-    TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
 }
 
 static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
@@ -345,17 +343,17 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
     for (int i : {0, 3}) {
         for (int j : {0, 1, 2}) {
             World w;
-            photoWorld(w);
+            world::photoMaze(w);
             w.faults.dropout = 0.30f;
             w.faults.strayNear = 0.05f;
-            w.rng.s = 99u + static_cast<uint32_t>(i * 7 + j);
+            w.seed(99u + static_cast<uint32_t>(i * 7 + j));
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
             begin(ms);
             const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
             TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
-            TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+            TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
             TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, i, j, (i + j) & 3));
         }
     }
@@ -364,7 +362,7 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
 static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.faults.gyroScale = 1.02f;
     w.faults.gyroDriftDps = 0.15f;
     w.start(3, 0, 1);
@@ -372,7 +370,7 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
     begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_TRUE(w.minSideMm > world::BODY_HALF_MM - 15.0f);
+    TEST_ASSERT_TRUE(w.metrics.minSideMm > model::BODY_HALF_WIDTH_MM - 15.0f);
 }
 
 // Wheels that need the measured duty to start and more to keep rolling than the model's
@@ -380,25 +378,25 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
 // profile's last millimetres.
 static void test_every_start_finishes_on_wheels_that_roll_hard()
 {
-    for (int i = 0; i < world::N; ++i) {
-        for (int j = 0; j < world::N; ++j) {
-            if (i == 0 && j == world::N - 1) {
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            if (i == 0 && j == N - 1) {
                 continue;
             }
             for (int facing = 0; facing < 4; ++facing) {
                 World w;
-                photoWorld(w);
-                w.sticking = 1.0f;
-                w.sustain = 130.0;
-                w.sustainRight = 1.25;
-                w.rng.s = 777u + static_cast<uint32_t>(i * 31 + j * 7 + facing);
+                world::photoMaze(w);
+                w.plant.sticking = 1.0f;
+                w.plant.sustain = 130.0;
+                w.plant.sustainRight = 1.25;
+                w.seed(777u + static_cast<uint32_t>(i * 31 + j * 7 + facing));
                 w.start(i, j, facing);
                 MissionManager ms;
                 begin(ms);
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
             }
         }
     }
@@ -409,23 +407,23 @@ static void test_every_start_finishes_on_wheels_that_roll_hard()
 static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
 {
     for (const float scale : {0.995f, 1.005f}) {
-        for (int i = 0; i < world::N; ++i) {
-            for (int j = 0; j < world::N; ++j) {
-                if (i == 0 && j == world::N - 1) {
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+                if (i == 0 && j == N - 1) {
                     continue;
                 }
                 World w;
-                photoWorld(w);
+                world::photoMaze(w);
                 w.faults.gyroScale = scale;
-                w.rng.s = 31u + static_cast<uint32_t>(i * 5 + j);
+                w.seed(31u + static_cast<uint32_t>(i * 5 + j));
                 w.start(i, j, (i + 2 * j) & 3);
                 MissionManager ms;
                 begin(ms);
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
-                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > world::BODY_HALF_MM - 15.0f,
+                TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.metrics.minSideMm > model::BODY_HALF_WIDTH_MM - 15.0f,
                                          "rubbed a wall");
             }
         }
@@ -465,7 +463,8 @@ static LineOutcome runToLine(World &w, MissionManager &ms, const MissionParams &
             ++onLine;
             const float e = w.lineErrorMm();
             o.worstErrMm = e > o.worstErrMm ? e : o.worstErrMm;
-            if (w.lineErrorMm() < 60.0f && w.lateAlongMm() < world::LINE_STRAIGHT_TO_MM - 60.0f) {
+            if (w.lineErrorMm() < 60.0f &&
+                w.arrayAlongMm() < world::BRIDGE_OUT_STRAIGHT_TO_MM - 60.0f) {
                 o.worstStraightMm = e > o.worstStraightMm ? e : o.worstStraightMm;
             }
             o.onRampSeen = o.onRampSeen || pc.inclineCounts > RAMP_INCLINE_COUNTS;
@@ -477,35 +476,49 @@ static LineOutcome runToLine(World &w, MissionManager &ms, const MissionParams &
     return o;
 }
 
+// The gap before the ramp reads as air on a bench and dark on the real course (915-1010): the
+// follower takes over at the first line view past it either way, and only the air gap is seen as a
+// gap. It does so with three times the IR noise measured on the arena as well.
 static void test_the_marker_leads_over_the_gap_and_onto_the_line()
 {
-    for (int facing = 0; facing < 4; ++facing) {
-        World w;
-        photoWorld(w);
-        w.start(2, 1, facing);
-        MissionManager ms;
-        begin(ms);
-        // 8 s of following: the straight, the ramp and the bend to the left after it.
-        const LineOutcome o = runToLine(w, ms, missionParams(), 800);
-        TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
-        TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
-        TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
-        TEST_ASSERT_TRUE(o.onRampSeen);
-        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    const struct {
+        world::Gap gap;
+        float noise; // times the measured IR noise
+    } cases[] = {{world::Gap::Air, 1.0f},
+                 {world::Gap::Dark, 1.0f},
+                 {world::Gap::Air, 3.0f},
+                 {world::Gap::Dark, 3.0f}};
+    for (const auto &c : cases) {
+        for (int facing = 0; facing < 4; ++facing) {
+            World w;
+            world::photoMaze(w, c.gap);
+            w.faults.irNoise = c.noise;
+            w.start(2, 1, facing);
+            MissionManager ms;
+            begin(ms);
+            // 8 s of following: the straight, the ramp and the bend to the left after it.
+            const LineOutcome o = runToLine(w, ms, missionParams(), 800);
+            TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
+            TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
+            TEST_ASSERT_EQUAL(c.gap == world::Gap::Air, ms.marker.gapSeen);
+            TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
+            TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
+            TEST_ASSERT_TRUE(o.onRampSeen);
+            TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
+        }
     }
 }
 
 static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
 {
-    for (int i = 0; i < world::N; ++i) {
-        for (int j = 0; j < world::N; ++j) {
-            if (i == 0 && j == world::N - 1) {
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            if (i == 0 && j == N - 1) {
                 continue;
             }
             World w;
-            photoWorld(w);
-            w.rng.s = 55u + static_cast<uint32_t>(i * 9 + j);
+            world::photoMaze(w);
+            w.seed(55u + static_cast<uint32_t>(i * 9 + j));
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
             begin(ms);
@@ -514,7 +527,7 @@ static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
                                       static_cast<int>(o.phase), "not following the line");
             TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
             TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
-            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+            TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         }
     }
 }
@@ -527,19 +540,18 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
         World w;
         // Row 3 is a corridor along the top of the arena. The marker tile (3,3) is at its end: an
         // open edge north (exitSide 0) or the tile below it being open and the exit north.
-        for (int j = 0; j < world::N; ++j) {
-            w.arena.vw[0 * world::N + j] = true;
-            w.arena.vw[world::N * world::N + j] = true;
+        Arena &a = w.arena;
+        for (int j = 0; j < N; ++j) {
+            a.side(0, j, 2) = true;
+            a.side(N - 1, j, 0) = true;
         }
-        for (int i = 0; i < world::N; ++i) {
-            w.arena.hw[0 * world::N + i] = true;
-            w.arena.hw[world::N * world::N + i] = i != 3; // the marker tile's north edge is open
-            w.arena.hw[3 * world::N + i] = i == 3 && exitSide == 1 ? false : true;
+        for (int i = 0; i < N; ++i) {
+            a.side(i, 0, 3) = true;
+            a.side(i, N - 1, 1) = i != 3; // the marker tile's north edge is open
+            a.side(i, 3, 3) = i == 3 && exitSide == 1 ? false : true;
         }
-        w.arena.markerI = 3;
-        w.arena.markerJ = 3;
-        w.arena.exitDir = 1; // north
-        w.arena.build();
+        a.build();
+        w.floor = world::bridgeOutFloor(3, 3, 1);
         w.start(0, 3, 0); // along the corridor; the tile ahead ends in a wall to the east
         MissionManager ms;
         begin(ms);
@@ -548,34 +560,14 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
                                   "did not leave by the side");
         TEST_ASSERT_TRUE(ms.marker.sideExit); // it turned
         TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
-        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
-    }
-}
-
-// On the real robot the gap read dark (915-1010), not as air: the follower takes over at the first
-// line view past the dark patch all the same.
-static void test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line()
-{
-    for (int facing = 0; facing < 4; ++facing) {
-        World w;
-        photoWorld(w);
-        w.gapIsDark = true;
-        w.start(2, 1, facing);
-        MissionManager ms;
-        begin(ms);
-        const LineOutcome o = runToLine(w, ms, missionParams(), 500);
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
-        TEST_ASSERT_FALSE(ms.marker.gapSeen);
-        TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
+        TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
     }
 }
 
 static void test_a_line_that_never_comes_is_no_line()
 {
     World w;
-    photoWorld(w);
-    w.arena.markerI = 0;
-    w.arena.markerJ = 3;
+    world::photoMaze(w);
     w.start(0, 2, 1);
     MissionParams p = missionParams();
     p.noLineMm = 90.0f; // the gap is 180 mm out: the follower is never reached
@@ -589,7 +581,7 @@ static void test_a_line_that_never_comes_is_no_line()
 static void test_a_line_lost_is_searched_for_and_then_the_motors_are_cut()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(0, 2, 1);
     MissionManager ms;
     begin(ms);
@@ -597,7 +589,7 @@ static void test_a_line_lost_is_searched_for_and_then_the_motors_are_cut()
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
     // The line is gone: nothing but white board.
     const MissionParams p = missionParams();
-    w.lineGone = true;
+    w.floor.erase(world::Surface::Line);
     for (uint32_t t = 0; t < 1000 && ms.phase == MissionPhase::Line; ++t) {
         const DriveCommand cmd = missionStep(ms, p, w.sense());
         w.drive(cmd);
@@ -613,8 +605,8 @@ static Outcome runWith(const MissionParams &p, float sticking = 1.0f, int obstac
                        int obstacleTo = 0)
 {
     World w;
-    photoWorld(w);
-    w.sticking = sticking;
+    world::photoMaze(w);
+    w.plant.sticking = sticking;
     w.faults.obstacleFromMs = static_cast<uint32_t>(obstacleFrom);
     w.faults.obstacleToMs = static_cast<uint32_t>(obstacleTo);
     w.start(3, 0, 1);
@@ -638,7 +630,7 @@ static void test_a_turn_that_cannot_move_is_retried_then_a_stuck_turn()
     p.step.plan.turnAccelDps2 = 0.0f;
     // Facing south on (3, 0) the first plan is a turn.
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(3, 0, 3);
     MissionManager ms;
     begin(ms);
@@ -668,7 +660,7 @@ static void test_too_many_cut_short_steps_end_the_run()
 static void test_nothing_moves_until_the_start_button()
 {
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(1, 1, 0);
     MissionManager ms;
     missionReset(ms);
@@ -689,7 +681,7 @@ static void test_a_failure_set_by_the_caller_cuts_the_motors()
     begin(ms);
     missionFail(ms, MissionFault::NoImu);
     World w;
-    photoWorld(w);
+    world::photoMaze(w);
     w.start(1, 1, 0);
     const DriveCommand cmd = missionStep(ms, stopAtMarker(), w.sense());
     TEST_ASSERT_FALSE(cmd.enable);
@@ -758,10 +750,10 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
     };
     for (const PartCase &c : cases) {
         World w;
-        photoWorld(w);
+        world::photoMaze(w);
         if (c.onLine) {
             // 214 mm out of the marker tile along the exit: the array is on the line, past the gap.
-            w.start(w.arena.markerI, w.arena.markerJ, w.arena.exitDir, 0.0f, 214.0f, 0.0f);
+            w.start(w.floor.originI(), w.floor.originJ(), w.floor.frame.dir, 0.0f, 214.0f, 0.0f);
         } else {
             w.start(2, 1, 0);
         }
@@ -798,6 +790,11 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
     }
 }
 
+void tearDown(void)
+{
+    seeds::report();
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -827,7 +824,6 @@ int main()
     RUN_TEST(test_a_line_that_never_comes_is_no_line);
     RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
     RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
-    RUN_TEST(test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line);
     RUN_TEST(test_a_run_can_be_any_stretch_of_the_parts);
     return UNITY_END();
 }

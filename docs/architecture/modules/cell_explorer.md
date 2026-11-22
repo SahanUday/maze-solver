@@ -3,7 +3,7 @@
 Explores a maze cell by cell: stand and read the walls, turn to the tile the planner picks, drive
 it. Pure logic in `include/mission/CellExplorer.h`, generic in the maze size (`CellExplorerT<N>`,
 over [maze](maze.md)'s `ExplorerT<N>`; `CellExplorer` is the Section A one). It is tested through
-the Section A mission (`test/test_section_a/`). It joins the planner ([maze](maze.md)), the cell
+the Section A mission (`test/integration/test_section_a/`). It joins the planner ([maze](maze.md)), the cell
 step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitives.md)) and
 [perception](perception.md); the decisions are
 [0009](../decisions/0009-explore-in-a-start-relative-map.md) and

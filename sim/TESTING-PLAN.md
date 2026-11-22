@@ -54,7 +54,7 @@ The simulator never replaces the first row. A bug it finds should become a test 
   `setWall`, and cell numbers or paths with `setColor` and `setText`.
 - **Backend 2, headless.** The same adapter against an in-memory copy of the maze. This is where
   batches belong (every start tile and heading, sensor-miss rates, many mazes), because mms is
-  animated and GUI-only. `Sim` in `test/test_maze/test_maze.cpp` is the seed of it today.
+  animated and GUI-only. `Sim` in `test/unit/test_maze/test_maze.cpp` is the seed of it today.
 - **Metrics.** Count tiles driven, turns, stops to sense, and tiles entered more than once; count how
   many straights could be one multi-tile move (what a fast run needs). Estimate time by giving each
   of those a cost from the constants in `include/spec/`, for example `SECTION_A_SENSE_MS` for a

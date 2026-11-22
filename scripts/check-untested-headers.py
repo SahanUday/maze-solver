@@ -90,7 +90,7 @@ def check(root: Path, report: dict) -> list[Finding]:
         line = code.count("\n", 0, match.start()) + 1
         bare = re.search(r"coverage-exempt:[ \t]*$", raw, re.M)
         hint = "'// coverage-exempt:' needs a reason after the colon" if bare else (
-            "write a test/test_<name>/ that includes it, or add '// coverage-exempt: <reason>' "
+            "write a test/unit/test_<name>/ that includes it, or add '// coverage-exempt: <reason>' "
             "if it cannot be built on the host or this is a false positive"
         )
         findings.append(Finding(rel, line, f"has logic but no test compiles it, so the coverage report does not include it; {hint}"))

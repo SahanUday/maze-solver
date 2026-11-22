@@ -34,6 +34,6 @@ low-side FETs on) and EN low should coast. Not yet confirmed on hardware.
 
 ## Status
 
-Compiles; the duty split is covered by `test/test_motor_drive` on the host.
+Compiles; the duty split is covered by `test/unit/test_motor_drive` on the host.
 `main.cpp` calls `motorSet` / `motorsEnable` every tick through the run loop, and the robot
 drove with them at the mid-evaluation (tag `v0.1-section-a`).

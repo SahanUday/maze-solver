@@ -1,8 +1,8 @@
 # perception
 
 `RobotState` in, one derived `Perception` out per tick. Pure logic in `include/sense/Perception.h` (with
-`Tilt.h`, `WallSense.h` and `LineView.h`), tested by `test/test_perception/`, `test/test_tilt/`,
-`test/test_wall_sense/` and `test/test_line_view/`.
+`Tilt.h`, `WallSense.h` and `LineView.h`), tested by `test/unit/test_perception/`, `test/unit/test_tilt/`,
+`test/unit/test_wall_sense/` and `test/unit/test_line_view/`.
 
 ## Interface
 

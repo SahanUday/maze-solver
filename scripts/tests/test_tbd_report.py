@@ -66,11 +66,19 @@ class RenderTest(unittest.TestCase):
 class CollectTest(unittest.TestCase):
     def test_runs_the_list_script_in_the_given_tree_and_skips_the_legend(self):
         legend = "//  `<<TBD HARDWARE>>` = not yet measured.\n"
-        tree = Tree({"include/A.h": legend + "// ---- Motor limits ---- <<TBD HARDWARE>> --\n"})
+        tree = Tree(
+            {
+                "include/A.h": legend + "// ---- Motor limits ---- <<TBD HARDWARE>> --\n",
+                "test/model/B.h": "// ---- Floor levels ---- <<TBD HARDWARE>> --\n",
+            }
+        )
         self.addCleanup(tree.close)
         script = tbd.Path(__file__).resolve().parent.parent / "list-tbds.sh"
         items = tbd.collect(tree.root, script)
-        self.assertEqual([(i["file"], i["kind"], i["what"]) for i in items], [("include/A.h", "HARDWARE", "Motor limits")])
+        self.assertEqual(
+            [(i["file"], i["kind"], i["what"]) for i in items],
+            [("include/A.h", "HARDWARE", "Motor limits"), ("test/model/B.h", "HARDWARE", "Floor levels")],
+        )
 
 
 if __name__ == "__main__":

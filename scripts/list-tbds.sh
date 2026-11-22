@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SEARCH_DIRS=()
-for d in src include lib scripts; do
+for d in src include lib test scripts; do
     [ -d "$d" ] && SEARCH_DIRS+=("$d")
 done
 

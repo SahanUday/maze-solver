@@ -1,7 +1,7 @@
 # run_loop
 
 One control tick of a run: sensors in, drive command out. Pure logic in
-`include/mission/RunLoop.h`, tested by `test/test_run_loop/`; `src/main.cpp` is the thin shell that reads the
+`include/mission/RunLoop.h`, tested by `test/integration/test_run_loop/`; `src/main.cpp` is the thin shell that reads the
 hardware and applies the result.
 
 ## Interface

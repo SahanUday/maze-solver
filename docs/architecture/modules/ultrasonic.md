@@ -9,7 +9,7 @@ Non-blocking HAL driver for the front/left/right wall sensors. Reasoning:
 |---|---|---|
 | `src/hal/ultrasonic.{h,cpp}` | 1 (HAL) | round-robin scheduling, trigger, echo timing |
 | `include/sense/UltrasonicMath.h` | 2 | ticks → mm; Arduino-free, header-only |
-| `test/test_ultrasonic/` | — | the math under `env:native` |
+| `test/unit/test_ultrasonic/` | — | the math under `env:native` |
 
 ## Hardware interface
 

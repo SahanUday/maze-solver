@@ -152,7 +152,7 @@ pio test -e native
 pio test -e native_san
 pio test -e native_cov && scripts/check-coverage.sh   # needs: pip install -r requirements-ci.txt
 ```
-Add `-f test_scheduler` to run one suite. Coverage only measures files that some
+Add `-f unit/test_scheduler` to run one suite, or `-f "integration/*"` for a tier. Coverage only measures files that some
 test compiles, so on its own it would let a brand-new untested header slip
 through. `scripts/check-untested-headers.py` closes that: a header under
 `include/` or `lib/` that contains a function body must be in the coverage
@@ -167,13 +167,11 @@ include `Arduino.h`: the headers in `include/` (`core/Scheduler.h`, `sense/Quadr
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
 
-**Where tests live.** One folder per suite under `test/`, with the same name in
-the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
-`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`, `test_floor_pattern`, `test_line_follow`,
-`test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`, `test_motion_profile`,
-`test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
-`test_step_cell`, `test_maze`, `test_section_a` and `test_run_loop`. A test file looks like this
-(Unity is the test framework):
+**Where tests live.** One folder per suite, `test/<tier>/test_<name>/`, in `unit/` (one module) or
+`integration/` (the mission in the host world). Layout, running, adding and updating tests:
+[`test/README.md`](../test/README.md).
+
+A test file looks like this (Unity is the test framework):
 ```cpp
 #include <unity.h>
 #include "Scheduler.h"
@@ -190,8 +188,19 @@ int main()
     return UNITY_END();
 }
 ```
-**To add a test:** create `test/test_<name>/test_<name>.cpp` like the above, run
-`pio test -e native -f test_<name>`, then run all three envs before pushing.
+
+### The host world (`test/support/world/`)
+The mission tests run the firmware's own code against a simulated arena, so they are only as true as
+the numbers in it. It is layered: `Arena` (walls, rays), `Floor` (what lies on the floor), `Plant`
+(wheels, pose), `Sensors` (what the robot reads), `World` (the door), `Presets` (ready-made arenas).
+
+The world reads `spec/measurements/` and `spec/fixed/` for what the firmware also uses and
+`test/model/` for what only it needs, never `spec/tuning/`: that is the firmware's choice, not a
+fact about the robot. Every value is tagged like the spec; `<<TBD HARDWARE>>` stand-ins are listed
+by `scripts/list-tbds.sh`. A number lives in one place.
+
+One master seed replays a run (`World::seed`), and a failing seeded test prints it. Using the world,
+checking a change to it with the fingerprint, and replaying a seed: [`test/README.md`](../test/README.md).
 
 ### 9. Tests of the checks (`scripts/tests/`)
 **What:** a check that quietly stops working protects nothing, so the check
