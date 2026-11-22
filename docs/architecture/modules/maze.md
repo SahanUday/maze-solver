@@ -1,7 +1,7 @@
 # maze
 
 Exploration of an unknown grid from an unknown start tile. Pure logic in `lib/maze/Maze.h`: no
-hardware, no `Arduino.h`, tested on the PC by `test/test_maze/`. The proof is in `lib/maze/Proof.h`.
+hardware, no `Arduino.h`, tested on the PC by `test/unit/test_maze/`. The proof is in `lib/maze/Proof.h`.
 Decision:
 [0009](../decisions/0009-explore-in-a-start-relative-map.md).
 

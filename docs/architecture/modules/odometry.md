@@ -1,7 +1,7 @@
 # odometry
 
 Encoder counts to distance and speed. Pure logic in `include/sense/Odometry.h`, tested by
-`test/test_odometry/`. The counts come from [encoders](encoders.md).
+`test/unit/test_odometry/`. The counts come from [encoders](encoders.md).
 
 ## Interface
 

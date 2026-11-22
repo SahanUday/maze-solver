@@ -1,7 +1,7 @@
 # line_view
 
 One sweep of the IR array to where the line is. Pure logic in `include/sense/LineView.h`, tested by
-`test/test_line_view/`. It takes the normalised channel values and black mask from `LineSense.h`,
+`test/unit/test_line_view/`. It takes the normalised channel values and black mask from `LineSense.h`,
 and the `usable` bit mask of channels the calibration accepted.
 
 ## Interface

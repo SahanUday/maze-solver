@@ -1,7 +1,7 @@
 # wall_sense
 
 Ultrasonic readings to "is there a wall" and a centring trim. Pure logic in `include/sense/WallSense.h`,
-tested by `test/test_wall_sense/`. The readings come from [ultrasonic](ultrasonic.md) through
+tested by `test/unit/test_wall_sense/`. The readings come from [ultrasonic](ultrasonic.md) through
 `RobotState`.
 
 ## Interface

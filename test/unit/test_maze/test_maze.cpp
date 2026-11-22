@@ -726,7 +726,6 @@ static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
 int main()
 {
     UNITY_BEGIN();
-    UNITY_BEGIN();
     RUN_TEST(test_the_spec_is_native_safe);
     RUN_TEST(test_turns);
     RUN_TEST(test_an_edge_looked_at_is_recorded_on_both_sides_of_the_edge);

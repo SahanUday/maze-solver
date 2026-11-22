@@ -26,7 +26,7 @@ state. `+` means A leads B; `ENC_L_INVERT` / `ENC_R_INVERT` flip it per side.
 
 ## Status
 
-Compiles; the decode logic is covered by `test/test_quadrature` on the host.
+Compiles; the decode logic is covered by `test/unit/test_quadrature` on the host.
 Verified on hardware by hand rotation on both encoders: both channels toggle,
 the count rises and falls with direction, reverses cleanly, and the count
 agrees with the pin state on every sample checked (no lost counts at hand

@@ -152,7 +152,7 @@ pio test -e native
 pio test -e native_san
 pio test -e native_cov && scripts/check-coverage.sh   # needs: pip install -r requirements-ci.txt
 ```
-Add `-f test_scheduler` to run one suite. Coverage only measures files that some
+Add `-f unit/test_scheduler` to run one suite, or `-f "sim/*"` for a tier. Coverage only measures files that some
 test compiles, so on its own it would let a brand-new untested header slip
 through. `scripts/check-untested-headers.py` closes that: a header under
 `include/` or `lib/` that contains a function body must be in the coverage
@@ -167,13 +167,19 @@ include `Arduino.h`: the headers in `include/` (`core/Scheduler.h`, `sense/Quadr
 arithmetic in a separate header: the decision logic is testable even though the
 register code isn't.
 
-**Where tests live.** One folder per suite under `test/`, with the same name in
-the file: `test/test_scheduler/test_scheduler.cpp`. Current suites:
-`test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`, `test_floor_pattern`, `test_line_follow`,
-`test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`, `test_motion_profile`,
-`test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
-`test_step_cell`, `test_maze`, `test_section_a` and `test_run_loop`. A test file looks like this
-(Unity is the test framework):
+**Where tests live.** One folder per suite, `test_<name>`, inside a tier under `test/`:
+
+| Tier | Holds |
+|---|---|
+| `test/unit/` | one header or module, in milliseconds. A few (`test_motion_primitives`, `test_step_cell`) run closed loop on `support/sim.h`, a plant with generic numbers that does not follow the robot's tuning |
+| `test/sim/` | the mission in the host world (`support/world.h`): `test_section_a`, `test_run_loop` |
+| `test/support/` | shared fixtures, not suites: `sim.h` and `world.h` |
+
+Current suites: `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`,
+`test_floor_pattern`, `test_line_follow`, `test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`,
+`test_motion_profile`, `test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
+`test_step_cell` and `test_maze` (all in `unit/`), and `test_section_a` and `test_run_loop` (in `sim/`).
+A test file looks like this (Unity is the test framework):
 ```cpp
 #include <unity.h>
 #include "Scheduler.h"
@@ -190,8 +196,8 @@ int main()
     return UNITY_END();
 }
 ```
-**To add a test:** create `test/test_<name>/test_<name>.cpp` like the above, run
-`pio test -e native -f test_<name>`, then run all three envs before pushing.
+**To add a test:** create `test/<tier>/test_<name>/test_<name>.cpp` like the above, run
+`pio test -e native -f "<tier>/test_<name>"`, then run all three envs before pushing.
 
 ### 9. Tests of the checks (`scripts/tests/`)
 **What:** a check that quietly stops working protects nothing, so the check

@@ -8,7 +8,7 @@
 #include <unity.h>
 
 #include "mission/MissionManager.h"
-#include "../support/world.h"
+#include "../../support/world.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/fixed/Rules.h"
 #include "spec/tuning/CellExplorer.h"

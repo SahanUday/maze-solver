@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <unity.h>
 
-#include "../support/sim.h"
+#include "../../support/sim.h"
 
 constexpr uint16_t DT_MS = 10;
 constexpr float DT_S = 0.01f;

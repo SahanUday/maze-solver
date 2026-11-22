@@ -8,7 +8,7 @@
 #include <unity.h>
 
 #include "mission/StepCell.h"
-#include "../support/sim.h"
+#include "../../support/sim.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/measurements/Arena.h"
 #include "spec/tuning/Motion.h"
