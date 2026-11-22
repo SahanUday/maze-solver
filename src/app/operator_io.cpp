@@ -6,8 +6,8 @@
 
 #include <Arduino.h>
 
-#include "config/RobotConfig.h"
-#include "spec/Mission.h"
+#include "spec/pins/PinMap.h"
+#include "spec/tuning/Run.h"
 
 namespace
 {

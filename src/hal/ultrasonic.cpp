@@ -6,14 +6,15 @@
 
 #include "hal/ultrasonic.h"
 
+#include <Arduino.h> // A10..A12 for the pin asserts
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <util/atomic.h>
 #include <util/delay.h>
 
-#include "config/RobotConfig.h"
-#include "spec/Platform.h"
-#include "spec/Ultrasonic.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/pins/PinMap.h"
 #include "sense/UltrasonicMath.h"
 
 static_assert(US_SENSOR_COUNT == 3, "front, left, right");

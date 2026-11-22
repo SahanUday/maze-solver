@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-#include "spec/Mission.h"
+#include "spec/tuning/Run.h"
 
 struct RunStart {
     bool waitForButton = RUN_START_BUTTON_FITTED;

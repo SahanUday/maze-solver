@@ -9,7 +9,7 @@ from support import Tree, load_script
 
 pin_map = load_script("check-pin-map.py")
 
-CONFIG = "include/config/RobotConfig.h"
+CONFIG = "include/spec/pins/PinMap.h"
 
 
 def config(*lines):
@@ -109,7 +109,7 @@ class PinMapTest(unittest.TestCase):
     def test_hal_port_register_needs_an_assert_on_a_pin_of_that_port(self):
         # PIN_X = 30 is PC7. A driver that pokes PORTC without asserting any
         # pin is invisible to the `asserts` rule: moving the pin in
-        # RobotConfig.h would still pass.
+        # PinMap.h would still pass.
         files = config("constexpr uint8_t PIN_X = 30; // PC7")
         files["src/hal/foo.cpp"] = "void f() { PORTC |= 1 << 7; }\n"
         findings = self.run_check(files)

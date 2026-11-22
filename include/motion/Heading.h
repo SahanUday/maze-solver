@@ -13,7 +13,9 @@
 #include <math.h>
 #include <stdint.h>
 
-#include "spec/Imu.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/tuning/Imu.h"
 
 // A gyro reads slightly non-zero while still. Averaging that offset is the heart
 // of this struct; `counts` is in raw gyro counts, like the samples it came from.

@@ -6,8 +6,8 @@
 
 #include <Arduino.h>
 
-#include "spec/LineSensor.h"
-#include "spec/Mission.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/tuning/Run.h"
 
 namespace
 {

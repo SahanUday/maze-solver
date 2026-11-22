@@ -7,11 +7,9 @@
 #include <unity.h>
 
 #include "sense/Perception.h"
-#include "spec/Drivetrain.h"
-#include "spec/Imu.h"
-#include "spec/LineSensor.h"
-#include "spec/Platform.h"
-#include "spec/WallFollow.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Robot.h"
+#include "spec/tuning/WallFollow.h"
 
 constexpr uint16_t DT_MS = 10;
 

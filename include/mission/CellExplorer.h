@@ -28,8 +28,9 @@
 #include "motion/MotionPrimitives.h"
 #include "motion/MotionTypes.h"
 #include "sense/Perception.h"
-#include "spec/Mission.h"
-#include "spec/Platform.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/fixed/Rules.h"
+#include "spec/tuning/CellExplorer.h"
 
 constexpr float STOP_STILL_MM_S = 5.0f; // below this the robot has stopped
 constexpr uint16_t STOP_STILL_MS = 150; // ... for this long

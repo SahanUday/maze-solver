@@ -6,7 +6,7 @@
 #include <unity.h>
 
 #include "sense/WallSense.h"
-#include "spec/WallFollow.h"
+#include "spec/tuning/WallFollow.h"
 
 // Proportional only, wide pair tolerance: the tests that add the integral or the gate say so.
 static WallParams params()

@@ -9,10 +9,10 @@
 
 #include "mission/StepCell.h"
 #include "../support/sim.h"
-#include "spec/Competition.h"
-#include "spec/Motion.h"
-#include "spec/Ultrasonic.h"
-#include "spec/WallFollow.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/measurements/Arena.h"
+#include "spec/tuning/Motion.h"
+#include "spec/tuning/WallFollow.h"
 
 constexpr uint16_t DT_MS = 10;
 constexpr float DT_S = 0.01f;

@@ -20,8 +20,8 @@
 #include "hal/ultrasonic.h"
 #include "line_cal_store.h"
 #include "mission/RunLoop.h"
-#include "spec/Mission.h"
-#include "spec/Platform.h"
+#include "spec/fixed/Hardware.h"
+#include "spec/tuning/Run.h"
 
 static RobotState g_state;
 static RunLoop g_run;

@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#include "spec/Competition.h"
+#include "spec/fixed/Rules.h"
 
 namespace maze
 {

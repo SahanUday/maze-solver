@@ -24,8 +24,8 @@
 #include "motion/LineFollow.h"
 #include "motion/MotionControl.h"
 #include "sense/Perception.h"
-#include "spec/Competition.h"
-#include "spec/Mission.h"
+#include "spec/fixed/Rules.h"
+#include "spec/tuning/Run.h"
 
 // The status line's phase numbers: Approach and Line come last so the older numbers stay.
 enum class MissionPhase : uint8_t { WaitStart, Sense, Turn, Step, Done, Fault, Approach, Line };

@@ -8,7 +8,7 @@
 
 #include "mission/MarkerExit.h"
 #include "sense/FloorPattern.h"
-#include "spec/LineSensor.h"
+#include "spec/fixed/Hardware.h"
 
 static PatternParams params()
 {

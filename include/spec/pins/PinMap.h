@@ -1,17 +1,16 @@
 // ============================================================================
-//  config/RobotConfig.h  --  single source of truth for pin assignments.
-//  Non-pin constants live in the spec/ headers.
+//  spec/pins/PinMap.h  --  single source of truth for pin assignments.
+//  Layout, tags and the TBD legend: docs/architecture/ARCHITECTURE.md ("Spec layout").
 //
 //  Rules:
 //    1. Every pin number lives HERE.
 //    2. Use `constexpr`, never `#define`.
-//    3. Put the unit in the name: _MM, _MS, _US, _DEG, _MV, _PWM.
-//  `<<TBD HARDWARE>>` = not yet measured. See scripts/list-tbds.sh.
+//    3. Analog pins are numbers (A0..A15 = 54..69 on the Mega): no Arduino.h, so the host builds
+//       can include this file. The A-name goes in the comment.
 // ============================================================================
 
 #pragma once
 
-#include <Arduino.h> // for the A0..A15 pin names
 #include <stdint.h>
 
 // ============================================================================
@@ -31,7 +30,7 @@
 // ---- Encoders ------------------------------------------------------------
 // JGA25-370 Hall quadrature, 4x decoded on all four transitions. Each motor's A/B sit
 // on one AVR port with A on the LOWER bit, so one PINx read yields (B<<1)|A.
-// "+" = A leads B; flip per side with ENC_*_INVERT in spec/Drivetrain.h.
+// "+" = A leads B; flip per side with ENC_*_INVERT in spec/measurements/Robot.h.
 constexpr uint8_t PIN_ENC_L_A = 2;  // PE4, INT4
 constexpr uint8_t PIN_ENC_L_B = 3;  // PE5, INT5
 constexpr uint8_t PIN_ENC_R_A = 19; // PD2, INT2
@@ -65,14 +64,14 @@ constexpr uint8_t PIN_US_RIGHT_TRIG = 34;
 // Echo on PORTK: PK2, PK3, PK4 = PCINT18-20, so edges can be timestamped by interrupt.
 // PORTC has no interrupt capability, so the trigger and echo sides are split.
 // ultrasonic.cpp hand-maps these bits; keep all three on PORTK. See decisions/0007-*.md.
-constexpr uint8_t PIN_US_FRONT_ECHO = A10;
-constexpr uint8_t PIN_US_LEFT_ECHO = A11;
-constexpr uint8_t PIN_US_RIGHT_ECHO = A12;
+constexpr uint8_t PIN_US_FRONT_ECHO = 64; // A10, PK2
+constexpr uint8_t PIN_US_LEFT_ECHO = 65;  // A11, PK3
+constexpr uint8_t PIN_US_RIGHT_ECHO = 66; // A12, PK4
 
 // ---- 8-element IR array ----------------------------------------- [FIXED] --
 // Left to right, D1..D8 -> A0..A7 = ADC0..ADC7 = PF0..PF7. line_sensors drives the ADC
 // directly, so keep all 8 channels on ADC0-7 in order. See decisions/0005-*.md.
-constexpr uint8_t PIN_IR[8] = {A0, A1, A2, A3, A4, A5, A6, A7};
+constexpr uint8_t PIN_IR[8] = {54, 55, 56, 57, 58, 59, 60, 61}; // A0..A7
 
 // Emitter enable. Pin 36 is PC1. HIGH = emitters on, LOW = off.
 constexpr uint8_t PIN_IR_EMITTER = 36;
@@ -81,7 +80,7 @@ constexpr uint8_t PIN_IR_EMITTER = 36;
 // Physical switches - no reprogramming allowed between trials.
 constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
 constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW
-constexpr uint8_t PIN_POT = A8;                  // read once at boot
+constexpr uint8_t PIN_POT = 62;                  // A8, read once at boot
 
 // ---- Indicators --------------------------------------------- [PROPOSED] --
 constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
