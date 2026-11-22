@@ -69,19 +69,24 @@ static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
     return out;
 }
 
-// Where the map says the robot is, against where it is: the map's North is the start heading.
-static bool mapMatchesTruth(const World &w, const MissionManager &ms, int startI, int startJ,
-                            int facing)
+// The map cell of arena tile (i, j): the map's North is the start heading, and the start tile is
+// its centre.
+static int mapIndexOf(int i, int j, int startI, int startJ, int facing)
 {
     static const int fwdI[4] = {1, 0, -1, 0};
     static const int fwdJ[4] = {0, 1, 0, -1};
-    const int di = w.cellI() - startI;
-    const int dj = w.cellJ() - startJ;
+    const int di = i - startI;
+    const int dj = j - startJ;
     const int fwd = di * fwdI[facing] + dj * fwdJ[facing];
     const int right = di * fwdJ[facing] - dj * fwdI[facing]; // right of the heading
-    const int row = maze::kSide / 2 - fwd;
-    const int col = maze::kSide / 2 + right;
-    return ms.explore.map.pos == row * maze::kSide + col;
+    return (maze::kSide / 2 - fwd) * maze::kSide + maze::kSide / 2 + right;
+}
+
+// Where the map says the robot is, against where it is.
+static bool mapMatchesTruth(const World &w, const MissionManager &ms, int startI, int startJ,
+                            int facing)
+{
+    return ms.explore.map.pos == mapIndexOf(w.cellI(), w.cellJ(), startI, startJ, facing);
 }
 
 // The navigation tests end on the marker's tile; the line is tested on its own below.
@@ -196,6 +201,81 @@ static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start
             TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the marker");
             TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
         }
+    }
+}
+
+// The explorer on its own, without a mission around it: its target into the motion controller, the
+// controller's command into the world. Runs until the explorer says something other than Running.
+static ExploreStatus driveExplorer(World &w, CellExplorer &ce, MotionControl &mc,
+                                   const MissionParams &p)
+{
+    ExploreStatus st = ExploreStatus::Running;
+    for (uint32_t t = 0; t < RUN_TICKS && st == ExploreStatus::Running; ++t) {
+        const Perception pc = w.sense();
+        MotionTarget target;
+        target.distRefMm = pc.motion.distMm;
+        target.headingRefDeg = cellExplorerHeadingRef(ce);
+        target.newMove = true;
+        st = cellExplorerStep(ce, p, ExploreInput{}, pc, target);
+        const float fix = ce.headingFixDeg;
+        ce.headingFixDeg = 0.0f;
+        if (fix != 0.0f) {
+            headingSet(w.heading, w.heading.deg - fix);
+        }
+        const MotionOutput out = motionControlStep(mc, p.control, target, pc.motion, p.dtMs);
+        DriveCommand cmd;
+        cmd.enable = true;
+        cmd.left = out.left;
+        cmd.right = out.right;
+        w.drive(cmd);
+    }
+    return st;
+}
+
+// Explore everything, then drive to the marker's tile over the cells it knows, and stand on it.
+static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cells()
+{
+    const struct {
+        int i, j, facing;
+    } starts[] = {{3, 0, 1}, {2, 1, 2}, {0, 0, 0}, {3, 3, 3}};
+    for (const auto &st : starts) {
+        World w;
+        photoWorld(w);
+        w.start(st.i, st.j, st.facing);
+        MissionParams p = missionParams();
+        p.wallsOnly = true;
+        CellExplorer ce;
+        cellExplorerReset(ce);
+        MotionControl mc;
+        motionControlReset(mc);
+        cellExplorerStart(ce, w.sense().motion);
+        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::Explored),
+                                  static_cast<int>(driveExplorer(w, ce, mc, p)),
+                                  "did not explore it all");
+
+        const int entriesBefore = w.startTileEntries;
+        cellExplorerGoTo(ce, static_cast<maze::Explorer::Index>(mapIndexOf(
+                                 w.arena.markerI, w.arena.markerJ, st.i, st.j, st.facing)));
+        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::Arrived),
+                                  static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
+        const float dx =
+            static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
+        const float dy =
+            static_cast<float>(w.y) - world::PITCH * static_cast<float>(w.arena.markerJ);
+        TEST_ASSERT_TRUE_MESSAGE(sqrtf(dx * dx + dy * dy) < 40.0f, "stopped off the marker tile");
+        TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+        TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.startTileEntries, "crossed the start tile");
+
+        // Forget that any edge was looked at (the walls stay): there is a way to the start tile,
+        // but not over edges that were looked at.
+        for (uint8_t &c : ce.map.cell) {
+            c = static_cast<uint8_t>(c & 0x0F);
+        }
+        cellExplorerGoTo(ce, maze::kStartCell);
+        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::Fault),
+                                  static_cast<int>(driveExplorer(w, ce, mc, p)),
+                                  "a goal over unchecked edges did not fault");
+        TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::Unreachable), static_cast<int>(ce.fault));
     }
 }
 
@@ -722,6 +802,7 @@ int main()
     RUN_TEST(test_a_walls_only_run_explores_every_tile_and_stops);
     RUN_TEST(test_without_a_marker_the_run_ends_in_no_route);
     RUN_TEST(test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start);
+    RUN_TEST(test_after_exploring_it_drives_to_the_marker_tile_through_known_cells);
     RUN_TEST(test_it_holds_still_once_done);
     RUN_TEST(test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall);
     RUN_TEST(test_a_stop_no_wall_explains_is_resumed_to_the_centre);

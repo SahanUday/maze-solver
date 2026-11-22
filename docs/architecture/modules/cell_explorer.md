@@ -19,13 +19,17 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 - `cellExplorerStart(ce, fb)` - begin from where the robot stands: map North is its heading now.
 - `cellExplorerStep(ce, params, input, perception, target)` - one tick. Fills the `MotionTarget`
   (the caller owns the motion controller) and returns an `ExploreStatus`:
-  `Running`, `Explored` (every reachable tile entered, `wallsOnly`), `Stopped` (standing on the tile a
+  `Running`, `Explored` (every reachable tile entered, `wallsOnly`), `Arrived` (standing on the goal
+  tile, see `cellExplorerGoTo`), `Stopped` (standing on the tile a
   stop was asked for), `Braked` (a stop that braked at once, wheels still) or `Fault` (`ce.fault`:
-  `NoRoute`, `StuckTurn`, `StuckStep`, `TooManyStops`).
+  `NoRoute`, `StuckTurn`, `StuckStep`, `TooManyStops`, `Unreachable`).
 - The caller's say in what ends the search: `cellExplorerStopHere(ce)` asks for a stop on the tile the
   step is heading for, and `ExploreInput` says each tick whether a stop brakes at once
   (`brakeOnStop`) and whether one is due only once the step has ended (`lateStopOffer`; the explorer
   sets `lateTaken` when it takes it).
+- `cellExplorerGoTo(ce, goal)` - drive to the map tile `goal` (an `ExplorerT<N>::Index`) instead of
+  the nearest unvisited one. Call it standing on a centre, after `Explored` or `Arrived`; it lasts
+  until the next reset.
 - `cellExplorerBeginTurn(ce, fb, dir)` and `cellExplorerTurnStep(...)` - a turn the caller starts
   (the marker exit uses it), with the same retries.
 - `cellExplorerEdgeOpen(ce, dir)`, `cellExplorerHeadingRef(ce)` - the map's view of the tile the
@@ -41,6 +45,15 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 - **Step:** drive one tile. The step reads the walls of the tile ahead 50 mm before its centre;
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
+
+**Goal mode** (`cellExplorerGoTo`) runs the same Sense, Turn and Step; only the choice of the next
+tile differs. The planner is replaced by `explorerRoute` ([maze](maze.md)): the first step of the
+shortest path over checked edges, keeping out of the start tile when another way exists. The way
+ahead is a checked edge, so the explorer does not look again at a silent front, peek or retry it, and
+rolls through a centre when the route goes straight on. It still reads the walls on the way, and a
+wall it finds changes the route. On the goal tile it stops on the centre and returns `Arrived`; with
+no path over checked edges it faults with `Unreachable` and forgets nothing (no rescan). A tile the
+robot drove through but no sensor heard open is not on a route: see the Status.
 
 A requested stop (`cellExplorerStopHere`) means no wall or planner decides the centre any more: the
 step ends on it, and the status is `Stopped`. With `brakeOnStop` the step brakes at once, wherever it
@@ -78,3 +91,10 @@ path is not reached by those tests. Ran on the robot at the mid-evaluation (tag 
 part of the Section A run, before the mission was split. The split changed no output on the host:
 every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the
 robot since.
+
+Goal mode is tested by exploring the Section A arena from four start tiles, then driving to the marker
+tile: it stops within 40 mm, touches no wall and does not cross the start tile; with every checked bit
+cleared the same goal is `Unreachable`. It has not run on the robot. Open question for the Section A
+return (A-02): an edge the robot crossed but no sensor heard open stays unchecked ([maze](maze.md)),
+so a route over it is refused. The noise-free simulation never hit one; a run with missed readings
+has not been tried.

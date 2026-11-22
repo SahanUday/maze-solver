@@ -17,5 +17,6 @@ enum class MissionFault : uint8_t {
     TimeUp,       // set by the caller: the run limit passed before the run ended
     NoLine,       // drove on from the marker and found no line past the gap
     LineLost,     // the line was gone, and searched for in vain
-    BadConfig     // the parts asked for cannot run: not built, or not able to start alone
+    BadConfig,    // the parts asked for cannot run: not built, or not able to start alone
+    Unreachable   // the tile to drive to cannot be reached over edges that were looked at
 };

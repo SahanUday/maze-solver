@@ -208,6 +208,7 @@ inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const 
         case ExploreStatus::Running:
             return PartStatus::Running;
         case ExploreStatus::Explored: // every reachable tile has been entered
+        case ExploreStatus::Arrived:  // (no part asks for a goal yet)
         case ExploreStatus::Stopped:
             return PartStatus::Done;
         case ExploreStatus::Braked:
