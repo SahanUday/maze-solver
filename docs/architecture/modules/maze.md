@@ -31,7 +31,7 @@ Decision:
   planner's scratch and stores nothing.
 - `explorerRoute(e, from, goal, step)` (`Proof.h`) - the first step of the shortest path from `from`
   to `goal` over checked edges only, keeping out of the start tile when another way exists. `false`
-  when there is none or `from` is the goal. The explorer's goal mode drives it.
+  when there is none or `from` is the goal. The explorer's drive-to-tile mode uses it.
 
 ## How it works
 

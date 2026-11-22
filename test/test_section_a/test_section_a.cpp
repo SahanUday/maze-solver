@@ -254,9 +254,9 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
                                   "did not explore it all");
 
         const int entriesBefore = w.startTileEntries;
-        cellExplorerGoTo(ce, static_cast<maze::Explorer::Index>(mapIndexOf(
-                                 w.arena.markerI, w.arena.markerJ, st.i, st.j, st.facing)));
-        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::Arrived),
+        cellExplorerDriveTo(ce, static_cast<maze::Explorer::Index>(mapIndexOf(
+                                    w.arena.markerI, w.arena.markerJ, st.i, st.j, st.facing)));
+        TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::AtTarget),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
         const float dx =
             static_cast<float>(w.x) - world::PITCH * static_cast<float>(w.arena.markerI);
@@ -271,11 +271,12 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
         for (uint8_t &c : ce.map.cell) {
             c = static_cast<uint8_t>(c & 0x0F);
         }
-        cellExplorerGoTo(ce, maze::kStartCell);
+        cellExplorerDriveTo(ce, maze::kStartCell);
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::Fault),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)),
-                                  "a goal over unchecked edges did not fault");
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::Unreachable), static_cast<int>(ce.fault));
+                                  "a target over unchecked edges did not fault");
+        TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::TargetUnreachable),
+                          static_cast<int>(ce.fault));
     }
 }
 
