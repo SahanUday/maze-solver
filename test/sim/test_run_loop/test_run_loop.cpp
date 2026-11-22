@@ -177,7 +177,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
         }
         TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(rl.mission.phase));
         TEST_ASSERT_TRUE(worstMm < 45.0f);
-        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+        TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
     }
 }
 

@@ -1,7 +1,8 @@
 # spec/
 
-Every constant the firmware and the host tests use, in one folder per reason a value changes
+Every constant the firmware uses, in one folder per reason a value changes
 ([ADR 0020](../../docs/architecture/decisions/0020-group-the-spec-constants-by-why-they-change.md)).
+The host tests read them from here too; numbers only the simulator needs are in `test/model/`.
 
 | Folder | Holds | Edit it when |
 |---|---|---|

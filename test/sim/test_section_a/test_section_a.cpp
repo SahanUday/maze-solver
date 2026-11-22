@@ -130,8 +130,8 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
                 TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the white tile");
                 TEST_ASSERT_TRUE_MESSAGE(mapMatchesTruth(w, ms, i, j, facing),
                                          "map position wrong");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
-                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > world::BODY_HALF_MM - 15.0f,
+                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > model::BODY_HALF_MM - 15.0f,
                                          "rubbed a wall");
                 reentered += w.startTileEntries > 0 ? 1 : 0;
                 ++runs;
@@ -205,7 +205,7 @@ static void test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start
             TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                       static_cast<int>(o.phase), "did not reach the marker");
             TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the marker");
-            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         }
     }
 }
@@ -265,7 +265,7 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::AtTarget),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
         TEST_ASSERT_TRUE_MESSAGE(markerOffsetMm(w) < 40.0f, "stopped off the marker tile");
-        TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+        TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.startTileEntries, "crossed the start tile");
 
         // Forget that any edge was looked at (the walls stay): there is a way to the start tile,
@@ -315,7 +315,7 @@ static void test_a_wall_in_the_front_sensors_dead_zone_is_taken_as_a_wall()
     begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
     TEST_ASSERT_EQUAL_UINT16(0, ms.explore.blocked); // taken as a wall without driving at it
 }
 
@@ -337,7 +337,7 @@ static void test_a_stop_no_wall_explains_is_resumed_to_the_centre()
     TEST_ASSERT_TRUE(ms.explore.resumes == 0); // reset once the centre was reached
     TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
     TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, 3, 0, 1));
-    TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+    TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
 }
 
 static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
@@ -355,7 +355,7 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
             const Outcome o = run(w, ms, stopAtMarker());
             TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
             TEST_ASSERT_TRUE(o.tileOffsetMm < 40.0f);
-            TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+            TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
             TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, i, j, (i + j) & 3));
         }
     }
@@ -372,7 +372,7 @@ static void test_gyro_scale_and_drift_are_taken_out_by_the_walls()
     begin(ms);
     const Outcome o = run(w, ms, stopAtMarker());
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_TRUE(w.minSideMm > world::BODY_HALF_MM - 15.0f);
+    TEST_ASSERT_TRUE(w.minSideMm > model::BODY_HALF_MM - 15.0f);
 }
 
 // Wheels that need the measured duty to start and more to keep rolling than the model's
@@ -398,7 +398,7 @@ static void test_every_start_finishes_on_wheels_that_roll_hard()
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
             }
         }
     }
@@ -424,8 +424,8 @@ static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
                 const Outcome o = run(w, ms, stopAtMarker());
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
-                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
-                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > world::BODY_HALF_MM - 15.0f,
+                TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
+                TEST_ASSERT_TRUE_MESSAGE(w.minSideMm > model::BODY_HALF_MM - 15.0f,
                                          "rubbed a wall");
             }
         }
@@ -492,7 +492,7 @@ static void test_the_marker_leads_over_the_gap_and_onto_the_line()
         TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
         TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
         TEST_ASSERT_TRUE(o.onRampSeen);
-        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+        TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
     }
 }
 
@@ -514,7 +514,7 @@ static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
                                       static_cast<int>(o.phase), "not following the line");
             TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
             TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
-            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > world::NOSE_MM - 1.0f, "hit a wall");
+            TEST_ASSERT_TRUE_MESSAGE(w.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         }
     }
 }
@@ -548,7 +548,7 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
                                   "did not leave by the side");
         TEST_ASSERT_TRUE(ms.marker.sideExit); // it turned
         TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
-        TEST_ASSERT_TRUE(w.minNoseMm > world::NOSE_MM - 1.0f);
+        TEST_ASSERT_TRUE(w.minNoseMm > model::NOSE_MM - 1.0f);
     }
 }
 

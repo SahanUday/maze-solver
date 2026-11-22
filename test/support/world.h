@@ -15,8 +15,11 @@
 #include "spec/measurements/Arena.h"
 #include "spec/measurements/Robot.h"
 #include "spec/tuning/Imu.h"
-#include "spec/tuning/Motion.h"
 #include "core/RobotState.h"
+#include "../model/Infrared.h"
+#include "../model/Plant.h"
+#include "../model/Sensors.h"
+#include "../model/Terrain.h"
 #include "Fingerprint.h"
 
 namespace world
@@ -38,19 +41,12 @@ struct Lcg {
 constexpr int N = SECTION_A_SIZE_TILES;
 constexpr float PITCH = TILE_PITCH_MM;
 constexpr float WALL_T = WALL_THICKNESS_MM;
-constexpr float NOSE_MM = 89.0f;      // axle to the front of the body (assumed)
-constexpr float BODY_HALF_MM = 90.0f; // axle half width over the tyres
 constexpr float ARRAY_AHEAD_MM = IR_ARRAY_FORWARD_OFFSET_MM; // IR array ahead of the axle
-constexpr int16_t WHITE_COUNTS = 500;                        // channel k reads this + 6k on white
-constexpr int16_t BLACK_COUNTS = 990;                        // the maze floor reads 976-1013
-constexpr int16_t AIR_COUNTS = 1020;                         // nothing under the array
 // The floor beyond the marker tile's open edge is BRIDGE_OUT_* (Arena.h). On the white board the
 // black line runs straight to LINE_STRAIGHT_TO_MM from the tile's centre, then bends to the left.
 constexpr float LINE_STRAIGHT_TO_MM = 800.0f;
 constexpr float BAR_LENGTH_MM = 1500.0f; // the bend's bar, to the left of the line's end
 constexpr float LINE_HALF_MM = BRIDGE_OUT_LINE_WIDTH_MM / 2;
-constexpr float RAMP_SLOPE_DEG = 10.0f; // the ramp's slope, from the board's start for 300 mm
-constexpr float RAMP_LENGTH_MM = 300.0f;
 
 struct Rect {
     float x0, x1, y0, y1;
@@ -175,12 +171,12 @@ struct Arena {
 
 // Knobs a test turns.
 struct Faults {
-    float noiseMm = 3.0f;      // ultrasonic noise, 1 sigma
-    float dropout = 0.0f;      // chance a reading gets no echo
-    float strayNear = 0.0f;    // chance a wall reading is a false short echo (30 to 100 mm)
-    float gyroScale = 1.0015f; // measured 1.001 to 1.002
+    float noiseMm = model::US_NOISE_MM; // ultrasonic noise, 1 sigma
+    float dropout = 0.0f;               // chance a reading gets no echo
+    float strayNear = 0.0f; // chance a wall reading is a false short echo (30 to 100 mm)
+    float gyroScale = model::GYRO_SCALE_ERROR;
     float gyroDriftDps = 0.0f;
-    float odometerScale = 1.003f; // true mm per count over the spec's
+    float odometerScale = model::ODOMETER_SCALE;
     // Something close in front (a hand, a dropped part) between these times: the front reads 70 mm.
     uint32_t obstacleFromMs = 0;
     uint32_t obstacleToMs = 0;
@@ -199,7 +195,7 @@ struct World {
     // Wheels: a stopped one needs MOTOR_MIN_PWM_* x `sticking` duty to start (1 = the values
     // measured on the floor), a rolling one `sustain` x (`sustainRight` for the right) to go on.
     float sticking = 1.0f;
-    double sustain = 110.0; // the wheels kept going down to duty 100-120 on the stand
+    double sustain = model::KEEP_ROLLING_DUTY;
     double sustainRight = 1.0;
 
     RobotState state;
@@ -256,11 +252,11 @@ struct World {
         lineCalibrationReset(cal);
         uint16_t counts[IR_CHANNEL_COUNT];
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = static_cast<uint16_t>(WHITE_COUNTS + 6 * ch);
+            counts[ch] = model::WHITE.on(ch);
         }
         lineCalibrationAccumulate(cal, counts);
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = BLACK_COUNTS;
+            counts[ch] = model::BLACK.on(ch);
         }
         lineCalibrationAccumulate(cal, counts);
         lineCalibrationFinish(cal);
@@ -269,8 +265,9 @@ struct World {
 
     int16_t gyroCounts(double rateDps)
     {
-        const double c = rateDps * GYRO_COUNTS_PER_DPS * faults.gyroScale + 3.0 +
-                         faults.gyroDriftDps * GYRO_COUNTS_PER_DPS + rng.g() * 2.4;
+        const double c = rateDps * GYRO_COUNTS_PER_DPS * faults.gyroScale +
+                         model::GYRO_OFFSET_COUNTS + faults.gyroDriftDps * GYRO_COUNTS_PER_DPS +
+                         rng.g() * model::GYRO_NOISE_COUNTS;
         return static_cast<int16_t>(lround(c));
     }
 
@@ -279,6 +276,8 @@ struct World {
         const float a = angleDeg * 0.0174533f;
         return arena.ray(static_cast<float>(x), static_cast<float>(y), cosf(a), sinf(a));
     }
+
+    static constexpr float RANGE_CAP_MM = US_RANGE_CAP_MM;
 
     void sampleUltrasonic(int slot)
     {
@@ -290,11 +289,11 @@ struct World {
         const float yaw = static_cast<float>(yawDeg);
         const float angle = yaw + (slot == 0 ? 0.0f : (slot == 1 ? 90.0f : -90.0f));
         const float d = rayFromAxle(angle);
-        if (slot == 0 && (d - US_OFFSET_FRONT_MM < 30.0f || d > 2500.0f)) {
+        if (slot == 0 && (d - US_OFFSET_FRONT_MM < model::US_DEAD_ZONE_MM || d > RANGE_CAP_MM)) {
             valid = static_cast<uint8_t>(valid & ~1u); // the sensor's dead zone, or out of range
             return;
         }
-        float mm = (d > 2500.0f ? 2500.0f : d) + rng.g() * faults.noiseMm;
+        float mm = (d > RANGE_CAP_MM ? RANGE_CAP_MM : d) + rng.g() * faults.noiseMm;
         if (slot == 0 && tMs >= faults.obstacleFromMs && tMs < faults.obstacleToMs) {
             mm = 70.0f + rng.g() * faults.noiseMm;
         }
@@ -325,9 +324,9 @@ struct World {
     // What one channel reads under a point of the floor.
     uint16_t countsAt(float px, float py, uint8_t ch) const
     {
-        const uint16_t white = static_cast<uint16_t>(WHITE_COUNTS + 6 * ch);
+        const uint16_t white = model::WHITE.on(ch);
         if (arena.markerI < 0) {
-            return BLACK_COUNTS;
+            return model::BLACK.on(ch);
         }
         float along = 0.0f;
         float lat = 0.0f;
@@ -338,18 +337,16 @@ struct World {
             const float dy = fabsf(py - PITCH * static_cast<float>(arena.markerJ));
             const float b = MARKER_A_BOX_MM / 2;
             const float o = b + MARKER_A_FRAME_MM;
-            return dx < o && dy < o && !(dx < b && dy < b) ? white
-                                                           : static_cast<uint16_t>(BLACK_COUNTS);
+            return dx < o && dy < o && !(dx < b && dy < b) ? white : model::BLACK.on(ch);
         }
         if (along < BRIDGE_OUT_GAP_FROM_MM) {
-            return BLACK_COUNTS;
+            return model::BLACK.on(ch);
         }
         if (along < BRIDGE_OUT_GAP_TO_MM) {
-            return gapIsDark ? static_cast<uint16_t>(BLACK_COUNTS)
-                             : static_cast<uint16_t>(AIR_COUNTS);
+            return gapIsDark ? model::BLACK.on(ch) : model::AIR.on(ch);
         }
         if (along < BRIDGE_OUT_BOARD_FROM_MM) {
-            return BLACK_COUNTS;
+            return model::BLACK.on(ch);
         }
         if (lineGone) {
             return white;
@@ -357,7 +354,7 @@ struct World {
         const bool straight = along <= LINE_STRAIGHT_TO_MM && fabsf(lat) < LINE_HALF_MM;
         const bool bend = fabsf(along - LINE_STRAIGHT_TO_MM) < LINE_HALF_MM &&
                           lat >= -LINE_HALF_MM && lat <= BAR_LENGTH_MM;
-        return straight || bend ? static_cast<uint16_t>(BLACK_COUNTS) : white;
+        return straight || bend ? model::BLACK.on(ch) : white;
     }
 
     // The array centre's distance along the exit direction.
@@ -418,8 +415,9 @@ struct World {
         exitFrame(static_cast<float>(x), static_cast<float>(y), along, lat);
         float counts = 0.0f;
         if (arena.markerI >= 0 && along >= BRIDGE_OUT_BOARD_FROM_MM &&
-            along <= BRIDGE_OUT_BOARD_FROM_MM + RAMP_LENGTH_MM) {
-            counts = static_cast<float>(IMU_ACCEL_ONE_G_COUNTS) * sinf(RAMP_SLOPE_DEG * 0.0174533f);
+            along <= BRIDGE_OUT_BOARD_FROM_MM + model::RAMP_LENGTH_MM) {
+            counts = static_cast<float>(IMU_ACCEL_ONE_G_COUNTS) *
+                     sinf(model::RAMP_SLOPE_DEG * 0.0174533f);
         }
         counts = IMU_ACCEL_NOSE_UP_NEGATIVE ? -counts : counts;
         return static_cast<int16_t>(IMU_ACCEL_FORWARD_LEVEL_COUNTS + counts);
@@ -455,8 +453,8 @@ struct World {
         const int n = CONTROL_LOOP_PERIOD_MS;
         const double duty[2] = {cmd.enable ? static_cast<double>(cmd.left) : 0.0,
                                 cmd.enable ? static_cast<double>(cmd.right) : 0.0};
-        const double kL = FEEDFORWARD_PWM_PER_MM_S;
-        const double k[2] = {kL, kL / 0.8}; // the right wheel is weaker
+        const double kL = model::WHEEL_DUTY_PER_MM_S;
+        const double k[2] = {kL, kL / model::RIGHT_WHEEL_GAIN};
         const double start[2] = {MOTOR_MIN_PWM_L * sticking, MOTOR_MIN_PWM_R * sticking};
         for (int step = 0; step < n; ++step) {
             for (int w = 0; w < 2; ++w) {
@@ -467,9 +465,9 @@ struct World {
                 if (a >= keep && (fabs(v[w]) > 2.0 || a >= start[w])) {
                     ss = sgn * (a - keep) / k[w];
                 }
-                v[w] += (ss - v[w]) * (0.001 / 0.02);
+                v[w] += (ss - v[w]) * (0.001 / model::WHEEL_LAG_S);
                 // The body is stopped by the wall in front of it.
-                if (v[0] + v[1] > 0 && rayFromAxle(static_cast<float>(yawDeg)) <= NOSE_MM) {
+                if (v[0] + v[1] > 0 && rayFromAxle(static_cast<float>(yawDeg)) <= model::NOSE_MM) {
                     v[w] = 0.0;
                 }
                 pos[w] += v[w] * 0.001;
