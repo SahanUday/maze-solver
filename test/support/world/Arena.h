@@ -117,6 +117,45 @@ struct Arena {
         }
         return best;
     }
+
+    // Distance from a point to the nearest wall face; FAR_MM if none.
+    float clearance(float px, float py) const
+    {
+        float best = FAR_MM * FAR_MM;
+        for (int k = 0; k < rects; ++k) {
+            const float gx = fmaxf(fmaxf(rect[k].x0 - px, px - rect[k].x1), 0.0f);
+            const float gy = fmaxf(fmaxf(rect[k].y0 - py, py - rect[k].y1), 0.0f);
+            const float d2 = gx * gx + gy * gy;
+            best = d2 < best ? d2 : best;
+        }
+        return sqrtf(best);
+    }
+};
+
+// The clearance of a point, kept while the point stays well inside it: no ray from there can be
+// shorter, so most asks for "is a wall within reach?" need no ray. Forget it when the walls change.
+struct Clearance {
+    float x = 0.0f;
+    float y = 0.0f;
+    float mm = -1.0f; // < 0: nothing kept
+
+    // True only if no wall is within `reach` of the point; false means "look and see".
+    bool beyond(const Arena &arena, float px, float py, float reach)
+    {
+        constexpr float MARGIN_MM = 0.05f;
+        if (mm >= 0.0f && mm - hypotf(px - x, py - y) > reach + MARGIN_MM) {
+            return true;
+        }
+        x = px;
+        y = py;
+        mm = arena.clearance(px, py);
+        return mm > reach + MARGIN_MM;
+    }
+
+    void forget()
+    {
+        mm = -1.0f;
+    }
 };
 
 } // namespace world

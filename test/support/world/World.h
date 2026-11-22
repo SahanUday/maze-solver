@@ -40,6 +40,12 @@ struct Metrics {
         startJ = lastJ = j;
     }
 
+    // No wall farther than this can lower either minimum.
+    float reach() const
+    {
+        return minNoseMm > minSideMm ? minNoseMm : minSideMm;
+    }
+
     void track(int i, int j, float frontMm, float leftMm, float rightMm)
     {
         minNoseMm = frontMm < minNoseMm ? frontMm : minNoseMm;
@@ -90,6 +96,7 @@ struct World {
         plant.x = PITCH * i + offX;
         plant.y = PITCH * j + offY;
         plant.yawDeg = 90.0 * facing + offYaw;
+        plant.clearance.forget();
         metrics.begin(i, j);
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
         gyroBiasReset(bias);
@@ -169,9 +176,17 @@ struct World {
         tMs += CONTROL_LOOP_PERIOD_MS;
         trace(cmd, plant.x, plant.y, plant.yawDeg, plant.v[0], plant.v[1]);
 
-        const float yaw = static_cast<float>(plant.yawDeg);
-        metrics.track(cellI(), cellJ(), plant.ray(arena, yaw), plant.ray(arena, yaw + 90.0f),
-                      plant.ray(arena, yaw - 90.0f));
+        float front = FAR_MM;
+        float left = FAR_MM;
+        float right = FAR_MM;
+        if (!plant.clearance.beyond(arena, static_cast<float>(plant.x), static_cast<float>(plant.y),
+                                    metrics.reach())) {
+            const float yaw = static_cast<float>(plant.yawDeg);
+            front = plant.ray(arena, yaw);
+            left = plant.ray(arena, yaw + 90.0f);
+            right = plant.ray(arena, yaw - 90.0f);
+        }
+        metrics.track(cellI(), cellJ(), front, left, right);
     }
 };
 

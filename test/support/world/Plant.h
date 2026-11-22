@@ -29,6 +29,7 @@ struct Plant {
     float sticking = 1.0f;
     double sustain = model::KEEP_ROLLING_DUTY;
     double sustainRight = 1.0;
+    Clearance clearance;
 
     float headingRad() const
     {
@@ -50,6 +51,14 @@ struct Plant {
         return arena.ray(static_cast<float>(x), static_cast<float>(y), cosf(a), sinf(a));
     }
 
+    // The wall in front is within the nose.
+    bool blocked(const Arena &arena)
+    {
+        const float nose = model::NOSE_MM;
+        return !clearance.beyond(arena, static_cast<float>(x), static_cast<float>(y), nose) &&
+               ray(arena, static_cast<float>(yawDeg)) <= nose;
+    }
+
     // One control tick of `cmd`.
     void step(const DriveCommand &cmd, const Arena &arena)
     {
@@ -69,7 +78,7 @@ struct Plant {
                 }
                 v[w] += (ss - v[w]) * (STEP_S / model::WHEEL_LAG_S);
                 // The body is stopped by the wall in front of it.
-                if (v[0] + v[1] > 0 && ray(arena, static_cast<float>(yawDeg)) <= model::NOSE_MM) {
+                if (v[0] + v[1] > 0 && blocked(arena)) {
                     v[w] = 0.0;
                 }
                 pos[w] += v[w] * STEP_S;
