@@ -4,9 +4,9 @@
 
 #include <math.h>
 
-#include "../../model/Plant.h"
+#include "../../model/Chassis.h"
 #include "Arena.h"
-#include "Units.h"
+#include "Angles.h"
 #include "motion/DriveCommand.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/measurements/Robot.h"
@@ -29,7 +29,7 @@ struct Plant {
     float sticking = 1.0f;
     double sustain = model::KEEP_ROLLING_DUTY;
     double sustainRight = 1.0;
-    Clearance clearance;
+    ClearanceCache clearance;
 
     float headingRad() const
     {
@@ -55,7 +55,7 @@ struct Plant {
     bool blocked(const Arena &arena)
     {
         const float nose = model::NOSE_MM;
-        return !clearance.beyond(arena, static_cast<float>(x), static_cast<float>(y), nose) &&
+        return !clearance.noWallWithin(arena, static_cast<float>(x), static_cast<float>(y), nose) &&
                ray(arena, static_cast<float>(yawDeg)) <= nose;
     }
 

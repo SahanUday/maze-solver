@@ -34,14 +34,14 @@ constexpr Level AIR{1021.0f, 1023.0f, 0.7f}; // nothing under the array
 
 // ---- Other floors --------------------------------------------- [MEASURED] --
 // The same runs; the spread of a reading is not known for them, so it is the maze floor's.
-constexpr Level TAPE{1002.0f, 1009.0f, 3.4f}; // black tape on the board
-constexpr Level WHITE{778.0f, 851.0f, 3.4f};  // the calibration's white
-constexpr Level BOARD{830.0f, 880.0f, 3.4f};  // the white board
+constexpr Level TAPE{1002.0f, 1009.0f, 3.4f};       // black tape on the board
+constexpr Level MARKER_WHITE{778.0f, 851.0f, 3.4f}; // the calibration's white
+constexpr Level BOARD{830.0f, 880.0f, 3.4f};        // the white board
 
 // ---- Gap and finish --------------------------------------- <<TBD HARDWARE>> --
 // The gap before the ramp read 915-1010 on the first real run (PR #40) and 1016-1023 on PR #28's
 // scans; one of them is wrong (#54). The finish tile is a guess: it reads like the marker's white.
 constexpr Level GAP_DARK{915.0f, 1010.0f, 3.4f};
-constexpr Level FINISH = WHITE;
+constexpr Level FINISH = MARKER_WHITE;
 
 } // namespace model

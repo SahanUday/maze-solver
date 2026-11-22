@@ -50,7 +50,7 @@ inline Fingerprint &fingerprint()
 }
 
 // What the robot senses this tick.
-inline void trace(const RobotState &s)
+inline void hashSensed(const RobotState &s)
 {
     Fingerprint &f = fingerprint();
     ++f.ticks;
@@ -69,7 +69,8 @@ inline void trace(const RobotState &s)
 }
 
 // What the robot commanded, and where the plant is after it.
-inline void trace(const DriveCommand &c, double x, double y, double yawDeg, double vL, double vR)
+inline void hashCommanded(const DriveCommand &c, double x, double y, double yawDeg, double vL,
+                          double vR)
 {
     Fingerprint &f = fingerprint();
     f.add(static_cast<int64_t>(c.left));
@@ -89,8 +90,8 @@ inline void trace(const DriveCommand &c, double x, double y, double yawDeg, doub
 namespace world
 {
 
-inline void trace(const RobotState &) {}
-inline void trace(const DriveCommand &, double, double, double, double, double) {}
+inline void hashSensed(const RobotState &) {}
+inline void hashCommanded(const DriveCommand &, double, double, double, double, double) {}
 
 } // namespace world
 

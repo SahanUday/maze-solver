@@ -149,7 +149,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
 {
     for (int facing : {0, 2}) {
         World w;
-        world::photo(w);
+        world::photoMaze(w);
         w.start(2, 1, facing);
         const LineCalibration cal = World::calibration();
         RunLoop rl;

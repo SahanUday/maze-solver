@@ -16,13 +16,13 @@ enum class Gap : uint8_t {
 };
 
 // Past marker A's tile the black line runs straight to this far from the tile's centre, then bends
-// to the left along a bar of BAR_LENGTH_MM.
-constexpr float LINE_STRAIGHT_TO_MM = 800.0f;
-constexpr float BAR_LENGTH_MM = 1500.0f;
+// to the left along a bar of BRIDGE_OUT_BAR_MM.
+constexpr float BRIDGE_OUT_STRAIGHT_TO_MM = 800.0f;
+constexpr float BRIDGE_OUT_BAR_MM = 1500.0f;
 
 // Marker A on tile (markerI, markerJ), the way out through its `exitDir` side: the strip, the gap,
 // the white board with its line and the ramp.
-inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap::Dark)
+inline Floor bridgeOutFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap::Dark)
 {
     Floor f;
     f.frame = {PITCH * static_cast<float>(markerI), PITCH * static_cast<float>(markerJ), exitDir};
@@ -33,8 +33,8 @@ inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap:
               gap == Gap::Dark ? Surface::GapDark : Surface::Air);
     f.addBand(BRIDGE_OUT_BOARD_FROM_MM, FAR_MM, Surface::Board);
     const Point line[] = {{BRIDGE_OUT_BOARD_FROM_MM, 0.0f},
-                          {LINE_STRAIGHT_TO_MM, 0.0f},
-                          {LINE_STRAIGHT_TO_MM, BAR_LENGTH_MM}};
+                          {BRIDGE_OUT_STRAIGHT_TO_MM, 0.0f},
+                          {BRIDGE_OUT_STRAIGHT_TO_MM, BRIDGE_OUT_BAR_MM}};
     f.addLine(line, BRIDGE_OUT_LINE_WIDTH_MM);
     f.addRamp(BRIDGE_OUT_BOARD_FROM_MM, BRIDGE_OUT_BOARD_FROM_MM + model::RAMP_LENGTH_MM,
               model::RAMP_SLOPE_DEG);
@@ -43,10 +43,10 @@ inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap:
 
 // The team's Section A maze (the photo): the marker tile is its top-left corner, closed on both
 // sides and open to the north, where the line leaves the maze.
-inline void photo(World &w, Gap gap = Gap::Dark)
+inline void photoMaze(World &w, Gap gap = Gap::Dark)
 {
     Arena &a = w.arena;
-    a.clear(SECTION_A_SIZE_TILES);
+    a.reset(SECTION_A_SIZE_TILES);
     a.closeOuterWalls();
     a.side(0, a.n - 1, 1) = false;
     const struct {
@@ -59,7 +59,7 @@ inline void photo(World &w, Gap gap = Gap::Dark)
         a.side(e.col, a.n - 1 - e.row, e.side == 'E' ? 0 : 3) = true;
     }
     a.build();
-    w.floor = sectionAFloor(0, a.n - 1, 1, gap);
+    w.floor = bridgeOutFloor(0, a.n - 1, 1, gap);
 }
 
 // ---- The way into Section B ------------------------------------------------------------------
@@ -72,7 +72,7 @@ struct Entry {
 };
 
 // The two sides of each corner tile that face out of the arena (0 east, 1 north, 2 west, 3 south).
-constexpr int OUTWARD[4][2] = {{2, 3}, {0, 3}, {0, 1}, {2, 1}};
+constexpr int CORNER_OUTER_SIDES[4][2] = {{2, 3}, {0, 3}, {0, 1}, {2, 1}};
 
 // The line, from its far end to the entry tile, in the floor's frame: the way out of the entry tile
 // and across it. The ramp climbs to a crest at BRIDGE_IN_CREST_MM; layout, not measured.
@@ -90,7 +90,7 @@ inline void bridgeIn(World &w, const Entry &e)
 {
     Arena &a = w.arena;
     const int n = e.size;
-    a.clear(n);
+    a.reset(n);
     const mazegen::RandomMaze m =
         mazegen::randomMaze(static_cast<uint8_t>(n), e.seed, static_cast<uint8_t>(n));
     for (int r = 0; r < n; ++r) {
@@ -104,7 +104,7 @@ inline void bridgeIn(World &w, const Entry &e)
     }
     const int ei = (e.corner == 1 || e.corner == 2) ? n - 1 : 0;
     const int ej = (e.corner == 2 || e.corner == 3) ? n - 1 : 0;
-    const int out = OUTWARD[e.corner][e.opening];
+    const int out = CORNER_OUTER_SIDES[e.corner][e.opening];
     a.side(ei, ej, out) = false;
     a.build();
 

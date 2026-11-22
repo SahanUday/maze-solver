@@ -152,7 +152,7 @@ pio test -e native
 pio test -e native_san
 pio test -e native_cov && scripts/check-coverage.sh   # needs: pip install -r requirements-ci.txt
 ```
-Add `-f unit/test_scheduler` to run one suite, or `-f "sim/*"` for a tier. Coverage only measures files that some
+Add `-f unit/test_scheduler` to run one suite, or `-f "integration/*"` for a tier. Coverage only measures files that some
 test compiles, so on its own it would let a brand-new untested header slip
 through. `scripts/check-untested-headers.py` closes that: a header under
 `include/` or `lib/` that contains a function body must be in the coverage
@@ -172,14 +172,14 @@ register code isn't.
 | Tier | Holds |
 |---|---|
 | `test/unit/` | one header or module, in milliseconds. A few (`test_motion_primitives`, `test_step_cell`) run closed loop on `support/sim.h`, a plant with generic numbers that does not follow the robot's tuning |
-| `test/sim/` | the mission in the host world, and the world itself: `test_section_a`, `test_run_loop`, `test_world` |
-| `test/support/` | shared fixtures, not suites: `sim.h`, `world/` (the host world), `MazeGen.h` (seeded random mazes), `Fingerprint.h` |
+| `test/integration/` | the mission in the host world, and the world itself: `test_section_a`, `test_run_loop`, `test_host_world` |
+| `test/support/` | shared fixtures, not suites: `sim.h`, `world/` (the host world), `MazeGen.h` (seeded random mazes), `Seed.h` (one master seed), `Fingerprint.h` |
 | `test/model/` | the numbers only the simulator needs: IR levels, plant, noise, ramp |
 
 Current suites: `test_scheduler`, `test_quadrature`, `test_motor_drive`, `test_line_sense`, `test_line_view`,
 `test_floor_pattern`, `test_line_follow`, `test_ultrasonic`, `test_heading`, `test_tilt`, `test_odometry`,
 `test_motion_profile`, `test_motion_control`, `test_motion_primitives`, `test_wall_sense`, `test_perception`,
-`test_step_cell` and `test_maze` (all in `unit/`), and `test_section_a`, `test_run_loop` and `test_world` (in `sim/`).
+`test_step_cell` and `test_maze` (all in `unit/`), and `test_section_a`, `test_run_loop` and `test_host_world` (in `integration/`).
 A test file looks like this (Unity is the test framework):
 ```cpp
 #include <unity.h>
@@ -211,7 +211,7 @@ true as the numbers in it. It is built in layers, one header each, behind one do
 | Plant | `Plant.h` | two wheels with stiction, the pose, the wall that stops the nose |
 | Sensors | `Sensors.h` | echoes, gyro counts, the IR array, the accelerometer axis |
 | World | `World.h` | the door: `start`, `sense`, `drive`, `metrics`; what the firmware reads, run through `perceive()` |
-| Presets | `Presets.h` | `photo()` (Section A), `bridgeIn()` (the line board and a maze behind it, entered at any corner and either outer wall), `startOnLine`, `startOnEntryTile` |
+| Presets | `Presets.h` | `photoMaze()` (Section A), `bridgeIn()` (the line board and a maze behind it, entered at any corner and either outer wall), `startOnLine`, `startOnEntryTile` |
 
 **Numbers.** The world reads `spec/measurements/` and `spec/fixed/` for what the firmware also uses,
 and `test/model/` for what only it needs; never `spec/tuning/`, which is the firmware's choice and not
@@ -229,14 +229,14 @@ on fixed streams. Each new noise source gets a stream of its own (`World::irRng`
 `test_maze.cpp:603: ...: a bound above the truth [seed 7]`. To replay, give that number to
 `World::seed` or `randomMaze` in a test of its own.
 
-**Checking the world.** `test_world` checks what the world draws and its shortcuts: each surface reads
+**Checking the world.** `test_host_world` checks what the world draws and its shortcuts: each surface reads
 its level, only air reads as air (the air threshold that failed on the robot fails it), the board
 meets the entry tile from every corner and opening, and the clearance shortcut never hides a wall the
 brute-force ray would hit.
 
 **Changing the world without changing a tick.** Build with `-DWORLD_FINGERPRINT` and compare the line
-each sim suite prints at exit before and after:
-`PLATFORMIO_BUILD_FLAGS=-DWORLD_FINGERPRINT pio test -e native -f "sim/*" -vv | grep FINGERPRINT`.
+each integration suite prints at exit before and after:
+`PLATFORMIO_BUILD_FLAGS=-DWORLD_FINGERPRINT pio test -e native -f "integration/*" -vv | grep FINGERPRINT`.
 The same `ticks` and `hash` mean the robot sensed and commanded the same at every tick. A change
 meant to alter the readings, such as new levels, changes the line on purpose: keep it a commit of its
 own.

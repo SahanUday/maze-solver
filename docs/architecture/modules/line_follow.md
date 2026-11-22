@@ -1,7 +1,7 @@
 # line_follow
 
 Following the black line on the white ramp and bridge tiles. Pure logic in `include/motion/LineFollow.h`,
-tested by `test/unit/test_line_follow/` and, closed loop, by `test/sim/test_section_a/`. It sits on the line
+tested by `test/unit/test_line_follow/` and, closed loop, by `test/integration/test_section_a/`. It sits on the line
 view ([line_view](line_view.md)); the mission manager ([mission_manager](mission_manager.md)) hands over to it at the
 first line view past the gap ([floor_pattern](floor_pattern.md)).
 

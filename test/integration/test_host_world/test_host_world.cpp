@@ -1,6 +1,6 @@
 // ============================================================================
-//  test_world.cpp  --  the host world itself: what it draws and how it shortcuts. The mission tests
-//  trust it, so these check it first. No hardware needed.
+//  test_host_world.cpp  --  the host world itself: what it draws and how it shortcuts. The mission
+//  tests trust it, so these check it first. No hardware needed.
 // ============================================================================
 
 #include <initializer_list>
@@ -15,7 +15,7 @@ using namespace world;
 static Arena randomArena(int n, float density, Lcg &rng)
 {
     Arena a;
-    a.clear(n);
+    a.reset(n);
     for (int j = 0; j < n; ++j) {
         for (int i = 0; i < n; ++i) {
             a.side(i, j, 0) = rng.u() < density;
@@ -27,8 +27,8 @@ static Arena randomArena(int n, float density, Lcg &rng)
     return a;
 }
 
-// The brute-force ray is the reference: where beyond() says no wall is near, none is.
-static void test_beyond_never_hides_a_wall_a_ray_would_hit()
+// The brute-force ray is the reference: where noWallWithin() says no wall is near, none is.
+static void test_the_clearance_shortcut_never_hides_a_wall_a_ray_would_hit()
 {
     const float reach = model::NOSE_MM;
     int skipped = 0;
@@ -38,13 +38,13 @@ static void test_beyond_never_hides_a_wall_a_ray_would_hit()
         Lcg rng{seeds::derive(master, seeds::MAZE)};
         const Arena a = randomArena(MAX_TILES, 0.35f, rng);
         for (int walk = 0; walk < 25; ++walk) {
-            Clearance cached;
+            ClearanceCache cached;
             float x = rng.u() * (MAX_TILES - 1) * PITCH;
             float y = rng.u() * (MAX_TILES - 1) * PITCH;
             for (int step = 0; step < 300; ++step) {
                 x += (rng.u() - 0.5f) * 2.0f;
                 y += (rng.u() - 0.5f) * 2.0f;
-                if (!cached.beyond(a, x, y, reach)) {
+                if (!cached.noWallWithin(a, x, y, reach)) {
                     ++looked;
                     continue;
                 }
@@ -109,8 +109,8 @@ static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
                 bridgeIn(w, {size, corner, opening, seeds::derive(master, seeds::MAZE)});
                 const int ei = w.floor.originI();
                 const int ej = w.floor.originJ();
-                const int out = OUTWARD[corner][opening];
-                const int other = OUTWARD[corner][1 - opening];
+                const int out = CORNER_OUTER_SIDES[corner][opening];
+                const int other = CORNER_OUTER_SIDES[corner][1 - opening];
                 TEST_ASSERT_EQUAL(out, w.floor.frame.dir);
                 TEST_ASSERT_FALSE(w.arena.side(ei, ej, out));
                 TEST_ASSERT_TRUE(w.arena.side(ei, ej, other));
@@ -222,7 +222,7 @@ static void test_one_master_seed_replays_a_run_and_another_changes_it()
     const uint32_t masters[3] = {5u, 5u, 6u};
     for (int k = 0; k < 3; ++k) {
         World w;
-        photo(w);
+        photoMaze(w);
         w.seed(masters[k]);
         w.start(1, 1, 0);
         for (int t = 0; t < 200; ++t) {
@@ -250,7 +250,7 @@ void tearDown(void)
 int main()
 {
     UNITY_BEGIN();
-    RUN_TEST(test_beyond_never_hides_a_wall_a_ray_would_hit);
+    RUN_TEST(test_the_clearance_shortcut_never_hides_a_wall_a_ray_would_hit);
     RUN_TEST(test_the_board_meets_the_entry_tile_from_any_corner_and_opening);
     RUN_TEST(test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run);
     RUN_TEST(test_each_surface_reads_its_level_and_only_air_is_air);

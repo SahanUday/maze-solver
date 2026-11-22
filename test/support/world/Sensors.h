@@ -6,12 +6,13 @@
 #include <stdint.h>
 
 #include "../../model/Infrared.h"
-#include "../../model/Sensors.h"
+#include "../../model/Gyro.h"
+#include "../../model/Ultrasonic.h"
 #include "Arena.h"
 #include "Floor.h"
 #include "Plant.h"
 #include "Rng.h"
-#include "Units.h"
+#include "Angles.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/measurements/Robot.h"
 
@@ -25,7 +26,7 @@ struct Faults {
     float strayNear = 0.0f; // chance a wall reading is a false short echo (30 to 100 mm)
     float gyroScale = model::GYRO_SCALE_ERROR;
     float gyroDriftDps = 0.0f;
-    float odometerScale = model::ODOMETER_SCALE;
+    float odometerScale = model::ODOMETER_SCALE_ERROR;
     float irNoise = 1.0f; // times each floor's own IR noise
     // Something close in front (a hand, a dropped part) between these times: the front reads 70 mm.
     uint32_t obstacleFromMs = 0;
@@ -77,7 +78,7 @@ inline const model::Level &irLevel(Surface s)
 {
     switch (s) {
         case Surface::Marker:
-            return model::WHITE;
+            return model::MARKER_WHITE;
         case Surface::Board:
             return model::BOARD;
         case Surface::Line:

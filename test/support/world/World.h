@@ -42,7 +42,7 @@ struct Metrics {
     }
 
     // No wall farther than this can lower either minimum.
-    float reach() const
+    float horizonMm() const
     {
         return minNoseMm > minSideMm ? minNoseMm : minSideMm;
     }
@@ -172,7 +172,7 @@ struct World {
         state.usValid = ultrasonics.valid;
         irArray(floor, plant, faults, irRng, state.irRaw);
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = forwardAccel(floor, plant);
-        trace(state);
+        hashSensed(state);
         Perception out;
         perceive(pc, state, pp, out);
         return out;
@@ -183,13 +183,13 @@ struct World {
     {
         plant.step(cmd, arena);
         tMs += CONTROL_LOOP_PERIOD_MS;
-        trace(cmd, plant.x, plant.y, plant.yawDeg, plant.v[0], plant.v[1]);
+        hashCommanded(cmd, plant.x, plant.y, plant.yawDeg, plant.v[0], plant.v[1]);
 
         float front = FAR_MM;
         float left = FAR_MM;
         float right = FAR_MM;
-        if (!plant.clearance.beyond(arena, static_cast<float>(plant.x), static_cast<float>(plant.y),
-                                    metrics.reach())) {
+        if (!plant.clearance.noWallWithin(arena, static_cast<float>(plant.x),
+                                          static_cast<float>(plant.y), metrics.horizonMm())) {
             const float yaw = static_cast<float>(plant.yawDeg);
             front = plant.ray(arena, yaw);
             left = plant.ray(arena, yaw + 90.0f);
