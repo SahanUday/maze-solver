@@ -220,8 +220,14 @@ where it is a stand-in, which `scripts/list-tbds.sh` lists. A number lives in on
 do not copy it. What stays in the tests is the layout of a scenario and the faults a test injects
 (`World::faults`).
 
-**Noise** comes from seeded streams, so a run repeats exactly. Each new noise source gets a stream of
-its own (`World::irRng`); sharing `World::rng` would move the existing sensors' noise.
+**Seeds.** One master seed replays a run. `World::seed(master)` derives the world's random streams
+from it, and a preset's maze comes from `seeds::derive(master, seeds::MAZE)`; a world nobody seeds runs
+on fixed streams. Each new noise source gets a stream of its own (`World::irRng`): sharing
+`World::rng` would move the existing sensors' noise. A test that seeds a run notes the seed
+(`World::seed` does; so do the loops over mazes), and a suite that defines
+`void tearDown(void) { seeds::report(); }` prints it beside a failure:
+`test_maze.cpp:603: ...: a bound above the truth [seed 7]`. To replay, give that number to
+`World::seed` or `randomMaze` in a test of its own.
 
 **Checking the world.** `test_world` checks what the world draws and its shortcuts: each surface reads
 its level, only air reads as air (the air threshold that failed on the robot fails it), the board

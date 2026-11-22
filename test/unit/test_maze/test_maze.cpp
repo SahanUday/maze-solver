@@ -25,6 +25,7 @@
 #include "Proof.h"
 #include "spec/fixed/Rules.h"
 #include "../../support/MazeGen.h"
+#include "../../support/Seed.h"
 #include "spec/measurements/Arena.h"
 
 using namespace maze;
@@ -437,6 +438,7 @@ static void test_missed_side_readings_cost_time_not_the_finish()
         for (int c = 0; c < kN; ++c) {
             for (uint8_t h = 0; h < 4; ++h) {
                 for (uint32_t seed = 1; seed <= 5; ++seed) {
+                    seeds::note(seed);
                     const SimResult res = run(r, c, static_cast<Dir>(h), 40, seed);
                     TEST_ASSERT_TRUE_MESSAGE(res.reachedFinish, "did not reach the finish");
                     TEST_ASSERT_FALSE_MESSAGE(res.hitWall, "drove into a wall");
@@ -579,6 +581,7 @@ template <uint8_t N> static void proveRandomMazes(uint32_t firstSeed, uint32_t l
 {
     using E = ExplorerT<N>;
     for (uint32_t seed = firstSeed; seed <= lastSeed; ++seed) {
+        seeds::note(seed);
         const RandomMaze m = randomMaze(N, seed, N);
         uint32_t rng = seed + 7u;
         const int start = static_cast<int>(nextRandom(rng) % (N * N));
@@ -621,6 +624,12 @@ static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
 {
     proveRandomMazes<SECTION_A_SIZE_TILES>(1, 20);
     proveRandomMazes<SECTION_B_SIZE_TILES>(1, 3);
+}
+
+// A failing run prints the seed that replays it.
+void tearDown(void)
+{
+    seeds::report();
 }
 
 int main()

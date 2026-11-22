@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "../Fingerprint.h"
+#include "../Seed.h"
 #include "Arena.h"
 #include "Floor.h"
 #include "Plant.h"
@@ -80,6 +81,15 @@ struct World {
     GyroBias bias;
     Heading heading;
     uint32_t tMs = 0;
+
+    // Reseed every random stream of the world from one master seed. An unseeded world runs on fixed
+    // streams, so a test that does not care gets the same run every time.
+    void seed(uint32_t master)
+    {
+        rng.s = seeds::derive(master, seeds::NOISE);
+        irRng.s = seeds::derive(master, seeds::IR);
+        seeds::note(master);
+    }
 
     int cellI() const
     {

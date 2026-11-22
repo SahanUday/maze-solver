@@ -346,7 +346,7 @@ static void test_dropped_readings_and_stray_echoes_cost_time_not_the_finish()
             world::photo(w);
             w.faults.dropout = 0.30f;
             w.faults.strayNear = 0.05f;
-            w.rng.s = 99u + static_cast<uint32_t>(i * 7 + j);
+            w.seed(99u + static_cast<uint32_t>(i * 7 + j));
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
             begin(ms);
@@ -389,7 +389,7 @@ static void test_every_start_finishes_on_wheels_that_roll_hard()
                 w.plant.sticking = 1.0f;
                 w.plant.sustain = 130.0;
                 w.plant.sustainRight = 1.25;
-                w.rng.s = 777u + static_cast<uint32_t>(i * 31 + j * 7 + facing);
+                w.seed(777u + static_cast<uint32_t>(i * 31 + j * 7 + facing));
                 w.start(i, j, facing);
                 MissionManager ms;
                 begin(ms);
@@ -415,7 +415,7 @@ static void test_a_gyro_half_a_percent_off_still_finishes_from_every_start()
                 World w;
                 world::photo(w);
                 w.faults.gyroScale = scale;
-                w.rng.s = 31u + static_cast<uint32_t>(i * 5 + j);
+                w.seed(31u + static_cast<uint32_t>(i * 5 + j));
                 w.start(i, j, (i + 2 * j) & 3);
                 MissionManager ms;
                 begin(ms);
@@ -517,7 +517,7 @@ static void test_every_start_reaches_the_line_and_follows_it_round_the_bend()
             }
             World w;
             world::photo(w);
-            w.rng.s = 55u + static_cast<uint32_t>(i * 9 + j);
+            w.seed(55u + static_cast<uint32_t>(i * 9 + j));
             w.start(i, j, (i + j) & 3);
             MissionManager ms;
             begin(ms);
@@ -787,6 +787,12 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
             TEST_ASSERT_TRUE_MESSAGE(w.lineErrorMm() < 45.0f, "lost the line");
         }
     }
+}
+
+// A failing run prints the master seed that replays it.
+void tearDown(void)
+{
+    seeds::report();
 }
 
 int main()

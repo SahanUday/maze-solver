@@ -30,11 +30,12 @@ static Arena randomArena(int n, float density, Lcg &rng)
 // The brute-force ray is the reference: where beyond() says no wall is near, none is.
 static void test_beyond_never_hides_a_wall_a_ray_would_hit()
 {
-    Lcg rng;
     const float reach = model::NOSE_MM;
     int skipped = 0;
     int looked = 0;
-    for (int arena = 0; arena < 4; ++arena) {
+    for (uint32_t master = 1; master <= 4; ++master) {
+        seeds::note(master);
+        Lcg rng{seeds::derive(master, seeds::MAZE)};
         const Arena a = randomArena(MAX_TILES, 0.35f, rng);
         for (int walk = 0; walk < 25; ++walk) {
             Clearance cached;
@@ -99,11 +100,13 @@ static Surface surfaceAtFrame(const World &w, float along, float lat)
 // with one way out, marker B on it and the rest of the maze behind it, and the finish elsewhere.
 static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
 {
+    const uint32_t master = 3u;
+    seeds::note(master);
     for (const int size : {1, static_cast<int>(SECTION_B_SIZE_TILES)}) {
         for (int corner = 0; corner < 4; ++corner) {
             for (int opening = 0; opening < 2; ++opening) {
                 World w;
-                bridgeIn(w, {size, corner, opening, 3u});
+                bridgeIn(w, {size, corner, opening, seeds::derive(master, seeds::MAZE)});
                 const int ei = w.floor.originI();
                 const int ej = w.floor.originJ();
                 const int out = OUTWARD[corner][opening];
@@ -212,6 +215,38 @@ static void test_each_surface_reads_its_level_and_only_air_is_air()
     }
 }
 
+// One master seed replays a run exactly, another changes it, and the streams it feeds are apart.
+static void test_one_master_seed_replays_a_run_and_another_changes_it()
+{
+    uint32_t sums[3] = {};
+    const uint32_t masters[3] = {5u, 5u, 6u};
+    for (int k = 0; k < 3; ++k) {
+        World w;
+        photo(w);
+        w.seed(masters[k]);
+        w.start(1, 1, 0);
+        for (int t = 0; t < 200; ++t) {
+            w.sense();
+            w.drive(DriveCommand{});
+            for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+                sums[k] = sums[k] * 31u + w.state.irRaw[ch];
+            }
+            sums[k] = sums[k] * 31u + w.state.distFrontMm + w.state.distLeftMm +
+                      w.state.distRightMm + static_cast<uint32_t>(w.state.headingDeg * 100.0f);
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT32(sums[0], sums[1]);
+    TEST_ASSERT_TRUE(sums[0] != sums[2]);
+    TEST_ASSERT_TRUE(seeds::derive(5u, seeds::NOISE) != seeds::derive(5u, seeds::IR));
+    TEST_ASSERT_TRUE(seeds::derive(5u, seeds::MAZE) != seeds::derive(6u, seeds::MAZE));
+}
+
+// A failing run prints the master seed that replays it.
+void tearDown(void)
+{
+    seeds::report();
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -219,5 +254,6 @@ int main()
     RUN_TEST(test_the_board_meets_the_entry_tile_from_any_corner_and_opening);
     RUN_TEST(test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run);
     RUN_TEST(test_each_surface_reads_its_level_and_only_air_is_air);
+    RUN_TEST(test_one_master_seed_replays_a_run_and_another_changes_it);
     return UNITY_END();
 }
