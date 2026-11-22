@@ -26,6 +26,7 @@ struct Faults {
     float gyroScale = model::GYRO_SCALE_ERROR;
     float gyroDriftDps = 0.0f;
     float odometerScale = model::ODOMETER_SCALE;
+    float irNoise = 1.0f; // times each floor's own IR noise
     // Something close in front (a hand, a dropped part) between these times: the front reads 70 mm.
     uint32_t obstacleFromMs = 0;
     uint32_t obstacleToMs = 0;
@@ -71,23 +72,31 @@ inline int16_t gyroCounts(double rateDps, const Faults &faults, Lcg &rng)
     return static_cast<int16_t>(lround(c));
 }
 
-// What a channel reads over a surface.
-inline uint16_t irCounts(Surface s, uint8_t channel)
+// What the array reads over a surface.
+inline const model::Level &irLevel(Surface s)
 {
     switch (s) {
         case Surface::Marker:
+            return model::WHITE;
         case Surface::Board:
-        case Surface::Finish:
-            return model::WHITE.on(channel);
+            return model::BOARD;
+        case Surface::Line:
+            return model::TAPE;
+        case Surface::GapDark:
+            return model::GAP_DARK;
         case Surface::Air:
-            return model::AIR.on(channel);
+            return model::AIR;
+        case Surface::Finish:
+            return model::FINISH;
         default:
-            return model::BLACK.on(channel);
+            return model::MAZE_FLOOR;
     }
 }
 
-// The eight channels, ahead of the axle, D1 at the robot's right end.
-inline void irArray(const Floor &floor, const Plant &plant, uint16_t (&out)[IR_CHANNEL_COUNT])
+// The eight channels, ahead of the axle, D1 at the robot's right end. The noise comes from `rng`, a
+// stream of its own, so the other sensors' noise does not move when this one does.
+inline void irArray(const Floor &floor, const Plant &plant, const Faults &faults, Lcg &rng,
+                    uint16_t (&out)[IR_CHANNEL_COUNT])
 {
     const float a = plant.headingRad();
     float cx;
@@ -99,12 +108,16 @@ inline void irArray(const Floor &floor, const Plant &plant, uint16_t (&out)[IR_C
         // A channel sees a patch of floor about a pitch wide: it reads the average, so a line
         // edge moves its reading smoothly.
         float sum = 0.0f;
+        float sd = 0.0f;
         for (int k = -2; k <= 2; ++k) {
             const float o = across + static_cast<float>(k) * (IR_SENSOR_PITCH_MM * 0.2f);
-            const Surface s = floor.surfaceAt(cx - o * sinf(a), cy + o * cosf(a));
-            sum += static_cast<float>(irCounts(s, ch));
+            const model::Level &level =
+                irLevel(floor.surfaceAt(cx - o * sinf(a), cy + o * cosf(a)));
+            sum += level.on(ch);
+            sd = k == 0 ? level.sd : sd; // the noise is the floor under the channel's centre's
         }
-        out[ch] = static_cast<uint16_t>(sum / 5.0f + 0.5f);
+        const float counts = sum / 5.0f + rng.g() * sd * faults.irNoise;
+        out[ch] = static_cast<uint16_t>(fminf(fmaxf(counts + 0.5f, 0.0f), ADC_FULL_SCALE_COUNTS));
     }
 }
 

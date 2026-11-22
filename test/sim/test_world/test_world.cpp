@@ -182,11 +182,38 @@ static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run
                              static_cast<float>(w.plant.yawDeg));
 }
 
+// Each surface, drawn alone, reads its measured level, and the firmware's air rule calls only the
+// array in the air "air": not the bare maze floor, the white, the line or the dark gap.
+static void test_each_surface_reads_its_level_and_only_air_is_air()
+{
+    const Surface surfaces[] = {Surface::MazeFloor, Surface::Marker, Surface::Board, Surface::Line,
+                                Surface::GapDark,   Surface::Air,    Surface::Finish};
+    const int ticks = 400;
+    for (const Surface s : surfaces) {
+        World w;
+        w.floor.addBand(-FAR_MM, FAR_MM, s);
+        w.start(1, 1, 0);
+        float sum[IR_CHANNEL_COUNT] = {};
+        int airTicks = 0;
+        for (int t = 0; t < ticks; ++t) {
+            airTicks += w.sense().floor == FloorClass::Air ? 1 : 0;
+            for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+                sum[ch] += w.state.irRaw[ch];
+            }
+        }
+        for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+            TEST_ASSERT_FLOAT_WITHIN(2.0f, irLevel(s).on(ch), sum[ch] / ticks);
+        }
+        TEST_ASSERT_EQUAL(s == Surface::Air ? ticks : 0, airTicks);
+    }
+}
+
 int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_beyond_never_hides_a_wall_a_ray_would_hit);
     RUN_TEST(test_the_board_meets_the_entry_tile_from_any_corner_and_opening);
     RUN_TEST(test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run);
+    RUN_TEST(test_each_surface_reads_its_level_and_only_air_is_air);
     return UNITY_END();
 }

@@ -22,7 +22,7 @@ constexpr float BAR_LENGTH_MM = 1500.0f;
 
 // Marker A on tile (markerI, markerJ), the way out through its `exitDir` side: the strip, the gap,
 // the white board with its line and the ramp.
-inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap::Air)
+inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap::Dark)
 {
     Floor f;
     f.frame = {PITCH * static_cast<float>(markerI), PITCH * static_cast<float>(markerJ), exitDir};
@@ -43,7 +43,7 @@ inline Floor sectionAFloor(int markerI, int markerJ, int exitDir, Gap gap = Gap:
 
 // The team's Section A maze (the photo): the marker tile is its top-left corner, closed on both
 // sides and open to the north, where the line leaves the maze.
-inline void photo(World &w, Gap gap = Gap::Air)
+inline void photo(World &w, Gap gap = Gap::Dark)
 {
     Arena &a = w.arena;
     a.clear(SECTION_A_SIZE_TILES);

@@ -475,22 +475,36 @@ static LineOutcome runToLine(World &w, MissionManager &ms, const MissionParams &
     return o;
 }
 
+// The gap before the ramp reads as air on a bench and dark on the real course (915-1010): the
+// follower takes over at the first line view past it either way, and only the air gap is seen as a
+// gap. It does so with three times the IR noise measured on the arena as well.
 static void test_the_marker_leads_over_the_gap_and_onto_the_line()
 {
-    for (int facing = 0; facing < 4; ++facing) {
-        World w;
-        world::photo(w);
-        w.start(2, 1, facing);
-        MissionManager ms;
-        begin(ms);
-        // 8 s of following: the straight, the ramp and the bend to the left after it.
-        const LineOutcome o = runToLine(w, ms, missionParams(), 800);
-        TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
-        TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
-        TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
-        TEST_ASSERT_TRUE(o.onRampSeen);
-        TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
+    const struct {
+        world::Gap gap;
+        float noise; // times the measured IR noise
+    } cases[] = {{world::Gap::Air, 1.0f},
+                 {world::Gap::Dark, 1.0f},
+                 {world::Gap::Air, 3.0f},
+                 {world::Gap::Dark, 3.0f}};
+    for (const auto &c : cases) {
+        for (int facing = 0; facing < 4; ++facing) {
+            World w;
+            world::photo(w, c.gap);
+            w.faults.irNoise = c.noise;
+            w.start(2, 1, facing);
+            MissionManager ms;
+            begin(ms);
+            // 8 s of following: the straight, the ramp and the bend to the left after it.
+            const LineOutcome o = runToLine(w, ms, missionParams(), 800);
+            TEST_ASSERT_TRUE_MESSAGE(o.reachedLine, "never reached the line");
+            TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
+            TEST_ASSERT_EQUAL(c.gap == world::Gap::Air, ms.marker.gapSeen);
+            TEST_ASSERT_TRUE_MESSAGE(o.worstStraightMm < 15.0f, "wandered on the straight");
+            TEST_ASSERT_TRUE_MESSAGE(o.worstErrMm < 45.0f, "lost the line at the bend");
+            TEST_ASSERT_TRUE(o.onRampSeen);
+            TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
+        }
     }
 }
 
@@ -546,23 +560,6 @@ static void test_an_exit_to_the_side_is_turned_to_and_driven_out()
         TEST_ASSERT_TRUE(ms.marker.sideExit); // it turned
         TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
         TEST_ASSERT_TRUE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f);
-    }
-}
-
-// On the real robot the gap read dark (915-1010), not as air: the follower takes over at the first
-// line view past the dark patch all the same.
-static void test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line()
-{
-    for (int facing = 0; facing < 4; ++facing) {
-        World w;
-        world::photo(w, world::Gap::Dark);
-        w.start(2, 1, facing);
-        MissionManager ms;
-        begin(ms);
-        const LineOutcome o = runToLine(w, ms, missionParams(), 500);
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Line), static_cast<int>(o.phase));
-        TEST_ASSERT_FALSE(ms.marker.gapSeen);
-        TEST_ASSERT_TRUE(o.worstStraightMm < 15.0f);
     }
 }
 
@@ -821,7 +818,6 @@ int main()
     RUN_TEST(test_a_line_that_never_comes_is_no_line);
     RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
     RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
-    RUN_TEST(test_a_gap_that_does_not_read_as_air_still_hands_over_to_the_line);
     RUN_TEST(test_a_run_can_be_any_stretch_of_the_parts);
     return UNITY_END();
 }

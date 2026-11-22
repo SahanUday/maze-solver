@@ -70,6 +70,7 @@ struct World {
     Plant plant;
     Faults faults;
     Lcg rng;
+    Lcg irRng{777u};
     Ultrasonics ultrasonics;
     Metrics metrics;
 
@@ -113,11 +114,11 @@ struct World {
         lineCalibrationReset(cal);
         uint16_t counts[IR_CHANNEL_COUNT];
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = irCounts(Surface::Marker, ch);
+            counts[ch] = static_cast<uint16_t>(irLevel(Surface::Marker).on(ch));
         }
         lineCalibrationAccumulate(cal, counts);
         for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = irCounts(Surface::MazeFloor, ch);
+            counts[ch] = static_cast<uint16_t>(irLevel(Surface::MazeFloor).on(ch));
         }
         lineCalibrationAccumulate(cal, counts);
         lineCalibrationFinish(cal);
@@ -159,7 +160,7 @@ struct World {
         state.distLeftMm = ultrasonics.held[1];
         state.distRightMm = ultrasonics.held[2];
         state.usValid = ultrasonics.valid;
-        irArray(floor, plant, state.irRaw);
+        irArray(floor, plant, faults, irRng, state.irRaw);
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = forwardAccel(floor, plant);
         trace(state);
         Perception out;
