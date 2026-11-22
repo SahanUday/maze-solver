@@ -62,12 +62,3 @@ Examples: `integration/test_section_a/` and `integration/test_host_world/`.
   `PLATFORMIO_BUILD_FLAGS=-DWORLD_FINGERPRINT pio test -e native -f "integration/*" -vv | grep FINGERPRINT`.
   The same line means no tick changed. A change meant to alter readings changes it on purpose: make it a commit of its own.
 - Never read `include/spec/tuning/` as truth in the world: those are the firmware's choices, not facts about the robot.
-
-## Still to come
-
-| Issue | What |
-|---|---|
-| #60, #61 | Bridge and Section B tests, on `bridgeIn()` and its eight entries. |
-| #82 | A sweep tier: many seeded mazes and faults, run nightly. |
-| #83 | A fast raw log on the robot and replay of real recordings. |
-| #54 | Robot measurements that replace the `<<TBD HARDWARE>>` numbers. |
