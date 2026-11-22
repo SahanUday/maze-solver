@@ -3,9 +3,11 @@
 //  trust it, so these check it first. No hardware needed.
 // ============================================================================
 
+#include <initializer_list>
 #include <unity.h>
 
 #include "../../support/world/Presets.h"
+#include "spec/tuning/Imu.h"
 
 using namespace world;
 
@@ -57,9 +59,134 @@ static void test_beyond_never_hides_a_wall_a_ray_would_hit()
     TEST_ASSERT_TRUE_MESSAGE(looked > 500, "no point was ever near a wall");
 }
 
+// Tiles reachable from tile (i, j) through the arena's open sides.
+static int reachableTiles(const Arena &a, int i, int j)
+{
+    bool seen[MAX_TILES * MAX_TILES] = {};
+    int queue[MAX_TILES * MAX_TILES];
+    int head = 0;
+    int tail = 0;
+    queue[tail++] = j * a.n + i;
+    seen[j * a.n + i] = true;
+    static const int di[4] = {1, 0, -1, 0};
+    static const int dj[4] = {0, 1, 0, -1};
+    while (head < tail) {
+        const int ci = queue[head] % a.n;
+        const int cj = queue[head] / a.n;
+        ++head;
+        for (int d = 0; d < 4; ++d) {
+            const int ni = ci + di[d];
+            const int nj = cj + dj[d];
+            const bool inside = ni >= 0 && nj >= 0 && ni < a.n && nj < a.n;
+            if (inside && !a.side(ci, cj, d) && !seen[nj * a.n + ni]) {
+                seen[nj * a.n + ni] = true;
+                queue[tail++] = nj * a.n + ni;
+            }
+        }
+    }
+    return tail;
+}
+
+static Surface surfaceAtFrame(const World &w, float along, float lat)
+{
+    float x;
+    float y;
+    w.floor.frame.from(along, lat, x, y);
+    return w.floor.surfaceAt(x, y);
+}
+
+// From any corner and either opening: the board leads to the entry tile, which is a corner tile
+// with one way out, marker B on it and the rest of the maze behind it, and the finish elsewhere.
+static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
+{
+    for (const int size : {1, static_cast<int>(SECTION_B_SIZE_TILES)}) {
+        for (int corner = 0; corner < 4; ++corner) {
+            for (int opening = 0; opening < 2; ++opening) {
+                World w;
+                bridgeIn(w, {size, corner, opening, 3u});
+                const int ei = w.floor.originI();
+                const int ej = w.floor.originJ();
+                const int out = OUTWARD[corner][opening];
+                const int other = OUTWARD[corner][1 - opening];
+                TEST_ASSERT_EQUAL(out, w.floor.frame.dir);
+                TEST_ASSERT_FALSE(w.arena.side(ei, ej, out));
+                TEST_ASSERT_TRUE(w.arena.side(ei, ej, other));
+                TEST_ASSERT_EQUAL(size * size, reachableTiles(w.arena, ei, ej));
+
+                // Marker B's white frame around its black box, then the board with its line.
+                TEST_ASSERT_EQUAL(static_cast<int>(Surface::MazeFloor),
+                                  static_cast<int>(surfaceAtFrame(w, 0.0f, 0.0f)));
+                TEST_ASSERT_EQUAL(
+                    static_cast<int>(Surface::Marker),
+                    static_cast<int>(surfaceAtFrame(w, MARKER_B_BOX_MM / 2 + 5, 0.0f)));
+                for (const Point &p : BRIDGE_IN_LINE) {
+                    TEST_ASSERT_EQUAL(static_cast<int>(Surface::Line),
+                                      static_cast<int>(surfaceAtFrame(w, p.along, p.lat)));
+                }
+                TEST_ASSERT_EQUAL(static_cast<int>(Surface::Board),
+                                  static_cast<int>(surfaceAtFrame(w, 1000.0f, -300.0f)));
+                TEST_ASSERT_EQUAL(
+                    static_cast<int>(Surface::Air),
+                    static_cast<int>(surfaceAtFrame(w, BRIDGE_IN_CREST_MM - 5, 0.0f)));
+
+                // One finish tile, and not the entry.
+                int finishes = 0;
+                for (int j = 0; j < size; ++j) {
+                    for (int i = 0; i < size; ++i) {
+                        const bool white =
+                            w.floor.surfaceAt(PITCH * i, PITCH * j) == Surface::Finish;
+                        finishes += white ? 1 : 0;
+                        TEST_ASSERT_FALSE(white && i == ei && j == ej);
+                    }
+                }
+                TEST_ASSERT_EQUAL(size > 1 ? 1 : 0, finishes);
+            }
+        }
+    }
+}
+
+// Placed on the line and set going, the robot climbs the ramp and its array lifts at the crest;
+// placed on the entry tile, it stands on it facing in.
+static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run()
+{
+    World w;
+    bridgeIn(w, {1, 2, 1, 1u});
+    startOnLine(w);
+    const float speedMmS = 200.0f;
+    DriveCommand cmd;
+    cmd.enable = true;
+    cmd.left =
+        static_cast<int16_t>(model::KEEP_ROLLING_DUTY + speedMmS * model::WHEEL_DUTY_PER_MM_S);
+    cmd.right = static_cast<int16_t>(
+        model::KEEP_ROLLING_DUTY + speedMmS * model::WHEEL_DUTY_PER_MM_S / model::RIGHT_WHEEL_GAIN);
+    const float startAlong = w.arrayAlongMm();
+    bool climbed = false;
+    bool lifted = false;
+    float worstMm = 0.0f;
+    for (int t = 0; t < 350; ++t) {
+        const Perception pc = w.sense();
+        climbed = climbed || pc.inclineCounts > RAMP_INCLINE_COUNTS;
+        lifted = lifted || pc.floor == FloorClass::Air;
+        worstMm = w.lineErrorMm() > worstMm ? w.lineErrorMm() : worstMm;
+        w.drive(cmd);
+    }
+    TEST_ASSERT_TRUE(startAlong - w.arrayAlongMm() > 500.0f); // 3.5 s toward the tile
+    TEST_ASSERT_TRUE(climbed);
+    TEST_ASSERT_TRUE(lifted);
+    TEST_ASSERT_TRUE(worstMm < 20.0f); // still on the first straight
+
+    startOnEntryTile(w);
+    TEST_ASSERT_EQUAL(w.floor.originI(), w.cellI());
+    TEST_ASSERT_EQUAL(w.floor.originJ(), w.cellJ());
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f * ((w.floor.frame.dir + 2) & 3),
+                             static_cast<float>(w.plant.yawDeg));
+}
+
 int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_beyond_never_hides_a_wall_a_ray_would_hit);
+    RUN_TEST(test_the_board_meets_the_entry_tile_from_any_corner_and_opening);
+    RUN_TEST(test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run);
     return UNITY_END();
 }

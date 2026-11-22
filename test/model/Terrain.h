@@ -1,5 +1,5 @@
 // ============================================================================
-//  model/Terrain.h  --  the ramp on the line board, as the host world tilts the robot on it.
+//  model/Terrain.h  --  the ramp and the board's end, as the host world lays them. Tags below.
 //  Tags: include/spec/README.md.
 // ============================================================================
 
@@ -12,5 +12,11 @@ namespace model
 // Measure the slope and the length of the real ramp (#54).
 constexpr float RAMP_SLOPE_DEG = 10.0f;
 constexpr float RAMP_LENGTH_MM = 300.0f;
+
+// ---- Bridge-in board --------------------------------------- <<TBD HARDWARE>> --
+// Where the white board meets the entry tile, measured from the tile's centre outwards, and how far
+// the array, lifted at the ramp's crest, reads air (#54).
+constexpr float BRIDGE_IN_BOARD_END_MM = 125.0f;
+constexpr float CREST_AIR_MM = 20.0f;
 
 } // namespace model

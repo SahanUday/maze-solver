@@ -47,6 +47,11 @@ struct Arena {
         }
     }
 
+    const bool &side(int i, int j, int dir) const
+    {
+        return const_cast<Arena *>(this)->side(i, j, dir);
+    }
+
     void closeOuterWalls()
     {
         for (int k = 0; k < n; ++k) {

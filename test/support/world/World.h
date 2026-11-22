@@ -93,19 +93,17 @@ struct World {
     // with `offX`, `offY` mm and `offYaw` deg of error, then do what the firmware does at boot.
     void start(int i, int j, int facing, float offX = 0.0f, float offY = 0.0f, float offYaw = 0.0f)
     {
-        plant.x = PITCH * i + offX;
-        plant.y = PITCH * j + offY;
-        plant.yawDeg = 90.0 * facing + offYaw;
-        plant.clearance.forget();
+        place(PITCH * i + offX, PITCH * j + offY, 90.0 * facing + offYaw);
         metrics.begin(i, j);
-        state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
-        gyroBiasReset(bias);
-        for (uint16_t k = 0; k < GYRO_BIAS_SAMPLES; ++k) {
-            gyroBiasAccumulate(bias, gyroCounts(0.0, faults, rng));
-        }
-        gyroBiasFinish(bias);
+        boot();
+    }
 
-        perceiverSetCalibration(pc, calibration());
+    // The same, at a point of the arena (mm) facing `yawDeg`.
+    void startAt(double x, double y, double yawDeg)
+    {
+        place(x, y, yawDeg);
+        metrics.begin(cellI(), cellJ());
+        boot();
     }
 
     // The IR array's calibration: the white and black of the floor.
@@ -187,6 +185,27 @@ struct World {
             right = plant.ray(arena, yaw - 90.0f);
         }
         metrics.track(cellI(), cellJ(), front, left, right);
+    }
+
+  private:
+    void place(double x, double y, double yawDeg)
+    {
+        plant.x = x;
+        plant.y = y;
+        plant.yawDeg = yawDeg;
+        plant.clearance.forget();
+    }
+
+    // What the firmware does at power-up: take the gyro's zero and the IR calibration.
+    void boot()
+    {
+        state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;
+        gyroBiasReset(bias);
+        for (uint16_t k = 0; k < GYRO_BIAS_SAMPLES; ++k) {
+            gyroBiasAccumulate(bias, gyroCounts(0.0, faults, rng));
+        }
+        gyroBiasFinish(bias);
+        perceiverSetCalibration(pc, calibration());
     }
 };
 

@@ -25,14 +25,21 @@ struct Frame {
     float y = 0.0f;
     int dir = 1;
 
+    static constexpr float EX[4] = {1.0f, 0.0f, -1.0f, 0.0f};
+    static constexpr float EY[4] = {0.0f, 1.0f, 0.0f, -1.0f};
+
     void to(float px, float py, float &along, float &lat) const
     {
-        static const float ex[4] = {1.0f, 0.0f, -1.0f, 0.0f};
-        static const float ey[4] = {0.0f, 1.0f, 0.0f, -1.0f};
         const float dx = px - x;
         const float dy = py - y;
-        along = dx * ex[dir] + dy * ey[dir];
-        lat = -dx * ey[dir] + dy * ex[dir];
+        along = dx * EX[dir] + dy * EY[dir];
+        lat = -dx * EY[dir] + dy * EX[dir];
+    }
+
+    void from(float along, float lat, float &px, float &py) const
+    {
+        px = x + along * EX[dir] - lat * EY[dir];
+        py = y + along * EY[dir] + lat * EX[dir];
     }
 };
 
@@ -175,9 +182,9 @@ struct Floor {
     }
     // A line through `points`; a bend has no notch: each strip after the first reaches half a width
     // behind its start.
-    void addLine(const Point *points, int count, float width)
+    template <int N> void addLine(const Point (&points)[N], float width)
     {
-        for (int k = 0; k + 1 < count; ++k) {
+        for (int k = 0; k + 1 < N; ++k) {
             const float back = k > 0 ? width / 2 : 0.0f;
             patch[patches++] =
                 Patch::of(Strip::between(points[k], points[k + 1], width, back), Surface::Line);
