@@ -790,7 +790,6 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
     }
 }
 
-// A failing run prints the master seed that replays it.
 void tearDown(void)
 {
     seeds::report();

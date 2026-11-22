@@ -1,7 +1,7 @@
-// One master seed per run: every random stream and generated maze of the run derives from it, so a
-// single number replays the run. A test that seeds a run notes the seed, and a suite that defines
+// One master seed per run: every random stream and maze of the run derives from it, so one number
+// replays it. A seeded test notes the seed; a suite with
 //   void tearDown(void) { seeds::report(); }
-// has it printed beside the failure.
+// prints it beside a failure.
 #pragma once
 
 #include <stdint.h>
@@ -10,10 +10,10 @@
 namespace seeds
 {
 
-// The consumers of a master seed; each draws from a stream of its own.
+// The consumers of a master seed, each with a stream of its own.
 enum Stream : uint32_t { NOISE = 1, IR = 2, MAZE = 3 };
 
-// The seed of `stream` for a master seed (a splitmix32 step: nearby masters give unrelated seeds).
+// The seed of `stream` for a master seed (splitmix32).
 inline uint32_t derive(uint32_t master, uint32_t stream)
 {
     uint32_t z = master + stream * 0x9E3779B9u;
@@ -38,7 +38,7 @@ inline void note(uint32_t master)
     noted() = {master, true};
 }
 
-// For tearDown: print the noted seed if the test failed, then forget it.
+// For tearDown: print the noted seed if the test failed.
 inline void report()
 {
     if (Unity.CurrentTestFailed && noted().set) {

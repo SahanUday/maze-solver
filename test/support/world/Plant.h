@@ -1,12 +1,12 @@
-// The robot's body in the arena: two wheels with stiction, a pose, and the wall in front that
-// stops the nose.
+// The robot's body in the arena: two wheels with stiction, a pose, and the wall that stops the
+// nose.
 #pragma once
 
 #include <math.h>
 
 #include "../../model/Chassis.h"
-#include "Arena.h"
 #include "Angles.h"
+#include "Arena.h"
 #include "motion/DriveCommand.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/measurements/Robot.h"
@@ -14,18 +14,18 @@
 namespace world
 {
 
-constexpr double STEP_S = 0.001; // one physics step, a control tick takes CONTROL_LOOP_PERIOD_MS
+constexpr double STEP_S = 0.001; // a control tick is CONTROL_LOOP_PERIOD_MS of these
 
 struct Plant {
-    // Wheel speeds (mm/s) and positions (mm), pose in the arena (mm, deg).
+    // Wheel speeds (mm/s) and positions (mm); the pose in the arena (mm, deg).
     double v[2] = {0, 0};
     double pos[2] = {0, 0};
     double x = 0;
     double y = 0;
     double yawDeg = 0;
     double yawRateDps = 0;
-    // A stopped wheel needs MOTOR_MIN_PWM_* x `sticking` duty to start, a rolling one `sustain` x
-    // (`sustainRight` for the right) to go on.
+    // A stopped wheel needs MOTOR_MIN_PWM_* x `sticking` duty to start; a rolling one needs
+    // `sustain` (x `sustainRight` for the right wheel) to go on.
     float sticking = 1.0f;
     double sustain = model::KEEP_ROLLING_DUTY;
     double sustainRight = 1.0;
@@ -37,11 +37,11 @@ struct Plant {
     }
 
     // The IR array's centre, ahead of the axle.
-    void arrayCentre(float &cx, float &cy) const
+    Xy arrayCentre() const
     {
         const float a = headingRad();
-        cx = static_cast<float>(x) + IR_ARRAY_FORWARD_OFFSET_MM * cosf(a);
-        cy = static_cast<float>(y) + IR_ARRAY_FORWARD_OFFSET_MM * sinf(a);
+        return {static_cast<float>(x) + IR_ARRAY_FORWARD_OFFSET_MM * cosf(a),
+                static_cast<float>(y) + IR_ARRAY_FORWARD_OFFSET_MM * sinf(a)};
     }
 
     // Distance from the axle along `angleDeg` to the nearest wall.
@@ -51,7 +51,7 @@ struct Plant {
         return arena.ray(static_cast<float>(x), static_cast<float>(y), cosf(a), sinf(a));
     }
 
-    // The wall in front is within the nose.
+    // A wall in front is within the nose.
     bool blocked(const Arena &arena)
     {
         const float nose = model::NOSE_MM;
@@ -77,7 +77,6 @@ struct Plant {
                     ss = sgn * (a - keep) / k[w];
                 }
                 v[w] += (ss - v[w]) * (STEP_S / model::WHEEL_LAG_S);
-                // The body is stopped by the wall in front of it.
                 if (v[0] + v[1] > 0 && blocked(arena)) {
                     v[w] = 0.0;
                 }

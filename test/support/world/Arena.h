@@ -1,4 +1,4 @@
-// The walls of an n x n arena, and what the ultrasonic modules and the nose check ask of them.
+// The walls of an n x n arena and the distances asked of them: rays and clearance.
 #pragma once
 
 #include <math.h>
@@ -14,6 +14,12 @@ constexpr float PITCH = TILE_PITCH_MM;
 constexpr float WALL_T = WALL_THICKNESS_MM;
 constexpr float FAR_MM = 1.0e9f; // no wall
 
+// A point of the arena, mm.
+struct Xy {
+    float x;
+    float y;
+};
+
 struct Rect {
     float x0, x1, y0, y1;
 };
@@ -21,7 +27,7 @@ struct Rect {
 // Tile (i, j): column i from the west, row j from the south; the centre of (0, 0) is the origin.
 // A side is 0 east, 1 north, 2 west, 3 south.
 struct Arena {
-    int n = SECTION_A_SIZE_TILES;
+    int n = SECTION_A_SIZE_TILES;              // at most MAX_TILES
     bool vw[(MAX_TILES + 1) * MAX_TILES] = {}; // vw[i * n + j]: a wall on the west side of column i
     bool hw[MAX_TILES * (MAX_TILES + 1)] = {}; // hw[j * n + i]: a wall on the south side of row j
     Rect rect[2 * (MAX_TILES + 1) * MAX_TILES];
@@ -62,7 +68,7 @@ struct Arena {
         }
     }
 
-    // The wall flags as rectangles; call it after the last change.
+    // The wall flags as rectangles; call after the last change.
     void build()
     {
         rects = 0;
@@ -137,14 +143,14 @@ struct Arena {
     }
 };
 
-// The clearance of a point, kept while the point stays well inside it: no ray from there can be
-// shorter, so most asks for "is a wall within reach?" need no ray. Forget it when the walls change.
+// The clearance of a point, kept while the point stays well inside it: no ray from there is
+// shorter. Forget it when the walls change.
 struct ClearanceCache {
     float x = 0.0f;
     float y = 0.0f;
     float mm = -1.0f; // < 0: nothing kept
 
-    // True only if no wall is within `reach` of the point; false means "look and see".
+    // True only if no wall is within `reach` of the point; false means look.
     bool noWallWithin(const Arena &arena, float px, float py, float reach)
     {
         constexpr float MARGIN_MM = 0.05f;

@@ -1,6 +1,5 @@
-// What lies on the floor: patches of surface in a frame, drawn in order, the last one on top, over
-// the maze's black floor. Surfaces say what a point is; what the IR array reads over each is the
-// sensor's business (Sensors.h).
+// What lies on the floor: patches of surface in a frame, the last one drawn on top of the maze's
+// black floor. A patch says what a point is; what the IR array reads over it is Sensors.h's.
 #pragma once
 
 #include <math.h>
@@ -13,13 +12,13 @@ namespace world
 
 enum class Surface : uint8_t { MazeFloor, Marker, Board, Line, GapDark, Air, Finish };
 
+// A point in a frame: along its direction and across it, left positive.
 struct Point {
     float along;
     float lat;
 };
 
-// Along a direction (0 east, 1 north, 2 west, 3 south) and across it, left positive, from an
-// origin.
+// An origin and a direction (0 east, 1 north, 2 west, 3 south).
 struct Frame {
     float x = 0.0f;
     float y = 0.0f;
@@ -28,22 +27,20 @@ struct Frame {
     static constexpr float EX[4] = {1.0f, 0.0f, -1.0f, 0.0f};
     static constexpr float EY[4] = {0.0f, 1.0f, 0.0f, -1.0f};
 
-    void to(float px, float py, float &along, float &lat) const
+    Point at(float px, float py) const
     {
         const float dx = px - x;
         const float dy = py - y;
-        along = dx * EX[dir] + dy * EY[dir];
-        lat = -dx * EY[dir] + dy * EX[dir];
+        return {dx * EX[dir] + dy * EY[dir], -dx * EY[dir] + dy * EX[dir]};
     }
 
-    void from(float along, float lat, float &px, float &py) const
+    Xy from(float along, float lat) const
     {
-        px = x + along * EX[dir] - lat * EY[dir];
-        py = y + along * EY[dir] + lat * EX[dir];
+        return {x + along * EX[dir] - lat * EY[dir], y + along * EY[dir] + lat * EX[dir]};
     }
 };
 
-// Everything past `from` up to `to`, all across.
+// Everything from `from` up to `to`, all across.
 struct Band {
     float from;
     float to;
@@ -83,35 +80,30 @@ struct Strip {
         return {from, dx / len, dy / len, len, width / 2, back};
     }
 
-    // Distance along the line and across it, of a point.
-    void measure(float along, float lat, float &t, float &across) const
+    // A point along the line and across it.
+    Point measure(float along, float lat) const
     {
         const float da = along - a.along;
         const float dl = lat - a.lat;
-        t = da * ux + dl * uy;
-        across = -da * uy + dl * ux;
+        return {da * ux + dl * uy, -da * uy + dl * ux};
     }
 
     bool has(float along, float lat) const
     {
-        float t;
-        float across;
-        measure(along, lat, t, across);
-        return fabsf(across) < half && t >= -back && t <= len;
+        const Point m = measure(along, lat);
+        return fabsf(m.lat) < half && m.along >= -back && m.along <= len;
     }
 
-    // Distance from a point to the line's own centre.
+    // Distance to the line's own centre.
     float distance(float along, float lat) const
     {
-        float t;
-        float across;
-        measure(along, lat, t, across);
-        const float ct = t < 0.0f ? 0.0f : (t > len ? len : t);
-        return sqrtf((t - ct) * (t - ct) + across * across);
+        const Point m = measure(along, lat);
+        const float t = m.along < 0.0f ? 0.0f : (m.along > len ? len : m.along);
+        return sqrtf((m.along - t) * (m.along - t) + m.lat * m.lat);
     }
 };
 
-// The forward axis' tilt while the axle is between `from` and `to`, nose up positive for a robot
+// The forward axis' tilt while the axle is between `from` and `to`: nose up positive for a robot
 // driving the way the run goes.
 struct Ramp {
     float from;
@@ -156,9 +148,10 @@ struct Patch {
                 return band.has(along, lat);
             case Kind::Square:
                 return square.has(along, lat);
-            default:
+            case Kind::Strip:
                 return strip.has(along, lat);
         }
+        return false;
     }
 };
 
@@ -180,8 +173,7 @@ struct Floor {
     {
         patch[patches++] = Patch::of(Square{centre, half}, s);
     }
-    // A line through `points`; a bend has no notch: each strip after the first reaches half a width
-    // behind its start.
+    // A bend has no notch: each strip after the first reaches half a width behind its start.
     template <int N> void addLine(const Point (&points)[N], float width)
     {
         for (int k = 0; k + 1 < N; ++k) {
@@ -195,7 +187,6 @@ struct Floor {
         ramp[ramps++] = {from, to, slopeDeg};
     }
 
-    // Take every patch of a surface away, e.g. the line.
     void erase(Surface s)
     {
         int kept = 0;
@@ -209,23 +200,19 @@ struct Floor {
 
     Surface surfaceAt(float px, float py) const
     {
-        float along;
-        float lat;
-        frame.to(px, py, along, lat);
+        const Point p = frame.at(px, py);
         for (int k = patches - 1; k >= 0; --k) {
-            if (patch[k].has(along, lat)) {
+            if (patch[k].has(p.along, p.lat)) {
                 return patch[k].surface;
             }
         }
         return Surface::MazeFloor;
     }
 
-    // Tilt under a point, 0 on the level.
+    // The tilt under a point; 0 on the level.
     float slopeDeg(float px, float py) const
     {
-        float along;
-        float lat;
-        frame.to(px, py, along, lat);
+        const float along = frame.at(px, py).along;
         for (int k = 0; k < ramps; ++k) {
             if (along >= ramp[k].from && along <= ramp[k].to) {
                 return ramp[k].slopeDeg;
@@ -234,16 +221,14 @@ struct Floor {
         return 0.0f;
     }
 
-    // How far a point is from the nearest line's centre; FAR_MM with no line.
+    // Distance from a point to the nearest line's centre; FAR_MM with no line.
     float lineErrorMm(float px, float py) const
     {
-        float along;
-        float lat;
-        frame.to(px, py, along, lat);
+        const Point p = frame.at(px, py);
         float best = FAR_MM;
         for (int k = 0; k < patches; ++k) {
             if (patch[k].surface == Surface::Line) {
-                const float d = patch[k].strip.distance(along, lat);
+                const float d = patch[k].strip.distance(p.along, p.lat);
                 best = d < best ? d : best;
             }
         }
@@ -252,10 +237,7 @@ struct Floor {
 
     float alongMm(float px, float py) const
     {
-        float along;
-        float lat;
-        frame.to(px, py, along, lat);
-        return along;
+        return frame.at(px, py).along;
     }
 
     // The tile the frame's origin lies on.

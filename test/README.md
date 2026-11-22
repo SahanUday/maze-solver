@@ -39,7 +39,7 @@ Run all three environments before pushing. The scripts' own tests: `python -m un
 - Put it in the suite of the code it covers. Same check with different inputs: one table and a loop, not one test each.
 - A new test must fail without the change it guards. Revert the fix, see it fail, put it back.
 - Name tests as sentences: `test_a_wall_is_never_erased`.
-- A failing seeded run prints its seed: `... [seed 7]`. Add `void tearDown(void) { seeds::report(); }` to a suite that seeds.
+- A failing seeded run prints its seed, `... [seed 7]`; pass it to `World::seed` (or `randomMaze`) to replay. A suite that seeds needs `void tearDown(void) { seeds::report(); }`.
 - A new suite needs no CI change.
 
 ## Use the host world

@@ -1,8 +1,8 @@
-// The host world for the mission tests: an arena of walls, a floor, a plant with stiction and the
-// sensors on it, all assembled into the RobotState the firmware reads and run through perceive().
-// Presets that fill an arena and a floor: Presets.h.
+// The host world: an arena, a floor, a plant and its sensors, assembled into the RobotState the
+// firmware reads and run through perceive(). Presets that fill one: Presets.h.
 #pragma once
 
+#include <initializer_list>
 #include <math.h>
 #include <stdint.h>
 
@@ -26,9 +26,9 @@ namespace world
 
 // What a run did, for the asserts.
 struct Metrics {
-    float minNoseMm = FAR_MM; // the front wall, nearest
-    float minSideMm = FAR_MM; // a side wall, nearest
-    int startTileEntries = 0; // times the start tile was entered again after leaving it
+    float minNoseMm = FAR_MM; // nearest front wall
+    float minSideMm = FAR_MM; // nearest side wall
+    int startTileEntries = 0; // re-entries of the start tile after leaving it
     int startI = 0;
     int startJ = 0;
     bool leftStart = false;
@@ -37,11 +37,12 @@ struct Metrics {
 
     void begin(int i, int j)
     {
+        *this = Metrics{};
         startI = lastI = i;
         startJ = lastJ = j;
     }
 
-    // No wall farther than this can lower either minimum.
+    // A wall farther than this cannot lower either minimum.
     float horizonMm() const
     {
         return minNoseMm > minSideMm ? minNoseMm : minSideMm;
@@ -82,8 +83,7 @@ struct World {
     Heading heading;
     uint32_t tMs = 0;
 
-    // Reseed every random stream of the world from one master seed. An unseeded world runs on fixed
-    // streams, so a test that does not care gets the same run every time.
+    // Reseed every random stream from one master seed. An unseeded world runs on fixed streams.
     void seed(uint32_t master)
     {
         rng.s = seeds::derive(master, seeds::NOISE);
@@ -100,8 +100,8 @@ struct World {
         return static_cast<int>(lroundf(static_cast<float>(plant.y) / PITCH));
     }
 
-    // Place the robot on tile (i, j) facing `facing` quarter turns counter-clockwise from east,
-    // with `offX`, `offY` mm and `offYaw` deg of error, then do what the firmware does at boot.
+    // Place the robot on tile (i, j) facing `facing` quarter turns counter-clockwise from east, off
+    // by `offX`, `offY` mm and `offYaw` deg, and boot it.
     void start(int i, int j, int facing, float offX = 0.0f, float offY = 0.0f, float offYaw = 0.0f)
     {
         place(PITCH * i + offX, PITCH * j + offY, 90.0 * facing + offYaw);
@@ -117,40 +117,34 @@ struct World {
         boot();
     }
 
-    // The IR array's calibration: the white and black of the floor.
+    // The IR calibration: the white of the marker, then the black of the maze floor.
     static LineCalibration calibration()
     {
         LineCalibration cal;
         lineCalibrationReset(cal);
         uint16_t counts[IR_CHANNEL_COUNT];
-        for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = static_cast<uint16_t>(irLevel(Surface::Marker).on(ch));
+        for (const Surface s : {Surface::Marker, Surface::MazeFloor}) {
+            for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
+                counts[ch] = static_cast<uint16_t>(irLevel(s).on(ch));
+            }
+            lineCalibrationAccumulate(cal, counts);
         }
-        lineCalibrationAccumulate(cal, counts);
-        for (uint8_t ch = 0; ch < IR_CHANNEL_COUNT; ++ch) {
-            counts[ch] = static_cast<uint16_t>(irLevel(Surface::MazeFloor).on(ch));
-        }
-        lineCalibrationAccumulate(cal, counts);
         lineCalibrationFinish(cal);
         return cal;
     }
 
-    // How far the IR array's centre is from the line's centre.
+    // The IR array's distance from the line's centre.
     float lineErrorMm() const
     {
-        float cx;
-        float cy;
-        plant.arrayCentre(cx, cy);
-        return floor.lineErrorMm(cx, cy);
+        const Xy c = plant.arrayCentre();
+        return floor.lineErrorMm(c.x, c.y);
     }
 
-    // The array centre's distance along the floor's frame.
+    // The IR array's distance along the floor's frame.
     float arrayAlongMm() const
     {
-        float cx;
-        float cy;
-        plant.arrayCentre(cx, cy);
-        return floor.alongMm(cx, cy);
+        const Xy c = plant.arrayCentre();
+        return floor.alongMm(c.x, c.y);
     }
 
     // What the robot senses this tick, as the firmware's Perception.
@@ -207,7 +201,7 @@ struct World {
         plant.clearance.forget();
     }
 
-    // What the firmware does at power-up: take the gyro's zero and the IR calibration.
+    // Power-up: the gyro's zero and the IR calibration.
     void boot()
     {
         state.imu.accel[IMU_ACCEL_AXIS_FORWARD] = IMU_ACCEL_FORWARD_LEVEL_COUNTS;

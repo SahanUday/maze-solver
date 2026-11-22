@@ -1,6 +1,6 @@
 // ============================================================================
-//  model/Terrain.h  --  the ramp and the board's end, as the host world lays them. Tags below.
-//  Tags: include/spec/README.md.
+//  model/Terrain.h  --  the ramp and the bridge-in board's end, as the host world lays them. Tags:
+//  include/spec/README.md.
 // ============================================================================
 
 #pragma once
@@ -14,8 +14,8 @@ constexpr float RAMP_SLOPE_DEG = 10.0f;
 constexpr float RAMP_LENGTH_MM = 300.0f;
 
 // ---- Bridge-in board --------------------------------------- <<TBD HARDWARE>> --
-// Where the white board meets the entry tile, measured from the tile's centre outwards, and how far
-// the array, lifted at the ramp's crest, reads air (#54).
+// Where the board meets the entry tile, from the tile's centre outwards, and how far the array,
+// lifted at the ramp's crest, reads air (#54).
 constexpr float BRIDGE_IN_BOARD_END_MM = 125.0f;
 constexpr float CREST_AIR_MM = 20.0f;
 

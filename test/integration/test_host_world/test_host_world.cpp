@@ -1,6 +1,6 @@
 // ============================================================================
-//  test_host_world.cpp  --  the host world itself: what it draws and how it shortcuts. The mission
-//  tests trust it, so these check it first. No hardware needed.
+//  test_host_world.cpp  --  the host world itself: what it draws and its shortcuts. No hardware
+//  needed.
 // ============================================================================
 
 #include <initializer_list>
@@ -11,7 +11,7 @@
 
 using namespace world;
 
-// An arena of n x n tiles with about `density` of its inner edges walled.
+// An n x n arena with about `density` of its edges walled.
 static Arena randomArena(int n, float density, Lcg &rng)
 {
     Arena a;
@@ -27,7 +27,7 @@ static Arena randomArena(int n, float density, Lcg &rng)
     return a;
 }
 
-// The brute-force ray is the reference: where noWallWithin() says no wall is near, none is.
+// The brute-force ray is the reference: where noWallWithin() says clear, every ray is longer.
 static void test_the_clearance_shortcut_never_hides_a_wall_a_ray_would_hit()
 {
     const float reach = model::NOSE_MM;
@@ -60,7 +60,7 @@ static void test_the_clearance_shortcut_never_hides_a_wall_a_ray_would_hit()
     TEST_ASSERT_TRUE_MESSAGE(looked > 500, "no point was ever near a wall");
 }
 
-// Tiles reachable from tile (i, j) through the arena's open sides.
+// Tiles reachable from tile (i, j) through open sides.
 static int reachableTiles(const Arena &a, int i, int j)
 {
     bool seen[MAX_TILES * MAX_TILES] = {};
@@ -90,14 +90,12 @@ static int reachableTiles(const Arena &a, int i, int j)
 
 static Surface surfaceAtFrame(const World &w, float along, float lat)
 {
-    float x;
-    float y;
-    w.floor.frame.from(along, lat, x, y);
-    return w.floor.surfaceAt(x, y);
+    const Xy p = w.floor.frame.from(along, lat);
+    return w.floor.surfaceAt(p.x, p.y);
 }
 
-// From any corner and either opening: the board leads to the entry tile, which is a corner tile
-// with one way out, marker B on it and the rest of the maze behind it, and the finish elsewhere.
+// From any corner and opening: the board meets a corner tile with one way out and marker B on it,
+// the maze is connected behind it, and the finish is one other tile.
 static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
 {
     const uint32_t master = 3u;
@@ -116,7 +114,7 @@ static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
                 TEST_ASSERT_TRUE(w.arena.side(ei, ej, other));
                 TEST_ASSERT_EQUAL(size * size, reachableTiles(w.arena, ei, ej));
 
-                // Marker B's white frame around its black box, then the board with its line.
+                // Marker B, the board, its line and the crest.
                 TEST_ASSERT_EQUAL(static_cast<int>(Surface::MazeFloor),
                                   static_cast<int>(surfaceAtFrame(w, 0.0f, 0.0f)));
                 TEST_ASSERT_EQUAL(
@@ -148,8 +146,8 @@ static void test_the_board_meets_the_entry_tile_from_any_corner_and_opening()
     }
 }
 
-// From every entry: placed on the line and set going, the robot climbs the ramp and its array lifts
-// at the crest without leaving the line; placed on the entry tile, it stands on it facing in.
+// From every entry: set going on the line, the robot climbs the ramp, lifts at the crest and stays
+// on the line; placed on the entry tile, it stands on it facing in.
 static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run()
 {
     const float speedMmS = 200.0f;
@@ -180,17 +178,18 @@ static void test_a_robot_can_be_placed_on_the_line_and_on_the_entry_tile_and_run
             TEST_ASSERT_TRUE(lifted);
             TEST_ASSERT_TRUE(worstMm < 20.0f); // still on the first straight
 
-            startOnEntryTile(w);
-            TEST_ASSERT_EQUAL(w.floor.originI(), w.cellI());
-            TEST_ASSERT_EQUAL(w.floor.originJ(), w.cellJ());
-            TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f * ((w.floor.frame.dir + 2) & 3),
-                                     static_cast<float>(w.plant.yawDeg));
+            World on;
+            bridgeIn(on, {1, corner, opening, 1u});
+            startOnEntryTile(on);
+            TEST_ASSERT_EQUAL(on.floor.originI(), on.cellI());
+            TEST_ASSERT_EQUAL(on.floor.originJ(), on.cellJ());
+            TEST_ASSERT_FLOAT_WITHIN(0.01f, 90.0f * ((on.floor.frame.dir + 2) & 3),
+                                     static_cast<float>(on.plant.yawDeg));
         }
     }
 }
 
-// Each surface, drawn alone, reads its measured level, and the firmware's air rule calls only the
-// array in the air "air": not the bare maze floor, the white, the line or the dark gap.
+// Each surface drawn alone reads its level, and the firmware's air rule calls only air "air".
 static void test_each_surface_reads_its_level_and_only_air_is_air()
 {
     const Surface surfaces[] = {Surface::MazeFloor, Surface::Marker, Surface::Board, Surface::Line,
@@ -215,7 +214,7 @@ static void test_each_surface_reads_its_level_and_only_air_is_air()
     }
 }
 
-// One master seed replays a run exactly, another changes it, and the streams it feeds are apart.
+// One master seed replays a run, another changes it, and its streams are apart.
 static void test_one_master_seed_replays_a_run_and_another_changes_it()
 {
     uint32_t sums[3] = {};
@@ -232,7 +231,8 @@ static void test_one_master_seed_replays_a_run_and_another_changes_it()
                 sums[k] = sums[k] * 31u + w.state.irRaw[ch];
             }
             sums[k] = sums[k] * 31u + w.state.distFrontMm + w.state.distLeftMm +
-                      w.state.distRightMm + static_cast<uint32_t>(w.state.headingDeg * 100.0f);
+                      w.state.distRightMm +
+                      static_cast<uint32_t>(static_cast<int32_t>(w.state.headingDeg * 100.0f));
         }
     }
     TEST_ASSERT_EQUAL_UINT32(sums[0], sums[1]);
@@ -241,7 +241,6 @@ static void test_one_master_seed_replays_a_run_and_another_changes_it()
     TEST_ASSERT_TRUE(seeds::derive(5u, seeds::MAZE) != seeds::derive(6u, seeds::MAZE));
 }
 
-// A failing run prints the master seed that replays it.
 void tearDown(void)
 {
     seeds::report();

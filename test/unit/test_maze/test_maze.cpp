@@ -626,7 +626,6 @@ static void test_the_proof_finds_the_true_shortest_path_on_random_mazes()
     proveRandomMazes<SECTION_B_SIZE_TILES>(1, 3);
 }
 
-// A failing run prints the seed that replays it.
 void tearDown(void)
 {
     seeds::report();
