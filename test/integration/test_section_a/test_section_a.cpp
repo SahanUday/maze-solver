@@ -741,8 +741,8 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
         {Part::Line, Part::Line, true, false, MissionPhase::Line, MissionFault::None},
         // The way out of the marker tile needs the map the exploring built.
         {Part::AExit, Part::Line, false, false, MissionPhase::Fault, MissionFault::BadConfig},
-        // Not built.
-        {Part::BEntry, Part::BExplore, false, false, MissionPhase::Fault, MissionFault::BadConfig},
+        // Not built: Section A's second look needs the exploring to go on after the marker.
+        {Part::AProve, Part::Line, false, false, MissionPhase::Fault, MissionFault::BadConfig},
         // The last part is before the first.
         {Part::Line, Part::AExplore, false, false, MissionPhase::Fault, MissionFault::BadConfig},
         // No line calibration: nothing to follow.

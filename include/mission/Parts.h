@@ -29,11 +29,11 @@ constexpr bool partBuilt(Part p)
         case Part::AExplore:
         case Part::AExit:
         case Part::Line:
-            return true;
-        case Part::AProve:
         case Part::BEntry:
         case Part::BExplore:
         case Part::BProve:
+            return true;
+        case Part::AProve:
             return false;
     }
     return false;

@@ -28,6 +28,9 @@ should cover them all, with the same boot messages, status line, phase lines and
 - `RunLoop` and `Perception` start handling (#52).
 - The mission manager and the part model (INT-01): the start and the run limit now live in `RunStart` and
   `MissionManager`.
+- Section B's parts (#61, `BEntry`, `BExplore`, `BProve`): host-tested only. The whole-course default now
+  goes on into them after the line, with no finish detector (#69) to stop the exploring, so set
+  `RUN_PART_LAST` to `Line` for any run that is not meant to try them.
 
 The host tests do not reach the explorer's "stop and brake at once" path (`ExploreStatus::Braked`,
 used only when the run ends with `AExplore`, `Parts.h`); the firmware's default run goes on to the exit part.
