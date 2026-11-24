@@ -6,41 +6,54 @@
 
 #include <Arduino.h>
 
+#include "panel/PanelControls.h"
 #include "spec/pins/PinMap.h"
-#include "spec/tuning/Run.h"
+#include "spec/pins/Wired.h"
 
-namespace
-{
-constexpr uint32_t HEARTBEAT_HALF_PERIOD_MS = 500;
-} // namespace
+static_assert(sizeof(PIN_DIP) / sizeof(PIN_DIP[0]) == PANEL_DIP_COUNT,
+              "PIN_DIP and PANEL_DIP_COUNT differ in size");
 
 void operatorIoInit()
 {
     pinMode(PIN_LED_STATUS, OUTPUT);
     pinMode(PIN_LED_ERROR, OUTPUT);
-    if (RUN_START_BUTTON_FITTED) {
+    for (uint8_t i = 0; i < PANEL_DIP_COUNT; ++i) {
+        pinMode(PIN_DIP[i], INPUT_PULLUP);
+    }
+    if (BUTTON_WIRED) {
         pinMode(PIN_BTN_START, INPUT_PULLUP);
     }
 }
 
-bool operatorIoStartButton()
+uint8_t operatorIoDip()
 {
-    return RUN_START_BUTTON_FITTED && digitalRead(PIN_BTN_START) == LOW;
+    uint8_t bits = 0;
+    for (uint8_t i = 0; i < PANEL_DIP_COUNT; ++i) {
+        if (digitalRead(PIN_DIP[i]) == LOW) { // ON = pin to GND
+            bits |= static_cast<uint8_t>(1u << i);
+        }
+    }
+    return bits;
 }
 
-void operatorIoTick(uint32_t nowMs, bool fault)
+bool operatorIoStartButton()
 {
-    static uint32_t lastToggleMs = 0;
-    static bool heartbeatOn = false;
-    if (nowMs - lastToggleMs >= HEARTBEAT_HALF_PERIOD_MS) {
-        lastToggleMs = nowMs;
-        heartbeatOn = !heartbeatOn;
-        digitalWrite(PIN_LED_STATUS, heartbeatOn);
+    return BUTTON_WIRED && digitalRead(PIN_BTN_START) == LOW;
+}
+
+void operatorIoTick(uint32_t nowMs, const PanelView &view)
+{
+    const PanelLeds leds = panelLeds(view, nowMs);
+
+    static bool statusOn = false;
+    if (leds.status != statusOn) {
+        statusOn = leds.status;
+        digitalWrite(PIN_LED_STATUS, statusOn);
     }
 
     static bool errorOn = false;
-    if (fault != errorOn) {
-        errorOn = fault;
+    if (leds.error != errorOn) {
+        errorOn = leds.error;
         digitalWrite(PIN_LED_ERROR, errorOn);
     }
 }

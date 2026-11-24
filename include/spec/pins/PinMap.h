@@ -75,11 +75,10 @@ constexpr uint8_t PIN_IR[8] = {54, 55, 56, 57, 58, 59, 60, 61}; // A0..A7
 constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
-// Physical switches - no reprogramming allowed between trials.
+// Physical switches - no reprogramming allowed between trials. Meaning: panel/PanelControls.h.
 constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
-constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW
-constexpr uint8_t PIN_POT = 62;                  // A8, read once at boot
+constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW; RUN, FAST, CAL, reserved
 
 // ---- Indicators --------------------------------------------- [PROPOSED] --
-constexpr uint8_t PIN_LED_STATUS = 26; // heartbeat / current phase
-constexpr uint8_t PIN_LED_ERROR = 27;  // something is wrong
+constexpr uint8_t PIN_LED_STATUS = 26; // green: mode code, working, ended
+constexpr uint8_t PIN_LED_ERROR = 27;  // red: settings refused, no calibration, ended badly

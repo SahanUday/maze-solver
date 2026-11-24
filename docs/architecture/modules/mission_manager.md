@@ -33,7 +33,7 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
 - `missionTakeHeadingFix(ms)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), 0 when there is none. Call it every tick after the step.
 - `RunStart`, `runStartTick()` - the start: by itself `RUN_START_DELAY_MS` after the first tick (no
-  button fitted, as now), or by a debounced press (`RUN_START_DEBOUNCE_TICKS` in a row), latched: one
+  button wired, as now: `BUTTON_WIRED`, `spec/pins/Wired.h`), or by a debounced press (`RUN_START_DEBOUNCE_TICKS` in a row), latched: one
   press begins the run and releasing it does nothing.
 
 ## How it works

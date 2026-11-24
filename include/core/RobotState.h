@@ -51,8 +51,4 @@ struct RobotState {
     // Raw 10-bit ADC counts, index 0 = A0 = D1. Lower = more reflected light (white);
     // ~1020 = nothing in range (black, too far, or emitters off).
     uint16_t irRaw[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-    // ---- Operator controls (read once at boot) ------------------------
-    uint8_t dipSwitches = 0; // one bit per switch in PIN_DIP
-    uint8_t speedPotRaw = 0; // 0-255, scaled from the raw ADC read
 };
