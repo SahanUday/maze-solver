@@ -1,17 +1,6 @@
 // ============================================================================
-//  panel/PanelControls.h  --  what the DIP bank means. Pure logic, no hardware, no Arduino.h -
-//  testable under env:native. docs/architecture/modules/panel.md
-//
-//  The bank has four positions in PIN_DIP order, one bit each, a set bit = the switch is ON:
-//
-//    RUN  FAST  CAL  RES   mode
-//    off  any   off  off   explore (trial 1); FAST is ignored
-//    on   off   off  off   speed run, safe (trial 2)
-//    on   on    off  off   speed run, fast (trial 3)
-//    off  off   on   off   IR calibration
-//    anything else         refused
-//
-//  All off is explore, the safest default; a cut wire reads OFF, which falls the same way.
+//  panel/PanelControls.h  --  what the DIP bank means. Pure logic, no Arduino.h.
+//  The settings table: docs/architecture/modules/panel.md
 // ============================================================================
 
 #pragma once
@@ -26,7 +15,7 @@ constexpr uint8_t PANEL_DIP_COUNT = 4;
 
 enum class PanelMode : uint8_t { Explore, SpeedSafe, SpeedFast, Calibrate, Refused };
 
-// The mode a DIP bank setting asks for. Bits above the fourth are not switches and are ignored.
+// The mode a setting asks for; all off is explore. Bits above the fourth are ignored.
 constexpr PanelMode panelDecode(uint8_t dip)
 {
     dip &= static_cast<uint8_t>((1u << PANEL_DIP_COUNT) - 1u);
@@ -42,8 +31,7 @@ constexpr PanelMode panelDecode(uint8_t dip)
     return (dip & PANEL_DIP_FAST) != 0 ? PanelMode::SpeedFast : PanelMode::SpeedSafe;
 }
 
-// Is the mode in this firmware? A mode that is not built is shown as refused. Speed run (#66) and
-// calibration (#67) set theirs true when they are built.
+// Is the mode built? One that is not shows as refused. #66 and #67 set theirs true.
 constexpr bool panelModeBuilt(PanelMode mode)
 {
     switch (mode) {
@@ -58,8 +46,7 @@ constexpr bool panelModeBuilt(PanelMode mode)
     return false;
 }
 
-// The number of blinks that shows the mode while waiting: 1 explore, 2 speed safe, 3 speed fast,
-// 4 calibrate. 0 for a refused setting.
+// Blinks that show the mode while waiting: 1 explore, 2 safe, 3 fast, 4 calibrate; 0 refused.
 constexpr uint8_t panelModeCode(PanelMode mode)
 {
     return mode == PanelMode::Refused ? 0 : static_cast<uint8_t>(static_cast<uint8_t>(mode) + 1);

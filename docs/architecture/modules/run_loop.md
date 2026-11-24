@@ -13,7 +13,7 @@ hardware and applies the result.
   (`NoImu`). `parts` is which parts of the course to run (all of them by default).
 - `runLoopTick(rl, state, nowMs, buttonDown, headingFixDeg)` - one tick; returns the
   `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading. `buttonDown` is
-  ignored while no button is fitted.
+  ignored while no button is wired.
 
 ## How it works
 

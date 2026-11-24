@@ -30,8 +30,7 @@ static bool g_motorsEnabled = false;
 static bool g_haveCal = false; // a usable IR line calibration was loaded at boot
 static uint8_t g_dip = 0;      // the DIP bank, read while the run waits for its start
 
-// The run's stage as the panel's LEDs show it (include/panel/): the panel does not include the
-// mission, so this is the one place that knows both.
+// The mission's stage as the panel shows it; main is the one place that knows both.
 static PanelRun panelRunOf(RunStage stage)
 {
     switch (stage) {
@@ -108,7 +107,7 @@ static void runAlgorithm(const RobotState &state)
 
     telemetryTick(g_run, state, cmd);
 
-    // The DIP bank is read while the run waits for its start, not during the run.
+    // The DIP bank is read only while waiting for the start.
     if (g_run.mission.stage == RunStage::WaitStart) {
         g_dip = operatorIoDip();
     }

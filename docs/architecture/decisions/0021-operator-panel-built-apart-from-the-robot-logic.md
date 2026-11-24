@@ -48,10 +48,9 @@ the board's) stay hardware only. Part select stays a build-time constant.
 All off is explore, the safest default, and a cut wire reads OFF. A mode that is not built yet is shown as
 refused.
 
-**The LEDs.** The status LED shows the mode code (N blinks) while waiting, a heartbeat while working and
-SOLID once the run has ended; the error LED shows a refused setting (fast blink), a missing calibration
-(slow blink) and an end gone wrong (SOLID). No heartbeat means the robot has ended, which is the signal to
-take it. No buzzer: the rules already have an official TIME-UP buzzer.
+**The LEDs.** Status: the mode code while waiting, a heartbeat while working, SOLID once ended. Error: a
+refused setting, a missing calibration, an end gone wrong. No heartbeat means the robot has ended: take it.
+No buzzer: the rules already have an official TIME-UP buzzer.
 
 **Built apart from the robot's logic.** The panel is pure logic in `include/panel/` that includes nothing from
 `mission/`, `sense/` or `motion/`; `src/app/operator_io` reads and writes the pins. `main.cpp` is the one

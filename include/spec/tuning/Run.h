@@ -37,9 +37,8 @@ static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_P
               "RUN_PART_LAST comes before RUN_PART_FIRST");
 
 // ---- Run start and status line ---------------------------------- [TUNED] --
-// While no start button is wired (BUTTON_WIRED, spec/pins/Wired.h) the run begins by itself,
-// RUN_START_DELAY_MS after the loop starts (the gyro has been zeroed by then, with the robot held
-// still), so the power switch is the start. With a button wired the run waits for a press.
+// Without a wired start button (BUTTON_WIRED, spec/pins/Wired.h) the run begins by itself,
+// RUN_START_DELAY_MS after the loop starts, the gyro already zeroed: the power switch is the start.
 constexpr uint16_t RUN_START_DELAY_MS = 1000; // time to take the hands off after the zeroing
 // The start button must read pressed this many ticks in a row (a bounce is shorter).
 constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;

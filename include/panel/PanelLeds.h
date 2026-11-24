@@ -1,18 +1,6 @@
 // ============================================================================
-//  panel/PanelLeds.h  --  what the two LEDs show. Pure logic, no hardware, no Arduino.h - testable
-//  under env:native. docs/architecture/modules/panel.md
-//
-//  A pure function of the run's state and the time, so there is nothing to keep between ticks.
-//  The panel does not include the mission: main.cpp maps the mission's stage to PanelRun.
-//
-//    state                               status LED (green)      error LED (red)
-//    waiting, mode built                 CODE N                  off (HEARTBEAT if no calibration)
-//    waiting, mode refused or not built  off                     FAST BLINK
-//    running, proving or saving          HEARTBEAT               off
-//    ended normally                      SOLID                   off
-//    ended badly                         SOLID                   SOLID
-//
-//  No heartbeat means the robot has ended, which is the signal to take it.
+//  panel/PanelLeds.h  --  what the two LEDs show, from the run's state and the time alone.
+//  Pure logic, no Arduino.h. The patterns: docs/architecture/modules/panel.md
 // ============================================================================
 
 #pragma once

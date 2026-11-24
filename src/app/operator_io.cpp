@@ -11,7 +11,7 @@
 #include "spec/pins/Wired.h"
 
 static_assert(sizeof(PIN_DIP) / sizeof(PIN_DIP[0]) == PANEL_DIP_COUNT,
-              "the DIP bank in PinMap.h and in panel/PanelControls.h differ in size");
+              "PIN_DIP and PANEL_DIP_COUNT differ in size");
 
 void operatorIoInit()
 {
@@ -29,7 +29,7 @@ uint8_t operatorIoDip()
 {
     uint8_t bits = 0;
     for (uint8_t i = 0; i < PANEL_DIP_COUNT; ++i) {
-        if (digitalRead(PIN_DIP[i]) == LOW) { // ON pulls the pin to GND
+        if (digitalRead(PIN_DIP[i]) == LOW) { // ON = pin to GND
             bits |= static_cast<uint8_t>(1u << i);
         }
     }
