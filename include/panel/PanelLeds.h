@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#include "panel/PanelSettings.h"
+#include "panel/PanelButtons.h"
 #include "spec/tuning/Panel.h"
 
 enum class PanelRun : uint8_t { Waiting, Running, EndedOk, EndedBad };

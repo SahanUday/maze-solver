@@ -1,6 +1,6 @@
 # panel
 
-What the DIP bank means and what the two LEDs show. Pure logic in `include/panel/` (`PanelSettings.h`,
+What the DIP bank means and what the two LEDs show. Pure logic in `include/panel/` (`PanelButtons.h`,
 `PanelLeds.h`), blink timings in `spec/tuning/Panel.h`, tested by `test/unit/test_panel/`. It includes
 nothing from `mission/`, `sense/` or `motion/`: `src/main.cpp` hands it the mission's stage. The pins are
 read and written by [operator_io](operator_io.md). Why it is built apart from the robot's logic:

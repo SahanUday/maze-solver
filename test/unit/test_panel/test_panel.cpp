@@ -7,7 +7,7 @@
 #include <unity.h>
 
 #include "panel/PanelLeds.h"
-#include "panel/PanelSettings.h"
+#include "panel/PanelButtons.h"
 
 // Every setting of the four positions (bit 0 RUN, 1 FAST, 2 CAL, 3 RESERVED) and its mode.
 static void test_decode_all_sixteen_settings()
