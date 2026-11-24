@@ -6,7 +6,7 @@ The host tests read them from here too; numbers only the simulator needs are in 
 
 | Folder | Holds | Edit it when |
 |---|---|---|
-| `pins/` | `PinMap.h`: every pin number | the robot is re-wired |
+| `pins/` | `PinMap.h`: every pin number; `Wired.h`: which operator controls are wired (temporary, #64) | the robot is re-wired |
 | `measurements/` | `Arena.h` (tiles, walls, marker A and B, bridge floor), `Robot.h` (wheels, sensor mounting and offsets, polarity, IMU orientation) | you re-measure the arena or the robot |
 | `tuning/` | one header per logic module: gains, speeds, thresholds, timeouts, retries | you run the robot and adjust |
 | `fixed/` | `Rules.h` (competition limits), `Hardware.h` (clock, PWM, chip and module settings) | rarely: the rules or a datasheet say so |

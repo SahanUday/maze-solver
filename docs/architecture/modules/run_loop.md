@@ -19,15 +19,15 @@ hardware and applies the result.
 
 1. `RobotState` goes through `perceive()`.
 2. The mission manager takes the tick: it starts the run (by itself `RUN_START_DELAY_MS` after the first
-   tick, as no button is fitted: the power switch is the start, `setup()` has zeroed the gyro with the
+   tick, as no button is wired: the power switch is the start, `setup()` has zeroed the gyro with the
    robot held still by then, and the delay lets the hands come off; with a button, a debounced press),
    enforces the run limit and steps the parts.
 3. The mission's heading correction is handed back for the caller to apply.
 
 `main.cpp` applies the command: `motorsEnable()` when `enable` changes, `motorSet()` for both
 wheels, and the heading fix through the heading estimator (`src/app/heading_estimator.*`). The
-serial lines come from `src/app/telemetry.*` and the error LED, which follows `Fault`, from
-`src/app/operator_io.*`.
+serial lines come from `src/app/telemetry.*`; the DIP bank and the LEDs, which show the mission's
+stage, from `src/app/operator_io.*` and the panel ([panel](panel.md)).
 
 ## Invariants
 

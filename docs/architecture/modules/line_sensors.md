@@ -37,8 +37,8 @@ travel at 1 m/s.
 
 - A0-A7 stay on `ADC0`-`ADC7` in order and the emitter enable stays on pin 36:
   `static_assert`s against `PinMap.h` fail the build otherwise.
-- The module owns the ADC registers. A boot-time `analogRead(PIN_POT)` in
-  `main.cpp` is fine, since every conversion re-selects its channel group; a
+- The module owns the ADC registers. A boot-time `analogRead()` of an A8-A15 pin in
+  `main.cpp` would be fine, since every conversion re-selects its channel group; a
   second register-level ADC driver must declare
   `// pin-check: shared adc - <reason>` in both modules.
 - Counts are ratiometric to AVcc: power the module from the Mega's 5 V rail.
