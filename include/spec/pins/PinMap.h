@@ -76,7 +76,7 @@ constexpr uint8_t PIN_IR_EMITTER = 36;
 
 // ---- Operator controls -------------------------------------- [PROPOSED] --
 // Physical switches - no reprogramming allowed between trials. What each one means is in
-// panel/PanelButtons.h. Which of them are wired yet is in spec/pins/Wired.h.
+// panel/PanelControls.h. Which of them are wired yet is in spec/pins/Wired.h.
 constexpr uint8_t PIN_BTN_START = 38;            // PULLUP: pressed = LOW
 constexpr uint8_t PIN_DIP[4] = {40, 41, 42, 43}; // PULLUP: on = LOW; RUN, FAST, CAL, reserved
 

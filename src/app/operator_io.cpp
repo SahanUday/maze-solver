@@ -6,12 +6,12 @@
 
 #include <Arduino.h>
 
-#include "panel/PanelButtons.h"
+#include "panel/PanelControls.h"
 #include "spec/pins/PinMap.h"
 #include "spec/pins/Wired.h"
 
 static_assert(sizeof(PIN_DIP) / sizeof(PIN_DIP[0]) == PANEL_DIP_COUNT,
-              "the DIP bank in PinMap.h and in panel/PanelButtons.h differ in size");
+              "the DIP bank in PinMap.h and in panel/PanelControls.h differ in size");
 
 void operatorIoInit()
 {

@@ -1,5 +1,5 @@
 // ============================================================================
-//  panel/PanelButtons.h  --  what the DIP bank means. Pure logic, no hardware, no Arduino.h -
+//  panel/PanelControls.h  --  what the DIP bank means. Pure logic, no hardware, no Arduino.h -
 //  testable under env:native. docs/architecture/modules/panel.md
 //
 //  The bank has four positions in PIN_DIP order, one bit each, a set bit = the switch is ON:
