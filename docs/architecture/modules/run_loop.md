@@ -11,17 +11,15 @@ hardware and applies the result.
 - `runLoopInit(rl, imuPresent, lineCal, parts)` - a run not yet started. `lineCal` is the IR array's
   calibration or null. Without a usable channel the run is `wallsOnly`; without a gyro it is failed
   (`NoImu`). `parts` is which parts of the course to run (all of them by default).
-- `runLoopTick(rl, state, nowMs, buttonDown, headingFixDeg)` - one tick; returns the
-  `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading. `buttonDown` is
-  ignored while no button is wired.
+- `runLoopTick(rl, state, nowMs, go, headingFixDeg)` - one tick; returns the
+  `DriveCommand`. `headingFixDeg` is what to subtract from the gyro heading. `go` is the operator's
+  start, from the panel's `PanelStart` ([panel](panel.md)).
 
 ## How it works
 
 1. `RobotState` goes through `perceive()`.
-2. The mission manager takes the tick: it starts the run (by itself `RUN_START_DELAY_MS` after the first
-   tick, as no button is wired: the power switch is the start, `setup()` has zeroed the gyro with the
-   robot held still by then, and the delay lets the hands come off; with a button, a debounced press),
-   enforces the run limit and steps the parts.
+2. The mission manager takes the tick: it starts the run when told `go`, enforces the run limit and
+   steps the parts. `setup()` has zeroed the gyro with the robot held still by then.
 3. The mission's heading correction is handed back for the caller to apply.
 
 `main.cpp` applies the command: `motorsEnable()` when `enable` changes, `motorSet()` for both

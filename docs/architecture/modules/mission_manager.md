@@ -27,14 +27,14 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
   may set `parts` and `wallsOnly`.
 - `missionReset(ms)`, `missionFail(ms, code)` - the caller fails a run for a precondition it found
   missing (`NoImu`).
-- `missionTick(ms, params, perception, nowMs, buttonDown)` - one tick of a run: the start, the run
+- `missionTick(ms, params, perception, nowMs, go)` - one tick of a run: the start, the run
   limit, then the parts. `missionStep(ms, params, perception)` is the same without the start and the
   limit, for a caller that sets `ms.start.started` itself. Both return the `DriveCommand`.
 - `missionTakeHeadingFix(ms)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), 0 when there is none. Call it every tick after the step.
-- `RunStart`, `runStartTick()` - the start: by itself `RUN_START_DELAY_MS` after the first tick (no
-  button wired, as now: `BUTTON_WIRED`, `spec/pins/Wired.h`), or by a debounced press (`RUN_START_DEBOUNCE_TICKS` in a row), latched: one
-  press begins the run and releasing it does nothing.
+- `RunStart`, `runStartTick()` - the start latch: the run begins the first time `go` is true and stays
+  begun. When to say `go` is the operator panel's ([panel](panel.md)); the mission knows nothing of
+  buttons.
 
 ## How it works
 
