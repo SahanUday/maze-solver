@@ -20,12 +20,32 @@
 #include "hal/ultrasonic.h"
 #include "line_cal_store.h"
 #include "mission/RunLoop.h"
+#include "panel/PanelLeds.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/tuning/Run.h"
 
 static RobotState g_state;
 static RunLoop g_run;
 static bool g_motorsEnabled = false;
+static bool g_haveCal = false; // a usable IR line calibration was loaded at boot
+static uint8_t g_dip = 0;      // the DIP bank, read while the run waits for its start
+
+// The run's stage as the panel's LEDs show it (include/panel/): the panel does not include the
+// mission, so this is the one place that knows both.
+static PanelRun panelRunOf(RunStage stage)
+{
+    switch (stage) {
+        case RunStage::WaitStart:
+            return PanelRun::Waiting;
+        case RunStage::Running:
+            return PanelRun::Running;
+        case RunStage::Done:
+            return PanelRun::EndedOk;
+        case RunStage::Fault:
+            return PanelRun::EndedBad;
+    }
+    return PanelRun::EndedBad;
+}
 
 void setup()
 {
@@ -40,14 +60,14 @@ void setup()
     // The IR calibration is kept in EEPROM (line_cal_store.h). Without one that looks real the run
     // reads walls only: it explores every reachable tile and stops, and cannot see the marker.
     LineCalibration cal;
-    const bool haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
-    runLoopInit(g_run, imuPresent, haveCal ? &cal : nullptr,
+    g_haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
+    runLoopInit(g_run, imuPresent, g_haveCal ? &cal : nullptr,
                 PartRange{RUN_PART_FIRST, RUN_PART_LAST});
     if (!imuPresent) {
         Serial.println(F("run: no gyro, will not start"));
     } else {
-        Serial.println(haveCal ? F("run: starts by itself, line calibration loaded")
-                               : F("run: starts by itself (walls only: no line calibration)"));
+        Serial.println(g_haveCal ? F("run: starts by itself, line calibration loaded")
+                                 : F("run: starts by itself (walls only: no line calibration)"));
     }
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
@@ -87,7 +107,16 @@ static void runAlgorithm(const RobotState &state)
     }
 
     telemetryTick(g_run, state, cmd);
-    operatorIoTick(state.timestampMs, g_run.mission.phase == MissionPhase::Fault);
+
+    // The DIP bank is read while the run waits for its start, not during the run.
+    if (g_run.mission.stage == RunStage::WaitStart) {
+        g_dip = operatorIoDip();
+    }
+    PanelView view;
+    view.run = panelRunOf(g_run.mission.stage);
+    view.mode = panelDecode(g_dip);
+    view.noCalibration = !g_haveCal;
+    operatorIoTick(state.timestampMs, view);
 }
 
 void loop()

@@ -1,6 +1,6 @@
 // ============================================================================
 //  mission/RunStart.h  --  when the run begins: by itself a moment after power-up, or by a
-//  debounced button press where one is fitted. No hardware, no Arduino.h - testable under
+//  debounced button press where one is wired. No hardware, no Arduino.h - testable under
 //  env:native. docs/architecture/modules/run_loop.md
 // ============================================================================
 
@@ -8,10 +8,11 @@
 
 #include <stdint.h>
 
+#include "spec/pins/Wired.h"
 #include "spec/tuning/Run.h"
 
 struct RunStart {
-    bool waitForButton = RUN_START_BUTTON_FITTED;
+    bool waitForButton = BUTTON_WIRED;
     uint8_t pressedTicks = 0;
     bool armed = false; // the first tick has been seen
     uint32_t armedAtMs = 0;

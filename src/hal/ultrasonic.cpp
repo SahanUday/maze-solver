@@ -96,7 +96,7 @@ void ultrasonicInit()
     PORTC = static_cast<uint8_t>(PORTC & ~kTrigMask);
 
     // Echoes are inputs, pull-ups off.
-    // PK0/PK1 are the pot and battery sense.
+    // PK0/PK1 (A8, A9) are left alone: they stay free for analog inputs.
     DDRK = static_cast<uint8_t>(DDRK & ~kEchoMask);
     PORTK = static_cast<uint8_t>(PORTK & ~kEchoMask);
 
