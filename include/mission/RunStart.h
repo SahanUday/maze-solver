@@ -1,7 +1,6 @@
 // ============================================================================
-//  mission/RunStart.h  --  the run's start: latched when told `go`. When to tell is the operator
-//  panel's (panel/PanelStart.h). No hardware, no Arduino.h - testable under env:native.
-//  docs/architecture/modules/run_loop.md
+//  mission/RunStart.h  --  the run's start, latched when told `go` (when: panel/PanelStart.h).
+//  No hardware, no Arduino.h. docs/architecture/modules/run_loop.md
 // ============================================================================
 
 #pragma once

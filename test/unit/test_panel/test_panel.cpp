@@ -124,13 +124,6 @@ static void test_code_blinks_n_times_per_cycle()
 
 constexpr uint32_t TICK_MS = CONTROL_LOOP_PERIOD_MS;
 
-static PanelStart startWith(bool buttonWired)
-{
-    PanelStart ps;
-    panelStartInit(ps, buttonWired);
-    return ps;
-}
-
 // `n` ticks with the button down or up and the DIP at `mode`; `t` moves on.
 static void ticks(PanelStart &ps, uint32_t &t, uint32_t n, bool down,
                   PanelMode mode = PanelMode::Explore)
@@ -140,13 +133,13 @@ static void ticks(PanelStart &ps, uint32_t &t, uint32_t n, bool down,
     }
 }
 
-// No button wired: the first tick with a setting that can run is accepted, `go` follows the delay,
-// and the pin is not read.
+// No button wired: the first tick on a setting that can run is accepted and `go` follows the delay.
 static void test_without_a_button_go_follows_the_delay()
 {
-    PanelStart ps = startWith(false);
-    uint32_t t = 1500;                               // the gyro zeroing took this long
-    panelStartTick(ps, t, true, PanelMode::Explore); // a floating pin reading low must not matter
+    PanelStart ps(false);
+    uint32_t t = 1500; // the gyro zeroing took this long
+    // A floating pin reading low must not matter.
+    panelStartTick(ps, t, true, PanelMode::Explore);
     TEST_ASSERT_TRUE(ps.counting);
     const uint32_t acceptedAt = t;
     for (t += TICK_MS; t < acceptedAt + PANEL_START_DELAY_MS; t += TICK_MS) {
@@ -157,7 +150,7 @@ static void test_without_a_button_go_follows_the_delay()
     TEST_ASSERT_TRUE(ps.go);
 
     // A setting that is not built is never accepted; the delay runs from the first that is.
-    PanelStart refused = startWith(false);
+    PanelStart refused(false);
     t = 0;
     ticks(refused, t, 300, false, PanelMode::SpeedSafe);
     TEST_ASSERT_FALSE(refused.counting);
@@ -169,7 +162,7 @@ static void test_without_a_button_go_follows_the_delay()
 // A press counts after DEBOUNCE ticks in a row, and only after the button has been up.
 static void test_a_press_needs_a_release_and_debounce()
 {
-    PanelStart ps = startWith(true);
+    PanelStart ps(true);
     uint32_t t = 0;
     ticks(ps, t, 100, false);
     TEST_ASSERT_FALSE(ps.counting); // no press, nothing happens
@@ -178,7 +171,7 @@ static void test_a_press_needs_a_release_and_debounce()
     }
     TEST_ASSERT_FALSE(ps.counting);
 
-    PanelStart held = startWith(true); // down since boot: a stuck or shorted line
+    PanelStart held(true); // down since boot: a stuck or shorted line
     t = 0;
     ticks(held, t, 50, true);
     TEST_ASSERT_FALSE(held.counting);
@@ -192,7 +185,7 @@ static void test_a_press_needs_a_release_and_debounce()
 // An accepted press counts down, then `go`; releasing and the DIP change nothing from then on.
 static void test_an_accepted_press_counts_down_then_goes()
 {
-    PanelStart ps = startWith(true);
+    PanelStart ps(true);
     uint32_t t = 0;
     ticks(ps, t, 1, false);
     ticks(ps, t, PANEL_START_DEBOUNCE_TICKS, true);
@@ -209,7 +202,7 @@ static void test_an_accepted_press_counts_down_then_goes()
 // A press on a setting that is not built is used up: it needs a release and a new press.
 static void test_a_refused_setting_uses_up_the_press()
 {
-    PanelStart ps = startWith(true);
+    PanelStart ps(true);
     uint32_t t = 0;
     ticks(ps, t, 1, false);
     ticks(ps, t, 10, true, PanelMode::SpeedSafe);

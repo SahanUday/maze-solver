@@ -32,9 +32,8 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
   limit, for a caller that sets `ms.start.started` itself. Both return the `DriveCommand`.
 - `missionTakeHeadingFix(ms)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), 0 when there is none. Call it every tick after the step.
-- `RunStart`, `runStartTick()` - the start latch: the run begins the first time `go` is true and stays
-  begun. When to say `go` is the operator panel's ([panel](panel.md)); the mission knows nothing of
-  buttons.
+- `RunStart`, `runStartTick()` - the start latch: the run begins the first time `go` is true. When to say
+  `go` is the operator panel's ([panel](panel.md)).
 
 ## How it works
 

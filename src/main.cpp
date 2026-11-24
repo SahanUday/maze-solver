@@ -31,7 +31,7 @@ static RunLoop g_run;
 static bool g_motorsEnabled = false;
 static bool g_haveCal = false; // a usable IR line calibration was loaded at boot
 static uint8_t g_dip = 0;      // the DIP bank, read while the run waits for its start
-static PanelStart g_start;
+static PanelStart g_start(BUTTON_WIRED);
 
 // The mission's stage as the panel shows it; main is the one place that knows both.
 static PanelRun panelRunOf(RunStage stage, bool counting)
@@ -65,7 +65,6 @@ void setup()
     g_haveCal = lineCalLoad(cal) && lineCalibrationLooksReal(cal);
     runLoopInit(g_run, imuPresent, g_haveCal ? &cal : nullptr,
                 PartRange{RUN_PART_FIRST, RUN_PART_LAST});
-    panelStartInit(g_start, BUTTON_WIRED);
     if (!imuPresent) {
         Serial.println(F("run: no gyro, will not start"));
     } else {

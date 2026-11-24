@@ -1,6 +1,5 @@
 // ============================================================================
-//  panel/PanelStart.h  --  when the operator lets the run begin: a debounced press of the start
-//  button, or by itself after power-up while no button is wired. Pure logic, no Arduino.h.
+//  panel/PanelStart.h  --  when the operator lets the run begin. Pure logic, no Arduino.h.
 //  The rules: docs/architecture/modules/panel.md
 // ============================================================================
 
@@ -12,7 +11,9 @@
 #include "spec/tuning/Panel.h"
 
 struct PanelStart {
-    bool buttonWired = false;
+    constexpr explicit PanelStart(bool wired = false) : buttonWired(wired) {}
+
+    bool buttonWired;
     bool released = false; // the button has been seen up since boot
     uint8_t pressedTicks = 0;
     bool counting = false; // accepted, waiting for the hands to come off
@@ -20,15 +21,8 @@ struct PanelStart {
     bool go = false; // latched: the run may begin
 };
 
-inline void panelStartInit(PanelStart &ps, bool buttonWired)
-{
-    ps = PanelStart{};
-    ps.buttonWired = buttonWired;
-}
-
-// One tick. `mode` is the DIP setting now and `buttonDown` the raw button. A setting that is not
-// built is never accepted; once accepted, `go` follows PANEL_START_DELAY_MS later whatever the DIP
-// or the button do.
+// One tick. A setting that is not built is never accepted; once accepted, `go` follows
+// PANEL_START_DELAY_MS whatever the DIP or the button do.
 inline void panelStartTick(PanelStart &ps, uint32_t nowMs, bool buttonDown, PanelMode mode)
 {
     if (ps.go) {

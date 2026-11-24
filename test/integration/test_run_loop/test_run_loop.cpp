@@ -28,19 +28,12 @@ static DriveCommand tick(RunLoop &rl, PanelStart &ps, const RobotState &s, uint3
     return c;
 }
 
-static PanelStart startWith(bool buttonWired)
-{
-    PanelStart ps;
-    panelStartInit(ps, buttonWired);
-    return ps;
-}
-
 // A robot with no start button: it stands until the delay after power-up, then runs.
 static void test_without_a_button_the_run_begins_after_the_delay()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    PanelStart ps = startWith(false);
+    PanelStart ps(false);
     RobotState s;
     const uint32_t bootMs = 1500; // the gyro zeroing took this long
     for (uint32_t t = bootMs; t < bootMs + PANEL_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
@@ -58,7 +51,7 @@ static void test_with_a_button_the_run_begins_a_delay_after_the_press()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    PanelStart ps = startWith(true);
+    PanelStart ps(true);
     RobotState s;
     uint32_t t = 0;
     for (; t < 1000; t += CONTROL_LOOP_PERIOD_MS) {
@@ -85,7 +78,7 @@ static void test_no_gyro_means_no_run()
 {
     RunLoop rl;
     runLoopInit(rl, false, nullptr);
-    PanelStart ps = startWith(false);
+    PanelStart ps(false);
     RobotState s;
     DriveCommand c;
     for (uint32_t t = 0; t < PANEL_START_DELAY_MS / 10 + 20; ++t) {
@@ -113,7 +106,7 @@ static void test_the_run_limit_ends_the_run()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    PanelStart ps = startWith(false);
+    PanelStart ps(false);
     RobotState s;
     for (uint32_t t = 0; t <= PANEL_START_DELAY_MS / 10 + 5; ++t) {
         tick(rl, ps, s, t * 10, false);
@@ -139,7 +132,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
         const LineCalibration cal = World::calibration();
         RunLoop rl;
         runLoopInit(rl, true, &cal);
-        PanelStart ps = startWith(false); // no button: it starts by itself
+        PanelStart ps(false); // no button: it starts by itself
         uint32_t lineTicks = 0;
         float worstMm = 0.0f;
         for (uint32_t t = 0; t < RUN_LIMIT_MS / CONTROL_LOOP_PERIOD_MS && lineTicks < 600; ++t) {
