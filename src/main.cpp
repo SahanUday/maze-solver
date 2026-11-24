@@ -21,7 +21,9 @@
 #include "line_cal_store.h"
 #include "mission/RunLoop.h"
 #include "panel/PanelLeds.h"
+#include "panel/PanelStart.h"
 #include "spec/fixed/Hardware.h"
+#include "spec/pins/Wired.h"
 #include "spec/tuning/Run.h"
 
 static RobotState g_state;
@@ -29,13 +31,14 @@ static RunLoop g_run;
 static bool g_motorsEnabled = false;
 static bool g_haveCal = false; // a usable IR line calibration was loaded at boot
 static uint8_t g_dip = 0;      // the DIP bank, read while the run waits for its start
+static PanelStart g_start(BUTTON_WIRED);
 
 // The mission's stage as the panel shows it; main is the one place that knows both.
-static PanelRun panelRunOf(RunStage stage)
+static PanelRun panelRunOf(RunStage stage, bool counting)
 {
     switch (stage) {
         case RunStage::WaitStart:
-            return PanelRun::Waiting;
+            return counting ? PanelRun::Countdown : PanelRun::Waiting;
         case RunStage::Running:
             return PanelRun::Running;
         case RunStage::Done:
@@ -65,8 +68,8 @@ void setup()
     if (!imuPresent) {
         Serial.println(F("run: no gyro, will not start"));
     } else {
-        Serial.println(g_haveCal ? F("run: starts by itself, line calibration loaded")
-                                 : F("run: starts by itself (walls only: no line calibration)"));
+        Serial.println(g_haveCal ? F("run: line calibration loaded")
+                                 : F("run: walls only (no line calibration)"));
     }
     Serial.println(F("maze-solver: fixed-period loop starting"));
 }
@@ -87,9 +90,16 @@ static void readSensors(RobotState &state)
 // The Section A run: perception, mission, then the motors.
 static void runAlgorithm(const RobotState &state)
 {
+    // The operator's start: the DIP bank is read only while waiting for it.
+    if (g_run.mission.stage == RunStage::WaitStart && !g_start.counting) {
+        g_dip = operatorIoDip();
+    }
+    const PanelMode mode = panelDecode(g_dip);
+    panelStartTick(g_start, state.timestampMs, operatorIoStartButton(), mode);
+
     float headingFixDeg = 0.0f;
     const DriveCommand cmd =
-        runLoopTick(g_run, state, state.timestampMs, operatorIoStartButton(), headingFixDeg);
+        runLoopTick(g_run, state, state.timestampMs, g_start.go, headingFixDeg);
 
     // The corridor's measured direction, handed back to the gyro (StepCell.h).
     if (headingFixDeg != 0.0f) {
@@ -107,13 +117,9 @@ static void runAlgorithm(const RobotState &state)
 
     telemetryTick(g_run, state, cmd);
 
-    // The DIP bank is read only while waiting for the start.
-    if (g_run.mission.stage == RunStage::WaitStart) {
-        g_dip = operatorIoDip();
-    }
     PanelView view;
-    view.run = panelRunOf(g_run.mission.stage);
-    view.mode = panelDecode(g_dip);
+    view.run = panelRunOf(g_run.mission.stage, g_start.counting);
+    view.mode = mode;
     view.noCalibration = !g_haveCal;
     operatorIoTick(state.timestampMs, view);
 }

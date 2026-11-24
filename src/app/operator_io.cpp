@@ -6,7 +6,7 @@
 
 #include <Arduino.h>
 
-#include "panel/PanelControls.h"
+#include "panel/PanelMode.h"
 #include "spec/pins/PinMap.h"
 #include "spec/pins/Wired.h"
 

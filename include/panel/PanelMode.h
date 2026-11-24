@@ -1,5 +1,5 @@
 // ============================================================================
-//  panel/PanelControls.h  --  what the DIP bank means. Pure logic, no Arduino.h.
+//  panel/PanelMode.h  --  what the DIP bank means. Pure logic, no Arduino.h.
 //  The settings table: docs/architecture/modules/panel.md
 // ============================================================================
 
