@@ -7,6 +7,7 @@
 #include <unity.h>
 
 #include "mission/RunLoop.h"
+#include "panel/PanelStart.h"
 #include "../../support/world/Presets.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/fixed/Rules.h"
@@ -14,15 +15,24 @@
 
 using world::World;
 
-static DriveCommand tick(RunLoop &rl, const RobotState &s, uint32_t nowMs, bool button,
-                         float *fix = nullptr)
+// What main.cpp does each tick: the panel decides `go`, the mission gets it.
+static DriveCommand tick(RunLoop &rl, PanelStart &ps, const RobotState &s, uint32_t nowMs,
+                         bool button, float *fix = nullptr)
 {
+    panelStartTick(ps, nowMs, button, PanelMode::Explore);
     float f = 0.0f;
-    const DriveCommand c = runLoopTick(rl, s, nowMs, button, f);
+    const DriveCommand c = runLoopTick(rl, s, nowMs, ps.go, f);
     if (fix != nullptr) {
         *fix = f;
     }
     return c;
+}
+
+static PanelStart startWith(bool buttonWired)
+{
+    PanelStart ps;
+    panelStartInit(ps, buttonWired);
+    return ps;
 }
 
 // A robot with no start button: it stands until the delay after power-up, then runs.
@@ -30,70 +40,43 @@ static void test_without_a_button_the_run_begins_after_the_delay()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    TEST_ASSERT_FALSE(rl.mission.start.waitForButton);
+    PanelStart ps = startWith(false);
     RobotState s;
     const uint32_t bootMs = 1500; // the gyro zeroing took this long
-    for (uint32_t t = bootMs; t < bootMs + RUN_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
-        const DriveCommand c = tick(rl, s, t, false);
+    for (uint32_t t = bootMs; t < bootMs + PANEL_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
+        const DriveCommand c = tick(rl, ps, s, t, false);
         TEST_ASSERT_FALSE(c.enable);
         TEST_ASSERT_FALSE(rl.mission.start.started);
     }
-    tick(rl, s, bootMs + RUN_START_DELAY_MS, false);
+    tick(rl, ps, s, bootMs + PANEL_START_DELAY_MS, false);
     TEST_ASSERT_TRUE(rl.mission.start.started);
     TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
 }
 
-static void test_a_button_is_ignored_when_none_is_fitted()
+// With a button: nothing moves until a press, and the run begins a delay after it is accepted.
+static void test_with_a_button_the_run_begins_a_delay_after_the_press()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
-    RobotState s;
-    tick(rl, s, 0, true); // a floating pin reading low must not matter
-    TEST_ASSERT_FALSE(rl.mission.start.started);
-}
-
-static void test_nothing_moves_until_the_button_is_held()
-{
-    RunLoop rl;
-    runLoopInit(rl, true, nullptr);
-    rl.mission.start.waitForButton = true;
-    RobotState s;
-    for (uint32_t t = 0; t < 100; ++t) {
-        const DriveCommand c = tick(rl, s, t * 10, false);
-        TEST_ASSERT_FALSE(c.enable);
-    }
-    TEST_ASSERT_FALSE(rl.mission.start.started);
-    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::WaitStart),
-                      static_cast<int>(rl.mission.phase));
-}
-
-static void test_a_bounce_does_not_start_a_run()
-{
-    RunLoop rl;
-    runLoopInit(rl, true, nullptr);
-    rl.mission.start.waitForButton = true;
-    RobotState s;
-    for (uint32_t t = 0; t < 40; ++t) {
-        tick(rl, s, t * 10, t % 3 == 2); // never five in a row
-    }
-    TEST_ASSERT_FALSE(rl.mission.start.started);
-}
-
-static void test_one_press_starts_the_run_and_releasing_does_not_stop_it()
-{
-    RunLoop rl;
-    runLoopInit(rl, true, nullptr);
-    rl.mission.start.waitForButton = true;
+    PanelStart ps = startWith(true);
     RobotState s;
     uint32_t t = 0;
-    for (; t < RUN_START_DEBOUNCE_TICKS + 2; ++t) {
-        tick(rl, s, t * 10, true);
+    for (; t < 1000; t += CONTROL_LOOP_PERIOD_MS) {
+        TEST_ASSERT_FALSE(tick(rl, ps, s, t, false).enable);
     }
-    TEST_ASSERT_TRUE(rl.mission.start.started);
-    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
-    for (; t < RUN_START_DEBOUNCE_TICKS + 20; ++t) {
-        tick(rl, s, t * 10, false);
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::WaitStart),
+                      static_cast<int>(rl.mission.phase));
+
+    for (uint32_t i = 0; i < PANEL_START_DEBOUNCE_TICKS; ++i, t += CONTROL_LOOP_PERIOD_MS) {
+        tick(rl, ps, s, t, true);
     }
+    TEST_ASSERT_TRUE(ps.counting);
+    const uint32_t acceptedAt = ps.acceptedAtMs;
+    for (; t < acceptedAt + PANEL_START_DELAY_MS; t += CONTROL_LOOP_PERIOD_MS) {
+        TEST_ASSERT_FALSE(tick(rl, ps, s, t, false).enable); // released, hands off
+        TEST_ASSERT_FALSE(rl.mission.start.started);
+    }
+    tick(rl, ps, s, t, false);
     TEST_ASSERT_TRUE(rl.mission.start.started);
     TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::WaitStart);
 }
@@ -102,10 +85,11 @@ static void test_no_gyro_means_no_run()
 {
     RunLoop rl;
     runLoopInit(rl, false, nullptr);
+    PanelStart ps = startWith(false);
     RobotState s;
     DriveCommand c;
-    for (uint32_t t = 0; t < RUN_START_DELAY_MS / 10 + 20; ++t) {
-        c = tick(rl, s, t * 10, true);
+    for (uint32_t t = 0; t < PANEL_START_DELAY_MS / 10 + 20; ++t) {
+        c = tick(rl, ps, s, t * 10, true);
         TEST_ASSERT_FALSE(c.enable);
     }
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(rl.mission.phase));
@@ -129,15 +113,16 @@ static void test_the_run_limit_ends_the_run()
 {
     RunLoop rl;
     runLoopInit(rl, true, nullptr);
+    PanelStart ps = startWith(false);
     RobotState s;
-    for (uint32_t t = 0; t <= RUN_START_DELAY_MS / 10 + 5; ++t) {
-        tick(rl, s, t * 10, false);
+    for (uint32_t t = 0; t <= PANEL_START_DELAY_MS / 10 + 5; ++t) {
+        tick(rl, ps, s, t * 10, false);
     }
     TEST_ASSERT_TRUE(rl.mission.start.started);
     const uint32_t startedAt = rl.mission.start.startedAtMs;
-    DriveCommand c = tick(rl, s, startedAt + RUN_LIMIT_MS - 10, false);
+    DriveCommand c = tick(rl, ps, s, startedAt + RUN_LIMIT_MS - 10, false);
     TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::Fault);
-    c = tick(rl, s, startedAt + RUN_LIMIT_MS, false);
+    c = tick(rl, ps, s, startedAt + RUN_LIMIT_MS, false);
     TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(rl.mission.phase));
     TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::TimeUp), static_cast<int>(rl.mission.fault));
     TEST_ASSERT_FALSE(c.enable);
@@ -153,7 +138,8 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
         w.start(2, 1, facing);
         const LineCalibration cal = World::calibration();
         RunLoop rl;
-        runLoopInit(rl, true, &cal); // no button: it starts by itself
+        runLoopInit(rl, true, &cal);
+        PanelStart ps = startWith(false); // no button: it starts by itself
         uint32_t lineTicks = 0;
         float worstMm = 0.0f;
         for (uint32_t t = 0; t < RUN_LIMIT_MS / CONTROL_LOOP_PERIOD_MS && lineTicks < 600; ++t) {
@@ -161,7 +147,8 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
             // The world's own perception is not used: the loop gets the raw state.
             (void)w.sense();
             float fix = 0.0f;
-            const DriveCommand c = runLoopTick(rl, w.state, nowMs, false, fix);
+            panelStartTick(ps, nowMs, false, PanelMode::Explore);
+            const DriveCommand c = runLoopTick(rl, w.state, nowMs, ps.go, fix);
             if (fix != 0.0f) {
                 headingSet(w.heading, w.heading.deg - fix);
             }
@@ -185,10 +172,7 @@ int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_without_a_button_the_run_begins_after_the_delay);
-    RUN_TEST(test_a_button_is_ignored_when_none_is_fitted);
-    RUN_TEST(test_nothing_moves_until_the_button_is_held);
-    RUN_TEST(test_a_bounce_does_not_start_a_run);
-    RUN_TEST(test_one_press_starts_the_run_and_releasing_does_not_stop_it);
+    RUN_TEST(test_with_a_button_the_run_begins_a_delay_after_the_press);
     RUN_TEST(test_no_gyro_means_no_run);
     RUN_TEST(test_without_a_line_calibration_the_run_is_walls_only);
     RUN_TEST(test_the_run_limit_ends_the_run);

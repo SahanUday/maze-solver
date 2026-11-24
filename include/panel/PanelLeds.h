@@ -10,7 +10,7 @@
 #include "panel/PanelControls.h"
 #include "spec/tuning/Panel.h"
 
-enum class PanelRun : uint8_t { Waiting, Running, EndedOk, EndedBad };
+enum class PanelRun : uint8_t { Waiting, Countdown, Running, EndedOk, EndedBad };
 
 struct PanelView {
     PanelRun run = PanelRun::Waiting;
@@ -49,6 +49,9 @@ constexpr PanelLeds panelLeds(const PanelView &view, uint32_t nowMs)
             }
             out.status = panelCode(nowMs, panelModeCode(view.mode));
             out.error = view.noCalibration && panelBlink(nowMs, PANEL_HEARTBEAT_HALF_PERIOD_MS);
+            return out;
+        case PanelRun::Countdown:
+            out.status = panelBlink(nowMs, PANEL_FAST_BLINK_HALF_PERIOD_MS);
             return out;
         case PanelRun::Running:
             out.status = panelBlink(nowMs, PANEL_HEARTBEAT_HALF_PERIOD_MS);

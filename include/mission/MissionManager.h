@@ -392,12 +392,11 @@ inline DriveCommand missionStep(MissionManager &ms, const MissionParams &p, cons
     return cmd;
 }
 
-// One tick of a run: the start, the run limit, then the parts. `buttonDown` is the raw start
-// button.
+// One tick of a run: the start, the run limit, then the parts. `go` is the operator's start.
 inline DriveCommand missionTick(MissionManager &ms, const MissionParams &p, const Perception &pc,
-                                uint32_t nowMs, bool buttonDown)
+                                uint32_t nowMs, bool go)
 {
-    runStartTick(ms.start, nowMs, buttonDown);
+    runStartTick(ms.start, nowMs, go);
     if (ms.start.started && ms.stage != RunStage::Done && ms.stage != RunStage::Fault &&
         nowMs - ms.start.startedAtMs >= RUN_LIMIT_MS) {
         missionFail(ms, MissionFault::TimeUp);
