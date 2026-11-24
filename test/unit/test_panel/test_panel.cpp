@@ -7,7 +7,7 @@
 #include <unity.h>
 
 #include "panel/PanelLeds.h"
-#include "panel/PanelControls.h"
+#include "panel/PanelMode.h"
 #include "panel/PanelStart.h"
 #include "spec/fixed/Hardware.h"
 

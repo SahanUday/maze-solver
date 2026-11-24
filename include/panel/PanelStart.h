@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-#include "panel/PanelControls.h"
+#include "panel/PanelMode.h"
 #include "spec/tuning/Panel.h"
 
 struct PanelStart {

@@ -1,7 +1,7 @@
 # panel
 
 What the DIP bank means, when the operator lets the run begin and what the two LEDs show. Pure logic in
-`include/panel/` (`PanelControls.h`, `PanelStart.h`, `PanelLeds.h`), timings in `spec/tuning/Panel.h`, tests in `test/unit/test_panel/`. It includes nothing
+`include/panel/` (`PanelMode.h`, `PanelStart.h`, `PanelLeds.h`), timings in `spec/tuning/Panel.h`, tests in `test/unit/test_panel/`. It includes nothing
 from `mission/`, `sense/` or `motion/`; `src/main.cpp` hands it the mission's stage. The pins are
 [operator_io](operator_io.md)'s. Why it is built apart from the robot's logic:
 [0021](../decisions/0021-operator-panel-built-apart-from-the-robot-logic.md).
