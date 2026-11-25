@@ -39,13 +39,15 @@ it fails them.
 ## Consequences
 
 - A robot still navigating at the buzzer uses the grace period.
-- A robot that goes wrong in a way no check catches runs until a person removes it. One case is known: the
-  line follower carries straight on over an all-black view, so until the line has an end rule (#60) it
-  stops there only on a stall.
+- A robot that goes wrong in a way no check catches runs until a person removes it. The known case is the
+  line part: it gives up only after the array has read all white for 3 s without a break, with the robot not
+  nose-up. All black, white on a slope or a view that keeps changing keeps it going. It then stops only on a
+  stall, which a wheel that still turns does not raise. The end of the line onto the maze floor is #60.
 - The limits inside the parts are unchanged: a move that makes no progress, turn retries, map rescans,
   blocked steps and the search for a lost line. Whether any of those should change is not decided here.
 - `MissionFault::TimeUp` is gone. The later codes keep their numbers in the serial log.
-- Gyro drift over a run longer than 8 minutes has not been measured.
+- Gyro drift has been measured for 10 minutes on the bench, not with the motors running or over a longer
+  run.
 - Nothing here has run on the robot.
 
 ## Alternatives considered
