@@ -186,6 +186,11 @@ jobs:
       - name: Build
         run: pio run -e mega
 
+      # The bench firmware (tools/bench/) shares the drivers and logic: build it so an API change
+      # that breaks it fails here, not on the day the robot is on the bench.
+      - name: Build the bench firmware
+        run: pio run -e bench
+
       # The built-in Mega pin table behind check-pin-map.py must match the core.
       - name: Pin table matches the Arduino core
         run: scripts/check-pin-map.py --core-header ~/.platformio/packages/framework-arduino-avr/variants/mega/pins_arduino.h

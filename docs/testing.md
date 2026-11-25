@@ -117,7 +117,10 @@ silently). `lib/maze` is set up for the same strictness in
 `lib/maze/library.json`, which starts applying once the library has a `.cpp` of
 its own — while it is header-only, `Maze.h` is compiled under the flags of
 whatever includes it.
-**Run:** `pio run -e mega`.
+The bench firmware (`env:bench`, `tools/bench/`; see the README) is built in the
+same job with the same flags, so a change to a driver or a logic header that
+breaks it fails CI instead of surfacing on the day the robot is on the bench.
+**Run:** `pio run -e mega` and `pio run -e bench`.
 
 ### 4. Memory budgets
 **What:** after the build, `check-ram-budget.sh` and `check-flash-budget.sh`
