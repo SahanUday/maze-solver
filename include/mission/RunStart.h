@@ -5,18 +5,12 @@
 
 #pragma once
 
-#include <stdint.h>
-
 struct RunStart {
     bool started = false;
-    uint32_t startedAtMs = 0;
 };
 
 // One tick: the run begins the first time `go` is true.
-inline void runStartTick(RunStart &rs, uint32_t nowMs, bool go)
+inline void runStartTick(RunStart &rs, bool go)
 {
-    if (!rs.started && go) {
-        rs.started = true;
-        rs.startedAtMs = nowMs;
-    }
+    rs.started = rs.started || go;
 }

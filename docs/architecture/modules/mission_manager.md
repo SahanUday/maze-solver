@@ -27,9 +27,9 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
   may set `parts` and `wallsOnly`.
 - `missionReset(ms)`, `missionFail(ms, code)` - the caller fails a run for a precondition it found
   missing (`NoImu`).
-- `missionTick(ms, params, perception, nowMs, go)` - one tick of a run: the start, the run
-  limit, then the parts. `missionStep(ms, params, perception)` is the same without the start and the
-  limit, for a caller that sets `ms.start.started` itself. Both return the `DriveCommand`.
+- `missionTick(ms, params, perception, go)` - one tick of a run: the start, then the parts.
+  `missionStep(ms, params, perception)` is the same without the start latch, for a caller that sets
+  `ms.start.started` itself. Both return the `DriveCommand`.
 - `missionTakeHeadingFix(ms)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), 0 when there is none. Call it every tick after the step.
 - `RunStart`, `runStartTick()` - the start latch: the run begins the first time `go` is true. When to say
@@ -47,8 +47,9 @@ part begins:
 Each tick the running part is stepped and reports one of: `Running`, `Done` (the next part begins on the
 next tick), `HandOver` (it ended while moving on, so the next part acts in the same tick), `DoneHold`
 (ended, wheels held with no control step this tick) or `Fault`. When the last part of the range has
-ended the run is `Done` and holds the wheels with the drivers enabled. The run limit (`RUN_LIMIT_MS`, 8
-minutes from the start) fails a run still in progress (`TimeUp`). A stalled controller is `Stall`.
+ended the run is `Done` and holds the wheels with the drivers enabled. A stalled controller is `Stall`.
+No run ends on time: the manager is given no clock, and the officials time the trial
+([0022](../decisions/0022-no-run-ends-on-time.md)).
 
 - **AExplore:** the explorer's phases ([cell_explorer](cell_explorer.md)). While it steps, the manager
   feeds the floor pattern; when the marker is told it asks the explorer to stop on the tile, and if the

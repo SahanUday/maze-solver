@@ -25,8 +25,7 @@ should cover them all, with the same boot messages, status line, phase lines and
 - The Section A mission split into the explorer, the marker exit and the mission (#51). On the host
   every tick of the mission is identical before and after.
 - `RunLoop` and `Perception` start handling (#52).
-- The mission manager and the part model (INT-01): the start and the run limit now live in `RunStart` and
-  `MissionManager`.
+- The mission manager and the part model (INT-01): the start now lives in `RunStart` and `MissionManager`.
 
 The host tests do not reach the explorer's "stop and brake at once" path (`ExploreStatus::Braked`,
 used only when the run ends with `AExplore`, `Parts.h`); the firmware's default run goes on to the exit part.

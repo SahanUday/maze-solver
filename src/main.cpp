@@ -98,8 +98,7 @@ static void runAlgorithm(const RobotState &state)
     panelStartTick(g_start, state.timestampMs, operatorIoStartButton(), mode);
 
     float headingFixDeg = 0.0f;
-    const DriveCommand cmd =
-        runLoopTick(g_run, state, state.timestampMs, g_start.go, headingFixDeg);
+    const DriveCommand cmd = runLoopTick(g_run, state, g_start.go, headingFixDeg);
 
     // The corridor's measured direction, handed back to the gyro (StepCell.h).
     if (headingFixDeg != 0.0f) {
