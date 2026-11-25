@@ -1,5 +1,5 @@
 // ============================================================================
-//  test_run_loop.cpp  --  the tick main.cpp runs: start button, perception, mission, run limit.
+//  test_run_loop.cpp  --  the tick main.cpp runs: start button, perception, mission.
 //  No hardware needed.
 // ============================================================================
 
@@ -21,7 +21,7 @@ static DriveCommand tick(RunLoop &rl, PanelStart &ps, const RobotState &s, uint3
 {
     panelStartTick(ps, nowMs, button, PanelMode::Explore);
     float f = 0.0f;
-    const DriveCommand c = runLoopTick(rl, s, nowMs, ps.go, f);
+    const DriveCommand c = runLoopTick(rl, s, ps.go, f);
     if (fix != nullptr) {
         *fix = f;
     }
@@ -102,25 +102,6 @@ static void test_without_a_line_calibration_the_run_is_walls_only()
     TEST_ASSERT_FALSE(with.params.wallsOnly);
 }
 
-static void test_the_run_limit_ends_the_run()
-{
-    RunLoop rl;
-    runLoopInit(rl, true, nullptr);
-    PanelStart ps(false);
-    RobotState s;
-    for (uint32_t t = 0; t <= PANEL_START_DELAY_MS / 10 + 5; ++t) {
-        tick(rl, ps, s, t * 10, false);
-    }
-    TEST_ASSERT_TRUE(rl.mission.start.started);
-    const uint32_t startedAt = rl.mission.start.startedAtMs;
-    DriveCommand c = tick(rl, ps, s, startedAt + RUN_LIMIT_MS - 10, false);
-    TEST_ASSERT_TRUE(rl.mission.phase != MissionPhase::Fault);
-    c = tick(rl, ps, s, startedAt + RUN_LIMIT_MS, false);
-    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(rl.mission.phase));
-    TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::TimeUp), static_cast<int>(rl.mission.fault));
-    TEST_ASSERT_FALSE(c.enable);
-}
-
 // The whole thing in the simulated arena: power-up delay, perception from raw sensors, mission,
 // motors; from a tile of the maze out over the gap and onto the line.
 static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
@@ -141,7 +122,7 @@ static void test_a_run_from_power_on_to_the_marker_and_onto_the_line()
             (void)w.sense();
             float fix = 0.0f;
             panelStartTick(ps, nowMs, false, PanelMode::Explore);
-            const DriveCommand c = runLoopTick(rl, w.state, nowMs, ps.go, fix);
+            const DriveCommand c = runLoopTick(rl, w.state, ps.go, fix);
             if (fix != 0.0f) {
                 headingSet(w.heading, w.heading.deg - fix);
             }
@@ -168,7 +149,6 @@ int main()
     RUN_TEST(test_with_a_button_the_run_begins_a_delay_after_the_press);
     RUN_TEST(test_no_gyro_means_no_run);
     RUN_TEST(test_without_a_line_calibration_the_run_is_walls_only);
-    RUN_TEST(test_the_run_limit_ends_the_run);
     RUN_TEST(test_a_run_from_power_on_to_the_marker_and_onto_the_line);
     return UNITY_END();
 }
