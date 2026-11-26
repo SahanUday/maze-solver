@@ -136,10 +136,25 @@ inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExpl
                 sb.proved = pr.length;
                 return BStatus::Done;
             }
-            const SectionBMap::Index tile = static_cast<SectionBMap::Index>(pr.lookTile);
-            if (sb.looked && tile == sb.lookTile && pr.lookDir == sb.lookDir) {
+            SectionBMap::Index tile = static_cast<SectionBMap::Index>(pr.lookTile);
+            maze::Dir dir = pr.lookDir;
+            // The proof chose the edge by what is reachable from the entry tile, but the robot drives
+            // from where it stands. With no checked way from here to that side of the edge, look at
+            // it from its other side; with none to either, end the proof unproved.
+            maze::Dir first;
+            if (tile != ce.map.pos && !maze::explorerRoute(ce.map, ce.map.pos, tile, first)) {
+                SectionBMap::Index other = 0;
+                if (!SectionBMap::neighbour(tile, dir, other) ||
+                    (other != ce.map.pos &&
+                     !maze::explorerRoute(ce.map, ce.map.pos, other, first))) {
+                    return BStatus::Done;
+                }
+                tile = other;
+                dir = maze::opposite(dir);
+            }
+            if (sb.looked && tile == sb.lookTile && dir == sb.lookDir) {
                 if (++sb.lookTries >= p.frontTries) {
-                    maze::markWall(ce.map, tile, pr.lookDir); // nothing answers: a wall
+                    maze::markWall(ce.map, tile, dir); // nothing answers: a wall
                     sb.looked = false;
                     sb.lookTries = 0;
                     return BStatus::Running;
@@ -149,7 +164,7 @@ inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExpl
             }
             sb.looked = true;
             sb.lookTile = tile;
-            sb.lookDir = pr.lookDir;
+            sb.lookDir = dir;
             ++sb.looks;
             cellExplorerClearStop(ce);
             cellExplorerDriveTo(ce, tile);
@@ -165,6 +180,11 @@ inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExpl
                 case ExploreStatus::AtTarget:
                     break;
                 case ExploreStatus::Fault:
+                    if (ce.fault == MissionFault::TargetUnreachable) {
+                        ce.fault = MissionFault::None; // a wall seen on the way: choose again
+                        sb.prove = ProveStep::Check;
+                        return BStatus::Running;
+                    }
                     sb.fault = ce.fault;
                     return BStatus::Fault;
                 case ExploreStatus::Explored:

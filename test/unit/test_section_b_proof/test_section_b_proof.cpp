@@ -157,6 +157,27 @@ static void test_a_finish_source_is_asked_with_its_context_and_none_is_never_tol
     TEST_ASSERT_FALSE(finishTold(some, pc));
 }
 
+// The edge to look at is between the entry tile and the tile north of it, and the robot is on the
+// far side with no checked way round: it looks from its own side.
+static void test_an_edge_out_of_reach_from_one_side_is_looked_at_from_the_other()
+{
+    CellExplorerB ce;
+    cellExplorerReset(ce);
+    const Perception pc;
+    cellExplorerStart(ce, pc.motion);
+    const SectionBMap::Index two =
+        static_cast<SectionBMap::Index>(kNorthOfStart - SectionBMap::kSide);
+    maze::markOpen(ce.map, kNorthOfStart, Dir::North);
+    ce.map.pos = two;
+    SectionB sb = lookingFor(two);
+    const CellExplorerParams p;
+    const BStatus st = runUntilSettled(sb, ce, p, 200);
+    TEST_ASSERT_NOT_EQUAL(static_cast<int>(MissionFault::TargetUnreachable),
+                          static_cast<int>(sb.fault));
+    TEST_ASSERT_NOT_EQUAL(static_cast<int>(BStatus::Fault), static_cast<int>(st));
+    TEST_ASSERT_EQUAL(kNorthOfStart, sb.lookTile);
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -165,6 +186,7 @@ int main()
     RUN_TEST(test_without_a_finish_there_is_nothing_to_prove);
     RUN_TEST(test_an_edge_nothing_answers_for_becomes_a_wall_after_the_tries);
     RUN_TEST(test_the_edge_the_robot_came_in_by_is_closed_and_closed_again_after_a_rescan);
+    RUN_TEST(test_an_edge_out_of_reach_from_one_side_is_looked_at_from_the_other);
     RUN_TEST(test_a_finish_source_is_asked_with_its_context_and_none_is_never_told);
     return UNITY_END();
 }
