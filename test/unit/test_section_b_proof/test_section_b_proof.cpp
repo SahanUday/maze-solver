@@ -15,6 +15,11 @@ constexpr SectionBMap::Index kStart = SectionBMap::kStart;
 constexpr SectionBMap::Index kNorthOfStart =
     static_cast<SectionBMap::Index>(kStart - SectionBMap::kSide);
 
+static SectionBMap::Index north(SectionBMap::Index tile)
+{
+    return static_cast<SectionBMap::Index>(tile - SectionBMap::kSide);
+}
+
 // The tile one step north of the start, to prove a path to.
 static SectionB lookingFor(SectionBMap::Index finish)
 {
@@ -178,6 +183,84 @@ static void test_an_edge_out_of_reach_from_one_side_is_looked_at_from_the_other(
     TEST_ASSERT_EQUAL(kNorthOfStart, sb.lookTile);
 }
 
+// No checked way to either side of the edge from where the robot is: the proof ends, unproved.
+static void test_an_edge_out_of_reach_from_both_sides_ends_the_proof_unproved()
+{
+    CellExplorerB ce;
+    cellExplorerReset(ce);
+    const Perception pc;
+    cellExplorerStart(ce, pc.motion);
+    ce.map.pos = north(north(north(kStart))); // nothing checked between here and the entry tile
+    SectionB sb = lookingFor(kNorthOfStart);
+    const CellExplorerParams p;
+    TEST_ASSERT_EQUAL(static_cast<int>(BStatus::Done),
+                      static_cast<int>(runUntilSettled(sb, ce, p, 200)));
+    TEST_ASSERT_EQUAL(0, sb.proved);
+    TEST_ASSERT_EQUAL(0, sb.looks);
+}
+
+// A wall seen on the way cuts the route to the edge: the proof chooses again, with no fault.
+static void test_a_wall_found_on_the_way_makes_the_proof_choose_again()
+{
+    CellExplorerB ce;
+    cellExplorerReset(ce);
+    Perception pc;
+    cellExplorerStart(ce, pc.motion);
+    maze::markOpen(ce.map, kStart, Dir::North);
+    maze::markOpen(ce.map, kNorthOfStart, Dir::North);
+    SectionB sb = lookingFor(north(north(kNorthOfStart)));
+    const CellExplorerParams p;
+    pc.walls.frontValid = true; // the way marked open turns out to have a wall
+    pc.walls.front = true;
+    for (uint32_t t = 0; t < 100; ++t) {
+        MotionTarget target;
+        TEST_ASSERT_NOT_EQUAL(static_cast<int>(BStatus::Fault),
+                              static_cast<int>(sectionBProveStep(sb, ce, p, pc, target)));
+    }
+    TEST_ASSERT_TRUE((ce.map.cell[kStart] & maze::wallBit(Dir::North)) != 0);
+    TEST_ASSERT_EQUAL(kStart, sb.lookTile);
+}
+
+// Looking from the other side, a silent edge is the one taken as a wall.
+static void test_a_silent_edge_seen_from_the_other_side_becomes_that_wall()
+{
+    CellExplorerB ce;
+    cellExplorerReset(ce);
+    const Perception pc;
+    cellExplorerStart(ce, pc.motion);
+    ce.map.pos = kNorthOfStart;
+    ce.map.heading = Dir::South; // facing the edge to the entry tile
+    SectionB sb = lookingFor(kNorthOfStart);
+    const CellExplorerParams p;
+    runUntilSettled(sb, ce, p, 2000);
+    TEST_ASSERT_TRUE((ce.map.cell[kStart] & maze::wallBit(Dir::North)) != 0);
+    TEST_ASSERT_TRUE((ce.map.cell[kNorthOfStart] & maze::wallBit(Dir::North)) == 0);
+    TEST_ASSERT_EQUAL(p.frontTries, sb.looks);
+}
+
+// On the tile to look from, the robot turns to the edge only if the arrival did not check it.
+static void test_the_proof_turns_only_to_an_edge_not_yet_checked()
+{
+    for (const bool heard : {false, true}) {
+        CellExplorerB ce;
+        cellExplorerReset(ce);
+        Perception pc;
+        cellExplorerStart(ce, pc.motion);
+        ce.map.heading = Dir::East; // the edge to look at, North, is on the left
+        for (const Dir d : {Dir::East, Dir::South, Dir::West}) {
+            maze::markWall(ce.map, kStart, d);
+        }
+        pc.walls.leftValid = heard; // heard open: checked without turning
+        SectionB sb = lookingFor(kNorthOfStart);
+        const CellExplorerParams p;
+        for (uint32_t t = 0; t < 40; ++t) {
+            MotionTarget target;
+            sectionBProveStep(sb, ce, p, pc, target);
+        }
+        TEST_ASSERT_EQUAL(heard ? 0 : 1, ce.phase == ExplorePhase::Turn ? 1 : 0);
+    }
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -188,5 +271,9 @@ int main()
     RUN_TEST(test_the_edge_the_robot_came_in_by_is_closed_and_closed_again_after_a_rescan);
     RUN_TEST(test_an_edge_out_of_reach_from_one_side_is_looked_at_from_the_other);
     RUN_TEST(test_a_finish_source_is_asked_with_its_context_and_none_is_never_told);
+    RUN_TEST(test_an_edge_out_of_reach_from_both_sides_ends_the_proof_unproved);
+    RUN_TEST(test_a_wall_found_on_the_way_makes_the_proof_choose_again);
+    RUN_TEST(test_a_silent_edge_seen_from_the_other_side_becomes_that_wall);
+    RUN_TEST(test_the_proof_turns_only_to_an_edge_not_yet_checked);
     return UNITY_END();
 }

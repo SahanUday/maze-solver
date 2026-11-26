@@ -30,7 +30,8 @@ using SectionBMap = maze::ExplorerT<SECTION_B_SIZE_TILES>;
 
 enum class BStatus : uint8_t {
     Running,
-    Done,  // explored and stopped on the finish, or the path is proved (or there was no finish)
+    Done,  // explored and stopped on the finish, or the proof is over: proved, ended unproved
+           // (`SectionB::proved` stays 0), or there was no finish
     Fault, // `SectionB::fault` says why
 };
 
@@ -118,9 +119,11 @@ inline BStatus sectionBExploreStep(SectionB &sb, CellExplorerB &ce, const CellEx
 }
 
 // One tick of the proof. Each round reads the map: proved, or an unchecked edge that could still
-// make the path shorter. The robot drives to that edge's tile over checked edges, faces the edge
-// and stands to read it. A look that records nothing (no echo either way) is tried `frontTries`
-// times, then the edge is taken as a wall, as the explorer takes a silent front.
+// make the path shorter. The robot drives over checked edges to a tile beside that edge (ending
+// unproved if it can reach neither) and, if arriving has not checked the edge, faces it and stands
+// to read it. A wall seen on the way that cuts the route makes it choose again. A look that records
+// nothing (no echo either way) is tried `frontTries` times, then the edge is taken as a wall, as
+// the explorer takes a silent front.
 inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExplorerParams &p,
                                  const Perception &pc, MotionTarget &target)
 {

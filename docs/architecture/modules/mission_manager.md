@@ -66,8 +66,9 @@ No run ends on time: the manager is given no clock, and the officials time the t
 - **BEntry, BExplore, BProve:** [section_b](section_b.md). `BEntry` begins Section B's map on the tile
   the robot stands on with the edge behind it closed and ends at once; `BExplore` explores until
   `MissionParams::finish` says "finish" and stops on that tile; `BProve` looks at the edges that could
-  still shorten the path until it is proved. As the first part, `BExplore` begins the map where the robot
-  stands, with nothing closed; `BProve` carries on a map and cannot start alone.
+  still shorten the path until it is proved or the next one is out of reach. As the first part, `BExplore`
+  begins the map where the robot stands, with nothing closed; `BProve` carries on a map and cannot start
+  alone.
 
 `phase` is what the status line prints: the explorer's `Sense`, `Turn` and `Step`, the marker exit's
 standing and turning as `Sense` and `Turn`, then `Approach`, `Line`, `Done`, `Fault`. Section B's parts

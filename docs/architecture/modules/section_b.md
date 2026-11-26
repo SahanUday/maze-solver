@@ -23,7 +23,9 @@ the start-relative 17x17 map of [0014](../decisions/0014-explore-section-b-in-a-
 - `sectionBExploreStep(sb, ce, params, finish, perception, target)` - one tick of the exploring. Returns
   `BStatus::Done` when the finish was told and the robot stands on its tile (its map tile is
   `sb.finish`), `Fault` (`sb.fault`) or `Running`.
-- `sectionBProveStep(sb, ce, params, perception, target)` - one tick of the proof.
+- `sectionBProveStep(sb, ce, params, perception, target)` - one tick of the proof. Returns `BStatus::Done`
+  when the proof is over (`sb.proved` is the length, or 0 if it ended unproved or there is no finish),
+  `Fault` (`sb.fault`) or `Running`.
 
 ## How it works
 
@@ -44,14 +46,18 @@ would take the tiles outside the maze for unvisited ones and drive out of the op
 1. `Proved`: done, `sb.proved` is the length.
 2. `NoRoute`: no path even with every unchecked edge open; a fault.
 3. `NotYet`: an unchecked edge on the shortest open path could still shorten it. The robot drives to that
-   edge's tile over checked edges (`cellExplorerDriveTo`), turns to face the edge if it does not, and
-   stands to read it; the standing read marks the edge checked, as a wall or open. Then the next round.
+   edge's tile over checked edges (`cellExplorerDriveTo`). The proof names the tile by what the entry tile
+   reaches, so with no checked way to it from where the robot stands, the robot looks from the tile on the
+   edge's other side instead; with no way to either, the proof ends unproved (`Done`, `sb.proved` 0). If
+   arriving has not checked the edge, the robot turns to face it and stands to read it, which marks it
+   checked, as a wall or open. A wall seen on the way that cuts the route is not a fault: the proof chooses
+   again. Then the next round.
 
 An edge nothing answers for stays unchecked, which would repeat the same look for ever. After
 `frontTries` looks at the same edge it is taken as a wall, as the explorer takes a front that stays silent.
 
 **No time limit.** The firmware ends no run on time (ADR 0022): the officials time the trial. The proof
-therefore runs until it is proved or a fault ends it, however long that takes.
+therefore runs until it is proved, ends unproved or faults, however long that takes.
 
 ## Invariants
 
@@ -78,6 +84,8 @@ therefore runs until it is proved or a fault ends it, however long that takes.
 In the Section B preset, from every corner and either opening, on two seeded 9x9 mazes: the robot
 explores from the entry tile, stops within 40 mm of the finish tile's centre with no wall contact and
 never leaves the maze, and the path it holds after the proof is as long as the generator's own shortest
-path. The longest of those 16 runs needs about 490 s (explore 62-354 s), over the officials' 8 minutes, which the firmware does not enforce.
+path. The longest of those 16 runs needs about 480 s (explore 62-354 s), just over the officials' 8
+minutes, which the firmware does not enforce.
 `BExplore` alone (facing the finish from a tile next to it), no source, a source that is never told
-(`NoRoute`) and a turn that cannot move (`StuckTurn`) are each tested.
+(`NoRoute`) and a turn that cannot move (`StuckTurn`) are each tested. The proof's choices (the edge's
+other side, the unproved end, a cut route, a silent edge and when it turns) are tested without a world.
