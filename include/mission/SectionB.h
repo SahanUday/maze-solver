@@ -84,7 +84,9 @@ inline BStatus sectionBExploreStep(SectionB &sb, CellExplorerB &ce, const CellEx
     CellExplorerParams ep = p;
     ep.wallsOnly = p.wallsOnly || !finishPlugged(fs);
 
-    // Told while stepping: stop on the tile being driven to, as the marker does in Section A.
+    // Told while stepping: stop on the tile being driven to, as the marker does in Section A. The
+    // finish has to be told before the robot commits to the next tile, about 50 mm before the
+    // finish tile's centre: told later, it stops one tile further on and `sb.finish` is wrong.
     if (ce.phase == ExplorePhase::Step && !ce.stopHere && finishTold(fs, pc)) {
         cellExplorerStopHere(ce);
     }
