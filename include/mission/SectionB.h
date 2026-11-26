@@ -140,9 +140,9 @@ inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExpl
             }
             SectionBMap::Index tile = static_cast<SectionBMap::Index>(pr.lookTile);
             maze::Dir dir = pr.lookDir;
-            // The proof chose the edge by what is reachable from the entry tile, but the robot drives
-            // from where it stands. With no checked way from here to that side of the edge, look at
-            // it from its other side; with none to either, end the proof unproved.
+            // The proof chose the edge by what is reachable from the entry tile, but the robot
+            // drives from where it stands. With no checked way from here to that side of the edge,
+            // look at it from its other side; with none to either, end the proof unproved.
             maze::Dir first;
             if (tile != ce.map.pos && !maze::explorerRoute(ce.map, ce.map.pos, tile, first)) {
                 SectionBMap::Index other = 0;

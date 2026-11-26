@@ -31,8 +31,8 @@ uint16_t exploreTurns(const MissionManager &m)
 //   t_ms phase fault moves turns flags(1 marker, 2 gap, 4 exiting) dist_mm speed_mm_s heading_deg
 //   us_front us_left us_right(mm, 0 = no echo) floor(0 black 1 white 2 air 3 mixed) line_err_mm
 //   ir0..ir7 duty_left duty_right looks proved
-// moves and turns are the explorer's of the part running: Section B's in its parts. looks and proved
-// are Section B's proof (edges looked at; path length once proved, else 0).
+// moves and turns are the explorer's of the part running: Section B's in its parts. looks and
+// proved are Section B's proof (edges looked at; path length once proved, else 0).
 void logStatus(const RunLoop &run, const RobotState &state, const DriveCommand &cmd)
 {
     if (RUN_LOG_EVERY_MS == 0) {
