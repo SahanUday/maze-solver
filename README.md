@@ -36,9 +36,9 @@ Refused selections:
 
 ## Hardware: the Mega shield
 
-The modules and the operator panel connect through a shield PCB, designed in KiCad 10:
-[hardware/shield](hardware/shield/README.md) has the pinout, the power rules, the parts list and the
-factory files.
+The modules, the operator panel and the Mega's 5 V switch connect through a shield PCB, designed in
+KiCad 10: [hardware/shield](hardware/shield/README.md) has the pinout, the power rules (turn **MEGA 5V
+off before plugging in USB**), the parts list and the factory files.
 
 ## Testing and checks
 
