@@ -170,6 +170,19 @@ A future driver on A8/A9 (a battery sense, say) must not write `DIDR2` wholesale
 setting bits 2–4 (`ADC10`–`ADC12`) disables the digital input buffers on the
 echo pins, and `PINK` then reads 0 for them.
 
+### The shield PCB
+
+Every pin above, the panel and a reset button are routed on a shield that plugs
+onto the Mega ([`hardware/shield/`](../../hardware/shield/README.md), rev A,
+designed, not yet made). Moving a pin in `PinMap.h` therefore needs a new board
+revision.
+
+Power is split in two. `+5V` from the buck feeds the sensors, encoders and
+motor-driver logic. The Mega's 5 V pins are on their own net, reached only through
+switch SW4: ON to run on the battery, OFF before plugging in USB. 10 kΩ pull-downs
+on D8 and D10 keep the motors off while the Mega is not driving them. Reasoning:
+[`decisions/0023`](decisions/0023-shield-pcb-with-a-switched-mega-5v.md).
+
 ## Driver/algorithm boundary — RobotState
 
 `include/core/RobotState.h` is the only channel between hardware and logic.

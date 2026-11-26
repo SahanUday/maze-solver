@@ -34,6 +34,12 @@ Refused selections:
 - A last part before the first, which fails to compile.
 - Without a line calibration, the run ends after `AExplore` whatever the last part is, and `Line` alone is refused.
 
+## Hardware: the Mega shield
+
+The modules, the operator panel and the Mega's 5 V switch connect through a shield PCB, designed in
+KiCad 10: [hardware/shield](hardware/shield/README.md) has the pinout, the power rules (turn **MEGA 5V
+off before plugging in USB**), the parts list and the factory files.
+
 ## Testing and checks
 
 Commits are checked automatically by pre-commit, and every pull request runs the

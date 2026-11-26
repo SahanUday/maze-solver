@@ -80,3 +80,22 @@ Sharp input voltage drops force switching regulators to rapidly adjust their dut
 ## 5. Physical Circuit Implementation
 
 ![Power Distribution Circuit Implementation](power_board.jpg)
+
+---
+
+## 6. 5V Distribution on the Shield
+
+The buck's 5V reaches the logic through the shield PCB ([`hardware/shield/`](../hardware/shield/README.md), rev A, designed, not yet made). It is split into two nets:
+
+* **`+5V`:** from the buck through the shield's 5V IN terminal (J8) to the sensors, encoders and the motor drivers' logic. It is always on while the battery is.
+* **`MEGA_5V`:** the Mega's 5V pins, connected to `+5V` only through switch SW4 (labelled MEGA 5V). SW4 carries only the Mega, about 0.1A.
+
+| SW4 | USB | Use |
+| :--- | :--- | :--- |
+| ON | unplugged | Running: the whole logic rail on the battery |
+| OFF | plugged in | Upload and serial: the Mega on USB, the sensors on the battery |
+| ON | plugged in | Never: it joins the buck to the laptop's USB 5V |
+
+Two 10kΩ pull-downs on the motor enable pins (D8, D10) keep the drivers off while the Mega is unpowered or resetting. They draw 0.5mA each, and only while a motor is enabled: about 0.1% of the 0.85A average load.
+
+Reasoning: [ADR 0023](architecture/decisions/0023-shield-pcb-with-a-switched-mega-5v.md).
