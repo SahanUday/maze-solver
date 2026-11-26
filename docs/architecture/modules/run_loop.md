@@ -45,5 +45,8 @@ run is walls only: it explores every reachable tile and stops (`Done`).
 While the run is going, `src/app/telemetry.cpp` prints one CSV line every `RUN_LOG_EVERY_MS` (200 ms; 0 =
 off) after a `# status ...` header: time, phase, fault, moves, turns, flags (1 marker seen, 2 gap
 seen, 4 turning to the exit), odometer, speed, heading, the three ultrasonics (0 = no echo), the IR
-floor class (0 black, 1 white, 2 air, 3 mixed), the line error, the eight raw IR counts and the
-drive duty. Integers only. A phase change also prints `run: phase N fault F moves M turns T`.
+floor class (0 black, 1 white, 2 air, 3 mixed), the line error, the eight raw IR counts, the drive duty
+and Section B's `looks` (edges looked at for the proof) and `proved` (the path's length in tiles, 0
+until proved). Moves and turns are those of the explorer of the part running, so Section B's in its
+parts. Integers only. A phase change also prints
+`run: phase N fault F moves M turns T part P looks L proved R`.

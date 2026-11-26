@@ -8,6 +8,7 @@
 #include <unity.h>
 
 #include "mission/MissionManager.h"
+#include "../../support/MapIndex.h"
 #include "../../support/world/Presets.h"
 #include "spec/fixed/Hardware.h"
 #include "spec/fixed/Rules.h"
@@ -78,24 +79,12 @@ static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
     return out;
 }
 
-// The map cell of arena tile (i, j): the map's North is the start heading, and the start tile is
-// its centre.
-static int mapIndexOf(int i, int j, int startI, int startJ, int facing)
-{
-    static const int fwdI[4] = {1, 0, -1, 0};
-    static const int fwdJ[4] = {0, 1, 0, -1};
-    const int di = i - startI;
-    const int dj = j - startJ;
-    const int fwd = di * fwdI[facing] + dj * fwdJ[facing];
-    const int right = di * fwdJ[facing] - dj * fwdI[facing]; // right of the heading
-    return (maze::kSide / 2 - fwd) * maze::kSide + maze::kSide / 2 + right;
-}
-
 // Where the map says the robot is, against where it is.
 static bool mapMatchesTruth(const World &w, const MissionManager &ms, int startI, int startJ,
                             int facing)
 {
-    return ms.explore.map.pos == mapIndexOf(w.cellI(), w.cellJ(), startI, startJ, facing);
+    return ms.explore.map.pos ==
+           mapindex::of(maze::kSide, w.cellI(), w.cellJ(), startI, startJ, facing);
 }
 
 // The navigation tests end on the marker's tile; the line is tested on its own below.
@@ -257,8 +246,9 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
                                   "did not explore it all");
 
         const int entriesBefore = w.metrics.startTileEntries;
-        cellExplorerDriveTo(ce, static_cast<maze::Explorer::Index>(mapIndexOf(
-                                    w.floor.originI(), w.floor.originJ(), st.i, st.j, st.facing)));
+        cellExplorerDriveTo(
+            ce, static_cast<maze::Explorer::Index>(mapindex::of(
+                    maze::kSide, w.floor.originI(), w.floor.originJ(), st.i, st.j, st.facing)));
         TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(ExploreStatus::AtTarget),
                                   static_cast<int>(driveExplorer(w, ce, mc, p)), "did not arrive");
         TEST_ASSERT_TRUE_MESSAGE(markerOffsetMm(w) < 40.0f, "stopped off the marker tile");
@@ -741,8 +731,8 @@ static void test_a_run_can_be_any_stretch_of_the_parts()
         {Part::Line, Part::Line, true, false, MissionPhase::Line, MissionFault::None},
         // The way out of the marker tile needs the map the exploring built.
         {Part::AExit, Part::Line, false, false, MissionPhase::Fault, MissionFault::BadConfig},
-        // Not built.
-        {Part::BEntry, Part::BExplore, false, false, MissionPhase::Fault, MissionFault::BadConfig},
+        // Not built: Section A's second look needs the exploring to go on after the marker.
+        {Part::AProve, Part::Line, false, false, MissionPhase::Fault, MissionFault::BadConfig},
         // The last part is before the first.
         {Part::Line, Part::AExplore, false, false, MissionPhase::Fault, MissionFault::BadConfig},
         // No line calibration: nothing to follow.

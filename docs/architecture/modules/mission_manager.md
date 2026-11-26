@@ -5,9 +5,10 @@ The run, part by part. Pure logic in `include/mission/MissionManager.h` (with `P
 `test/integration/test_run_loop/`.
 The parts are defined, and the reasons for the cuts given, in
 [0016](../decisions/0016-cut-the-run-into-parts.md). Built parts: Section A's maze
-([cell_explorer](cell_explorer.md)), the way out of the marker tile ([marker_exit](marker_exit.md))
-and the line zone ([line_follow](line_follow.md)). The manager owns the one motion controller they feed
-([motion_control](motion_control.md)).
+([cell_explorer](cell_explorer.md)), the way out of the marker tile ([marker_exit](marker_exit.md)),
+the line zone ([line_follow](line_follow.md)) and Section B's maze, entered, explored and proved
+([section_b](section_b.md); tested in `test/integration/test_section_b/`). `AProve` is not built. The manager
+owns the one motion controller they feed ([motion_control](motion_control.md)).
 
 ## Interface
 
@@ -20,11 +21,13 @@ and the line zone ([line_follow](line_follow.md)). The manager owns the one moti
   first part expects it (the start tile for `AExplore`, on the line for `Line`). A first part after
   the last is a compile error; a selection that cannot run is refused at the start (`BadConfig`).
 - `MissionManager` - the state: `stage` (`WaitStart`, `Running`, `Done`, `Fault`), the running `part`,
-  `phase` as the status line numbers it, `fault`, the start latch (`RunStart`), the `CellExplorer`, the
+  `phase` as the status line numbers it, `fault`, the start latch (`RunStart`), the `CellExplorer`
+  (Section A's map) and the `CellExplorerB` with its `SectionB` (Section B's map and proof), the
   `MarkerExit`, the `LineFollow` and the motion controller's integrals.
 - `MissionParams`, `missionParams()` - the part range, the explorer's and the marker exit's
   parameters, the controller gains and the line follower's, every one at its `spec/` value. The caller
-  may set `parts` and `wallsOnly`.
+  may set `parts`, `wallsOnly` and `finish`, the stop source of Section B's exploring (`FinishSource`;
+  none by default).
 - `missionReset(ms)`, `missionFail(ms, code)` - the caller fails a run for a precondition it found
   missing (`NoImu`).
 - `missionTick(ms, params, perception, go)` - one tick of a run: the start, then the parts.
@@ -60,9 +63,17 @@ No run ends on time: the manager is given no clock, and the officials time the t
 - **Line:** `lineFollowStep`. A lost line is searched for and then `LineLost` cuts the motors; the
   part ends when the line is over and the robot has stopped (only with `LINE_END_LOST_MM` above zero).
 
+- **BEntry, BExplore, BProve:** [section_b](section_b.md). `BEntry` begins Section B's map on the tile
+  the robot stands on with the edge behind it closed and ends at once; `BExplore` explores until
+  `MissionParams::finish` says "finish" and stops on that tile; `BProve` looks at the edges that could
+  still shorten the path until it is proved or the next one is out of reach. As the first part, `BExplore`
+  begins the map where the robot stands, with nothing closed; `BProve` carries on a map and cannot start
+  alone.
+
 `phase` is what the status line prints: the explorer's `Sense`, `Turn` and `Step`, the marker exit's
-standing and turning as `Sense` and `Turn`, then `Approach`, `Line`, `Done`, `Fault`. The phase line
-also prints the part number.
+standing and turning as `Sense` and `Turn`, then `Approach`, `Line`, `Done`, `Fault`. Section B's parts
+report the explorer's `Sense`, `Turn` and `Step`: the status line does not tell its exploring from
+its proof. The phase line also prints the part number.
 
 ## Invariants
 
@@ -70,7 +81,7 @@ also prints the part number.
 - Only the manager calls `motionControlStep()`; the parts fill a `MotionTarget`.
 - Where the part has a map the robot holds still square to the map direction, otherwise on the heading
   it has.
-- The marker is looked for only in `AExplore`.
+- The marker is looked for only in `AExplore`; Section B's entry tile has one and it is not a goal.
 - `Approach` and `Line` come last in `MissionPhase`, so the numbers logged for the older phases are
   unchanged.
 
