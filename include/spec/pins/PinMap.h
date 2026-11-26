@@ -5,6 +5,7 @@
 //    1. Every pin number lives HERE.
 //    2. Use `constexpr`, never `#define`.
 //    3. Analog pins are numbers (A0..A15 = 54..69), so no Arduino.h. Put the A-name in a comment.
+//    4. The shield PCB (hardware/shield) routes every pin here; moving one needs a board revision.
 // ============================================================================
 
 #pragma once
