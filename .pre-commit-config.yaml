@@ -7,11 +7,17 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
+    # KiCad writes its own files (hardware/: project, schematic, board, footprints) and the
+    # fab outputs; it saves the .kicad_pro without a final newline, so these three hooks would
+    # rewrite a file KiCad rewrites back on the next save. The size check still applies.
     hooks:
       - id: trailing-whitespace
+        exclude: &kicad_owned ^hardware/.*\.(kicad_pro|kicad_sch|kicad_pcb|kicad_mod)$|^hardware/.*/fab/|^hardware/.*/fp-lib-table$
       - id: end-of-file-fixer
+        exclude: *kicad_owned
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: *kicad_owned
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=1024]
