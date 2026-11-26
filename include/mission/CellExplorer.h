@@ -3,10 +3,12 @@
 //  the planner picks, drive it. No hardware, no Arduino.h - testable under env:native.
 //
 //    Sense -> Turn -> Sense -> Step -> ... (Step rolls on through a centre when the tile ahead is
-//    the next one)
+//    the next one; Back reverses out of a cell the planner leaves the way it came)
 //
 //  Sense stands still and reads the cell's three walls; the planner (lib/maze) picks the next
-//  tile; Turn faces it; Step drives it, reading the walls of the tile ahead on the way. The
+//  tile; Turn faces it; Step drives it, reading the walls of the tile ahead on the way. A step
+//  that ends where the planner turns straight back (a dead end) is reversed to the centre it came
+//  from instead of turning round in the cell: Back. The
 //  explorer is generic in the maze size (ExplorerT<N>) and knows nothing of what ends the search.
 //  Its caller can ask it to stop on the tile it is heading for (cellExplorerStopHere) and says,
 //  each tick, whether a stop that was not yet asked for is due (ExploreInput); it tells the caller
@@ -35,7 +37,7 @@
 constexpr float STOP_STILL_MM_S = 5.0f; // below this the robot has stopped
 constexpr uint16_t STOP_STILL_MS = 150; // ... for this long
 
-enum class ExplorePhase : uint8_t { Sense, Turn, Step };
+enum class ExplorePhase : uint8_t { Sense, Turn, Step, Back };
 
 enum class ExploreStatus : uint8_t {
     Running,
@@ -55,6 +57,9 @@ struct CellExplorerParams {
     uint8_t turnRetries = SECTION_A_TURN_RETRIES;
     uint8_t maxBlocked = SECTION_A_MAX_BLOCKED;
     float stuckAcceptMm = SECTION_A_STUCK_ACCEPT_MM;
+    // A step that ends in a cell the planner leaves the way it came is reversed to the centre it
+    // came from, instead of a half turn in the cell.
+    bool backOut = SECTION_A_BACK_OUT;
     // The run reads walls only: the search ends (Explored) when every reachable tile has been
     // entered, instead of being rescanned and failed.
     bool wallsOnly = false;
@@ -83,6 +88,7 @@ template <uint8_t N> struct CellExplorerT {
 
     StepCell step;
     Turn turn;
+    Straight back; // Back: in reverse to the centre the step left
 
     // The cell being read: votes while standing, and what they said.
     uint8_t votes[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
@@ -126,6 +132,7 @@ template <uint8_t N> struct CellExplorerT {
     uint16_t turns = 0;
     uint16_t blocked = 0; // steps that ended short of their centre
     uint16_t resumed = 0; // ... carried on to it (no wall explained the stop)
+    uint16_t backs = 0;   // cells reversed out of instead of turning round in them
 };
 
 // The Section A map.
@@ -245,11 +252,25 @@ inline void startTurn(CellExplorerT<N> &ce, const MotionFeedback &fb, maze::Dir 
     ce.phase = ExplorePhase::Turn;
 }
 
-// Choose what happens at this centre with the walls known: face and drive, read again, or end.
-// Called when the robot stands still on a centre. True: the search is over (`wallsOnly` and every
-// reachable tile entered).
+// Reverse one cell to the centre before this one, still facing the way the step drove. A cell from
+// where it stands, not to where the odometer put that centre: a dead end's stop is placed by its
+// end wall, and the centre before may have been rolled through on the odometer alone.
 template <uint8_t N>
-inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const MotionFeedback &fb)
+inline void beginBack(CellExplorerT<N> &ce, const CellExplorerParams &p, const MotionFeedback &fb)
+{
+    straightBegin(ce.back, fb, -p.step.pitchMm, p.step.cruiseMmS, 0.0f,
+                  gridHeading(ce.h0, ce.map.heading));
+    ce.phase = ExplorePhase::Back;
+}
+
+// Choose what happens at this centre with the walls known: face and drive, read again, back out,
+// or end. Called when the robot stands still on a centre. `cameIn`: it is standing where a step
+// that drove in through the edge behind it stopped, so that edge is open and the way back to the
+// centre before is the one just driven. True: the search is over (`wallsOnly` and every reachable
+// tile entered).
+template <uint8_t N>
+inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const MotionFeedback &fb,
+                     bool cameIn = false)
 {
     using namespace maze;
     for (;;) {
@@ -273,6 +294,12 @@ inline bool planNext(CellExplorerT<N> &ce, const CellExplorerParams &p, const Mo
             ++ce.rescans; // a wall that was only a bad reading can strand the search
             explorerRescan(ce.map);
             beginSense(ce);
+            return false;
+        }
+        // Straight back the way it came: reverse out rather than turn round in the cell (a dead
+        // end, where a half turn swings the tail at the end wall).
+        if (cameIn && p.backOut && !ce.stopHere && next == opposite(ce.map.heading)) {
+            beginBack(ce, p, fb);
             return false;
         }
         if (next != ce.map.heading) {
@@ -571,9 +598,36 @@ inline ExploreStatus cellExplorerStep(CellExplorerT<N> &ce, const CellExplorerPa
                     beginSense(ce);
                 } else {
                     ce.resumes = 0;
-                    if (planNext(ce, p, fb)) {
+                    if (planNext(ce, p, fb, true)) {
                         return searchOver(ce);
                     }
+                }
+            }
+            break;
+        }
+
+        case ExplorePhase::Back: {
+            MoveStatus st = straightStep(ce.back, p.step.plan, fb, 0.0f, p.dtMs, target);
+            if (st == MoveStatus::Stuck) {
+                // As for a step: wheels that stuck a little short, standing still, have arrived.
+                const float err = absf(ce.back.targetMm - fb.distMm);
+                if (err <= p.stuckAcceptMm && fb.speedMmS < STOP_STILL_MM_S &&
+                    fb.speedMmS > -STOP_STILL_MM_S) {
+                    st = MoveStatus::Done;
+                } else {
+                    ce.fault = MissionFault::StuckStep;
+                    return ExploreStatus::Fault;
+                }
+            }
+            if (st == MoveStatus::Done) {
+                maze::explorerRetreat(ce.map); // a cell back, facing the same way
+                ++ce.backs;
+                // What was heard on the way in belongs to the cell it has left.
+                ce.openHeard = 0;
+                ce.peekTried = 0;
+                ce.peekedOpen = 0;
+                if (planNext(ce, p, fb)) {
+                    return searchOver(ce);
                 }
             }
             break;

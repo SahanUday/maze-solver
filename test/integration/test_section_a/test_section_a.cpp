@@ -722,6 +722,141 @@ static void test_the_default_parameters_are_the_spec()
     TEST_ASSERT_EQUAL_UINT8(SECTION_A_RESCANS, p.rescans);
 }
 
+// ---- Dead ends -------------------------------------------------------------------------------
+// The photo maze has three: the two closed boxes and the bottom-left tile.
+
+static int wallsAround(const Arena &a, int i, int j)
+{
+    int k = 0;
+    for (int d = 0; d < 4; ++d) {
+        k += a.side(i, j, d) ? 1 : 0;
+    }
+    return k;
+}
+
+// A back-out ends this close to the centre of the tile it reverses into. It is one cell from a stop
+// placed by the dead end's end wall; a step's own stops land up to ~14 mm from a centre here.
+constexpr float BACK_END_TOLERANCE_MM = 15.0f;
+
+struct DeadEndRun {
+    Outcome out;
+    int halfTurnsInDeadEnds = 0; // half turns begun in a dead end, after leaving the start tile
+    float worstBackEndMm = 0.0f; // a back-out's end from the centre of its tile
+    bool mapRightAfterEveryBack = true;
+};
+
+// A run, watching what the explorer does in dead ends.
+static DeadEndRun runWatchingDeadEnds(World &w, MissionManager &ms, const MissionParams &p, int si,
+                                      int sj, int facing)
+{
+    DeadEndRun r;
+    ExplorePhase was = ms.explore.phase;
+    for (; r.out.ticks < RUN_TICKS; ++r.out.ticks) {
+        const DriveCommand cmd = missionStep(ms, p, w.sense());
+        const float fix = missionTakeHeadingFix(ms);
+        if (fix != 0.0f) {
+            headingSet(w.heading, w.heading.deg - fix);
+        }
+        w.drive(cmd);
+        const ExplorePhase now = ms.explore.phase;
+        if (now != was) {
+            if (was == ExplorePhase::Back) {
+                const float dx = static_cast<float>(w.plant.x) - world::PITCH * w.cellI();
+                const float dy = static_cast<float>(w.plant.y) - world::PITCH * w.cellJ();
+                const float off = sqrtf(dx * dx + dy * dy);
+                r.worstBackEndMm = off > r.worstBackEndMm ? off : r.worstBackEndMm;
+                r.mapRightAfterEveryBack =
+                    r.mapRightAfterEveryBack && mapMatchesTruth(w, ms, si, sj, facing);
+            }
+            if (now == ExplorePhase::Turn && absf(ms.explore.turn.deltaDeg) > 135.0f &&
+                w.metrics.leftStart && wallsAround(w.arena, w.cellI(), w.cellJ()) == 3) {
+                ++r.halfTurnsInDeadEnds;
+            }
+            was = now;
+        }
+        if (ms.phase == MissionPhase::Done || ms.phase == MissionPhase::Fault) {
+            break;
+        }
+    }
+    r.out.phase = ms.phase;
+    r.out.fault = ms.fault;
+    r.out.visited = visitedCells(ms);
+    return r;
+}
+
+// Every tile, from the bottom-right corner: the run enters all three dead ends.
+static DeadEndRun exploreEveryTile(bool backOut, MissionManager &ms)
+{
+    World w;
+    world::photoMaze(w);
+    w.start(3, 0, 1);
+    begin(ms);
+    MissionParams p = stopAtMarker();
+    p.wallsOnly = true;
+    p.backOut = backOut;
+    return runWatchingDeadEnds(w, ms, p, 3, 0, 1);
+}
+
+static void test_a_dead_end_is_reversed_out_of_not_turned_round_in()
+{
+    MissionManager ms;
+    const DeadEndRun r = exploreEveryTile(true, ms);
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(r.out.phase));
+    TEST_ASSERT_EQUAL(16, r.out.visited);
+    TEST_ASSERT_EQUAL_MESSAGE(0, r.halfTurnsInDeadEnds, "turned round in a dead end");
+    // The search ends on the last new tile, which may be a dead end: two at least are backed out
+    // of.
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT16(2, ms.explore.backs);
+    TEST_ASSERT_TRUE_MESSAGE(r.mapRightAfterEveryBack, "map position wrong after backing out");
+    TEST_ASSERT_TRUE_MESSAGE(r.worstBackEndMm < BACK_END_TOLERANCE_MM,
+                             "backed out to off the centre");
+}
+
+// Turning round in the dead end costs a half turn, a look and a drive back; reversing costs the
+// drive back alone.
+static void test_backing_out_is_quicker_than_turning_round()
+{
+    MissionManager on;
+    const DeadEndRun backing = exploreEveryTile(true, on);
+    MissionManager off;
+    const DeadEndRun turning = exploreEveryTile(false, off);
+    TEST_ASSERT_EQUAL(16, turning.out.visited);
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, turning.halfTurnsInDeadEnds,
+                                     "the watch saw no half turn with backing out off");
+    TEST_ASSERT_EQUAL_UINT16(0, off.explore.backs);
+    // At least a second for each dead end backed out of.
+    TEST_ASSERT_LESS_THAN_UINT32(turning.out.ticks - on.explore.backs * 100u, backing.out.ticks);
+}
+
+static void test_no_start_turns_round_in_a_dead_end_it_drove_into()
+{
+    int backs = 0;
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            if (i == 0 && j == N - 1) {
+                continue; // the white tile itself
+            }
+            for (int facing = 0; facing < 4; ++facing) {
+                World w;
+                world::photoMaze(w);
+                w.start(i, j, facing);
+                MissionManager ms;
+                begin(ms);
+                const DeadEndRun r = runWatchingDeadEnds(w, ms, stopAtMarker(), i, j, facing);
+                TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
+                                          static_cast<int>(r.out.phase), "did not finish");
+                TEST_ASSERT_EQUAL_MESSAGE(0, r.halfTurnsInDeadEnds, "turned round in a dead end");
+                TEST_ASSERT_TRUE_MESSAGE(r.mapRightAfterEveryBack,
+                                         "map position wrong after backing out");
+                TEST_ASSERT_TRUE_MESSAGE(r.worstBackEndMm < BACK_END_TOLERANCE_MM,
+                                         "backed out to off the centre");
+                backs += ms.explore.backs;
+            }
+        }
+    }
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, backs, "no start went into a dead end");
+}
+
 // A run is a stretch of the parts (Parts.h): Section A alone, the line alone with the robot placed
 // on it, or a selection that cannot run, which is refused before the robot moves.
 static void test_a_run_can_be_any_stretch_of_the_parts()
@@ -825,5 +960,8 @@ int main()
     RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
     RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
     RUN_TEST(test_a_run_can_be_any_stretch_of_the_parts);
+    RUN_TEST(test_a_dead_end_is_reversed_out_of_not_turned_round_in);
+    RUN_TEST(test_backing_out_is_quicker_than_turning_round);
+    RUN_TEST(test_no_start_turns_round_in_a_dead_end_it_drove_into);
     return UNITY_END();
 }

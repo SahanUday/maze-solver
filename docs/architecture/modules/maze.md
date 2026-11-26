@@ -22,8 +22,9 @@ Decision:
   tile when another way exists. `false` when none is reachable.
 - `explorerFace(e, dir)`, `explorerAdvance(e)` - record a turn, and a move of one tile (refused
   through a known wall or off the map).
-- `explorerRetreat(e)` - undo one `explorerAdvance`, for a move that did not happen (refused only
-  off the map).
+- `explorerRetreat(e)` - one tile back, still facing the same way: an `explorerAdvance` undone (a move
+  that did not happen), or a cell left in reverse over the edge it was entered by. Refused only off
+  the map.
 - `explorerRescan(e)` - forget every wall, checked edge and visit, keep the pose.
 - `explorerProof(e, from, goal)` (`Proof.h`) - is the best known path from `from` to `goal` the
   shortest it can be? `Proved` with its length; `NotYet` with the cell and direction of the first

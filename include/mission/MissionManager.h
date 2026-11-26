@@ -26,8 +26,18 @@
 #include "sense/Perception.h"
 #include "spec/tuning/Run.h"
 
-// The status line's phase numbers: Approach and Line come last so the older numbers stay.
-enum class MissionPhase : uint8_t { WaitStart, Sense, Turn, Step, Done, Fault, Approach, Line };
+// The status line's phase numbers: each new one is added last so the older numbers stay.
+enum class MissionPhase : uint8_t {
+    WaitStart,
+    Sense,
+    Turn,
+    Step,
+    Done,
+    Fault,
+    Approach,
+    Line,
+    Back, // reversing out of a dead end (CellExplorer.h)
+};
 
 enum class RunStage : uint8_t { WaitStart, Running, Done, Fault };
 
@@ -95,6 +105,8 @@ inline MissionPhase phaseOf(const MissionManager &ms)
                             return MissionPhase::Turn;
                         case ExplorePhase::Step:
                             return MissionPhase::Step;
+                        case ExplorePhase::Back:
+                            return MissionPhase::Back;
                     }
                     break;
                 case Part::AExit:
