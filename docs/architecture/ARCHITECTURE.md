@@ -177,6 +177,12 @@ onto the Mega ([`hardware/shield/`](../../hardware/shield/README.md), designed,
 not yet made). Moving a pin in `PinMap.h` therefore needs a new board revision.
 Reasoning: [`decisions/0023`](decisions/0023-shield-pcb-for-the-mega.md).
 
+Power is split in two. `+5V` from the buck feeds the sensors, encoders and
+motor-driver logic. The Mega's 5 V pins are on their own net, reached only through
+switch SW4: ON to run on the battery, OFF before plugging in USB. 10 kΩ pull-downs
+on D8 and D10 keep the motors off while the Mega is not driving them. Reasoning:
+[`decisions/0024`](decisions/0024-the-mega-5v-on-its-own-switch.md).
+
 ## Driver/algorithm boundary — RobotState
 
 `include/core/RobotState.h` is the only channel between hardware and logic.

@@ -1,8 +1,10 @@
 # Mega shield PCB
 
 A two-layer, through-hole board that plugs onto the Arduino Mega 2560 and gives every module a
-labelled header, plus the operator panel (START, MODE DIP, two LEDs) and a RESET button. Why it is
-built this way: [ADR 0023](../../docs/architecture/decisions/0023-shield-pcb-for-the-mega.md).
+labelled header, plus the operator panel (START, MODE DIP, two LEDs), a RESET button and the Mega's
+5 V switch. Why it is built this way: [ADR 0023](../../docs/architecture/decisions/0023-shield-pcb-for-the-mega.md)
+(the shield) and [ADR 0024](../../docs/architecture/decisions/0024-the-mega-5v-on-its-own-switch.md)
+(the Mega's 5 V switch and the motor pull-downs).
 
 **Status:** designed 2026-11-26. Not yet made or tested.
 
@@ -20,7 +22,7 @@ Open `MazeSolver.kicad_pro` in KiCad 10. Every other footprint is from KiCad's s
 
 - 91.1 × 53.3 mm, 2 layers, all through-hole. The headers to the Mega (J1–J7) sit on the underside;
   everything else is on top.
-- Tracks are 0.3 mm for signals and 0.8 mm for `+5V`, with GND poured on both layers.
+- Tracks are 0.3 mm for signals and 0.8 mm for `+5V` and `MEGA_5V`, with GND poured on both layers.
 - The left end is trimmed, so nothing sits over the Mega's USB socket or power jack.
 
 ## Connectors
@@ -49,16 +51,29 @@ its pins 5 and 6.
 | SW1 | START | Starts a run (D38). Ignored while `BUTTON_WIRED` is `false` in `spec/pins/Wired.h` |
 | SW2 | MODE: 1 RUN 2 FAST 3 CAL 4 RES | The mode, read while the robot waits (D40–D43). Meanings: [panel](../../docs/architecture/modules/panel.md) |
 | SW3 | RESET | Resets the Mega (RESET to GND). The shield covers the Mega's own button |
+| SW4 | MEGA 5V | Connects the Mega's 5 V pins to the battery 5 V. See [Power](#power) |
 | D1 + R1 | STATUS | Green LED on D26 |
 | D2 + R2 | ERROR | Red LED on D27 |
+| R3 / R4 | — | 10 kΩ pull-downs on D8 / D10: the motors stay off while the Mega is not driving them |
 
 ## Power
 
-J8 takes the buck's 5 V onto one `+5V` net: the sensors, the encoders, the motor-driver logic and the
-Mega's 5V pin. The Mega's VIN is not used.
+```
+Buck 5V ── J8 ── +5V ── sensors, encoders, motor-driver logic   (always on the battery)
+                  └──[SW4]── MEGA_5V ── Mega 5V pins (J1 pin 5, J7 pins 35/36)
+```
 
-**Don't plug in USB while the battery is on.** With VIN unused, the Mega joins USB 5 V to its 5 V
-rail, so the buck and the laptop would be connected.
+| SW4 | USB | Use |
+|---|---|---|
+| ON | unplugged | **Running.** Everything on the battery |
+| OFF | plugged in | **Upload and serial.** The Mega on USB, the sensors on the battery |
+| ON | plugged in | **Never.** It joins the battery 5 V to the laptop's USB |
+
+- **Before plugging in USB:** turn SW4 OFF. **Before running:** unplug USB, then turn SW4 ON.
+- With SW4 OFF the sensors still need the battery: battery on first, then reset (the IMU).
+- Calibrate the line sensor with SW4 ON on the battery. On USB the array and the Mega use different
+  5 V supplies, so the readings are not ratiometric.
+- Don't leave the battery on with SW4 OFF and no USB: the sensors are powered and the Mega is not.
 
 ## Parts
 
@@ -74,9 +89,11 @@ rail, so the buck and the laptop would be connected.
 | J8 | Screw terminal, 2-way, 5.08 mm (Phoenix MKDS 1,5 or similar) | 1 |
 | SW1, SW3 | Tactile push button, 6 × 6 mm | 2 |
 | SW2 | DIP switch, 4-way, 2.54 mm | 1 |
+| SW4 | DIP switch, 1-way, 2.54 mm, rated 100 mA or more | 1 |
 | D1 | LED 5 mm, green | 1 |
 | D2 | LED 5 mm, red | 1 |
 | R1, R2 | Resistor 470 Ω, 0.25 W | 2 |
+| R3, R4 | Resistor 10 kΩ, 0.25 W | 2 |
 
 ## Ordering
 
@@ -85,7 +102,8 @@ Upload a zip of `fab/` and choose 2 layers, 1.6 mm, HASL, 1 oz copper. Any mask 
 Before ordering:
 
 1. Print the board at 100 % and lay it on a Mega: the headers, holes and the USB end must line up.
-2. Get the instructor's approval for the added controls (rules, p. 7).
+2. Check SW4's datasheet: 100 mA or more.
+3. Get the instructor's approval for the added controls (rules, p. 7).
 
 ## Changing the board
 

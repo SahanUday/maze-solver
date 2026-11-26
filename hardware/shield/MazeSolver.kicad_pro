@@ -574,6 +574,10 @@
       {
         "netclass": "Power",
         "pattern": "GND"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "*MEGA_5V"
       }
     ]
   },
