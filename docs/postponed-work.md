@@ -26,9 +26,9 @@ should cover them all, with the same boot messages, status line, phase lines and
   every tick of the mission is identical before and after.
 - `RunLoop` and `Perception` start handling (#52).
 - The mission manager and the part model (INT-01): the start now lives in `RunStart` and `MissionManager`.
-- Section B's parts (#61, `BEntry`, `BExplore`, `BProve`): host-tested only. The whole-course default now
-  goes on into them after the line, with no finish detector (#69) to stop the exploring, so set
-  `RUN_PART_LAST` to `Line` for any run that is not meant to try them.
+- Section B's parts (#61, `BEntry`, `BExplore`, `BProve`): host-tested only. A whole-course run cannot
+  reach them yet: `Line` has no end rule (#60, `LINE_END_LOST_MM` is 0), so it stays in `Line`. Once it
+  ends, the run would go on into them with no finish detector (#69) to stop the exploring.
 
 The host tests do not reach the explorer's "stop and brake at once" path (`ExploreStatus::Braked`,
 used only when the run ends with `AExplore`, `Parts.h`); the firmware's default run goes on to the exit part.

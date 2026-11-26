@@ -18,8 +18,9 @@ constexpr uint8_t PART_COUNT = 7;
 //
 //   FIRST      LAST       what runs                                  put the robot
 //   AExplore   BProve     the whole course (the competition): today  on the Section A start tile
-//                         AExplore, AExit, Line, BEntry, BExplore,
-//                         BProve (AProve is not built and is skipped)
+//                         AExplore, AExit, Line, and it stays in Line
+//                         (no end rule yet, #60, so the Section B
+//                         parts are not reached; AProve is skipped)
 //   AExplore   Line       Section A, out to the line, then the line  on the Section A start tile
 //   AExplore   AExit      Section A and out to the line, then stop   on the Section A start tile
 //   AExplore   AExplore   explore until the marker, then stop        on the Section A start tile
