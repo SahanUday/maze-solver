@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <unity.h>
 
+#include "../../support/MapIndex.h"
 #include "../../support/MazeGen.h"
 #include "../../support/Seed.h"
 #include "../../support/world/Presets.h"
@@ -88,19 +89,6 @@ static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
     return out;
 }
 
-// The map cell of arena tile (i, j) when the map began on tile (startI, startJ) facing `facing`
-// (0 east, 1 north, 2 west, 3 south): North is the start heading, the start tile the centre.
-static int mapIndexOf(int i, int j, int startI, int startJ, int facing)
-{
-    static const int fwdI[4] = {1, 0, -1, 0};
-    static const int fwdJ[4] = {0, 1, 0, -1};
-    const int di = i - startI;
-    const int dj = j - startJ;
-    const int fwd = di * fwdI[facing] + dj * fwdJ[facing];
-    const int right = di * fwdJ[facing] - dj * fwdI[facing];
-    return (SectionBMap::kSide / 2 - fwd) * SectionBMap::kSide + SectionBMap::kSide / 2 + right;
-}
-
 // The white tile of the preset, in arena tile numbers.
 static bool findFinish(const World &w, int &fi, int &fj, int size = N)
 {
@@ -154,8 +142,8 @@ static void test_it_explores_from_every_entry_to_the_finish_and_stops_on_it()
                 TEST_ASSERT_EQUAL_MESSAGE(fj, w.cellJ(), msg);
                 TEST_ASSERT_TRUE_MESSAGE(offsetFromTileMm(w, fi, fj) < 40.0f, msg);
                 TEST_ASSERT_TRUE_MESSAGE(ms.sectionB.finishKnown, msg);
-                TEST_ASSERT_EQUAL_MESSAGE(mapIndexOf(fi, fj, ei, ej, facing), ms.sectionB.finish,
-                                          msg);
+                TEST_ASSERT_EQUAL_MESSAGE(mapindex::of(SectionBMap::kSide, fi, fj, ei, ej, facing),
+                                          ms.sectionB.finish, msg);
                 TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, msg);
             }
         }
@@ -243,7 +231,8 @@ static void test_it_explores_on_its_own_from_a_tile_facing_the_finish()
         TEST_ASSERT_FALSE(o.leftArena);
         TEST_ASSERT_EQUAL(fi, w.cellI());
         TEST_ASSERT_EQUAL(fj, w.cellJ());
-        TEST_ASSERT_EQUAL(mapIndexOf(fi, fj, si, sj, facing), ms.sectionB.finish);
+        TEST_ASSERT_EQUAL(mapindex::of(SectionBMap::kSide, fi, fj, si, sj, facing),
+                          ms.sectionB.finish);
     }
 }
 
