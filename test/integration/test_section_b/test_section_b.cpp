@@ -183,7 +183,8 @@ static void test_it_proves_the_shortest_path_from_every_entry()
                 MissionManager ms;
                 begin(ms);
                 const MissionParams p = paramsFor(w, Part::BEntry, Part::BProve);
-                const Outcome o = run(w, ms, p, 2 * RUN_TICKS); // the limit has its own test
+                const Outcome o =
+                    run(w, ms, p, 2 * RUN_TICKS); // a test cap, not a firmware limit (ADR 0022)
                 char msg[96];
                 snprintf(msg, sizeof msg, "corner %d opening %d seed %u fault %d looks %d", corner,
                          opening, static_cast<unsigned>(seed), static_cast<int>(o.fault),
@@ -323,78 +324,6 @@ static void test_a_turn_that_cannot_move_is_a_stuck_turn_in_section_b_too()
     TEST_ASSERT_EQUAL_UINT8(p.turnRetries + 1, ms.exploreB.turnTries);
 }
 
-// The run limit, with the clock set to run out `remainingMs` after the run starts. Returns the
-// manager after `ticks` ticks of missionTick().
-static Outcome runLimited(World &w, MissionManager &ms, const MissionParams &p,
-                          uint32_t remainingMs)
-{
-    Outcome out;
-    begin(ms);
-    ms.start.startedAtMs = 0;
-    const uint32_t t0 = RUN_LIMIT_MS - remainingMs;
-    for (; out.ticks < RUN_TICKS; ++out.ticks) {
-        const DriveCommand cmd =
-            missionTick(ms, p, w.sense(), t0 + out.ticks * CONTROL_LOOP_PERIOD_MS, false);
-        const float fix = missionTakeHeadingFix(ms);
-        if (fix != 0.0f) {
-            headingSet(w.heading, w.heading.deg - fix);
-        }
-        w.drive(cmd);
-        if (ms.phase == MissionPhase::Done || ms.phase == MissionPhase::Fault) {
-            break;
-        }
-    }
-    out.phase = ms.phase;
-    out.fault = ms.fault;
-    return out;
-}
-
-// Time running out while the finish is still being looked for fails the run; running out during the
-// proof does not, because the finish is already reached: the run ends where it is, holding.
-static void test_the_run_limit_fails_the_search_and_quietly_ends_the_proof()
-{
-    // Corner 1, opening 1, seed 1: the finish is found after about 62 s and the proof ends at 239
-    // s.
-    {
-        World w;
-        world::bridgeIn(w, Entry{N, 1, 1, 1u});
-        world::startOnEntryTile(w);
-        MissionManager ms;
-        const MissionParams p = paramsFor(w, Part::BEntry, Part::BProve);
-        const Outcome o = runLimited(w, ms, p, 30000);
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Fault), static_cast<int>(o.phase));
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::TimeUp), static_cast<int>(o.fault));
-        TEST_ASSERT_EQUAL(static_cast<int>(Part::BExplore), static_cast<int>(ms.part));
-    }
-    {
-        World w;
-        world::bridgeIn(w, Entry{N, 1, 1, 1u});
-        world::startOnEntryTile(w);
-        MissionManager ms;
-        const MissionParams p = paramsFor(w, Part::BEntry, Part::BProve);
-        const Outcome o = runLimited(w, ms, p, 150000);
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-        TEST_ASSERT_EQUAL(static_cast<int>(MissionFault::None), static_cast<int>(o.fault));
-        TEST_ASSERT_EQUAL(static_cast<int>(Part::BProve), static_cast<int>(ms.part));
-        TEST_ASSERT_TRUE(ms.sectionB.finishKnown);
-        TEST_ASSERT_EQUAL(0, ms.sectionB.proved); // not proved: it ran out of time
-        // It holds the wheels where it stopped.
-        for (int i = 0; i < 300; ++i) {
-            w.drive(missionTick(ms, p, w.sense(), RUN_LIMIT_MS + i * 10u, false));
-        }
-        const double x0 = w.plant.x;
-        const double y0 = w.plant.y;
-        DriveCommand last;
-        for (int i = 0; i < 200; ++i) {
-            last = missionTick(ms, p, w.sense(), RUN_LIMIT_MS + 5000u + i * 10u, false);
-            w.drive(last);
-        }
-        TEST_ASSERT_TRUE(last.enable);
-        TEST_ASSERT_FLOAT_WITHIN(1.0f, static_cast<float>(x0), static_cast<float>(w.plant.x));
-        TEST_ASSERT_FLOAT_WITHIN(1.0f, static_cast<float>(y0), static_cast<float>(w.plant.y));
-    }
-}
-
 // What each Section B part is, for the manager.
 static void test_the_section_b_parts_are_built_and_only_the_proof_carries_on_a_map()
 {
@@ -429,7 +358,6 @@ int main()
     RUN_TEST(test_with_no_finish_source_it_explores_everything_and_proves_nothing);
     RUN_TEST(test_a_finish_that_is_never_told_ends_in_no_route);
     RUN_TEST(test_a_turn_that_cannot_move_is_a_stuck_turn_in_section_b_too);
-    RUN_TEST(test_the_run_limit_fails_the_search_and_quietly_ends_the_proof);
     RUN_TEST(test_the_section_b_parts_are_built_and_only_the_proof_carries_on_a_map);
     return UNITY_END();
 }

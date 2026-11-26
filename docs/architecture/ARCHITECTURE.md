@@ -54,7 +54,7 @@ register or an Arduino I/O call directly:
    ([`decisions/0008`](decisions/0008-mpu6050-heading-and-tilt.md)).
 2. **Control/algorithm layer** — works only through the HAL's function API
    and plain data. `lib/maze` and the pure-logic headers in `include/`
-   (`core/`, `sense/`, `motion/`, `mission/`) live here and must never include
+   (`core/`, `sense/`, `motion/`, `mission/`, `panel/`) live here and must never include
    `Arduino.h` (see "Dual build target" below).
 3. **Sequencing layer** — `src/main.cpp` and `RunLoop`
    (`include/mission/RunLoop.h`), the top-level run loop. Wires the other two
@@ -75,7 +75,9 @@ hardware dependency, so keeping it Arduino-free is what lets it run under
 
 `src/app/` holds what `main.cpp` would otherwise carry: `heading_estimator` (the IMU, the gyro
 bias captured at boot and the yaw integration), `telemetry` (the status line and the phase-change
-line over serial) and `operator_io` (the start button and the two LEDs). It is non-critical glue
+line over serial) and `operator_io` (the pin side of the operator panel: the start button, the DIP
+bank and the two LEDs; what the DIP means and what the LEDs show is the pure logic in `include/panel/`,
+[panel](modules/panel.md)). It is non-critical glue
 in the sense of ADR 0001, so it uses the Arduino framework (`Serial`, `pinMode`, `digitalRead`,
 `digitalWrite`) rather than registers, and nothing in it is timing-critical. `main.cpp` keeps the
 driver start-up order, `readSensors()`, `runAlgorithm()` and the tick.
@@ -130,7 +132,7 @@ ultrasonic echo path; per-module detail is in [`modules/`](modules/).
 | 36 | `PC1` | IR array emitter enable |
 | 30 / 32 / 34 | `PC7` / `PC5` / `PC3` | ultrasonic triggers |
 | A10 / A11 / A12 | `PK2` / `PK3` / `PK4` | ultrasonic echoes |
-| A8 / A9 | `PK0` / `PK1` | pot, battery sense (analog) |
+| A8 / A9 | `PK0` / `PK1` | unused (analog inputs) |
 | 2 / 3 / 18 / 19 | `PE4` / `PE5` / `PD3` / `PD2` | encoders |
 | 20 / 21 | — | I2C |
 
@@ -164,7 +166,7 @@ lines sit on `PORTK`. The three echoes share the `PCINT2` vector as
 `PCINT18`–`PCINT20`, and `PCMSK2` admits only the sensor currently ranging —
 which is what keeps `PK0`/`PK1` usable as analog inputs.
 
-A future pot or battery driver on A8/A9 must not write `DIDR2` wholesale:
+A future driver on A8/A9 (a battery sense, say) must not write `DIDR2` wholesale:
 setting bits 2–4 (`ADC10`–`ADC12`) disables the digital input buffers on the
 echo pins, and `PINK` then reads 0 for them.
 
@@ -207,7 +209,8 @@ Per-module detail is in [`modules/`](modules/); the measured values are in `incl
 | Cell step | `include/mission/StepCell.h` | one move to the next cell centre that votes on the cell's three walls on the way, can carry on through the centre without stopping, anchors its stop on a wall ahead, and hands back the corridor's measured heading as a gyro correction |
 | Cell explorer | `include/mission/CellExplorer.h` | explores a maze cell by cell (sense, turn, step) through the cell step and `lib/maze`, generic in the maze size; the caller can ask it to stop on a tile or to drive to a chosen one over checked edges |
 | Marker exit | `include/mission/MarkerExit.h` | tells the approach marker, finds the way out of its tile and drives over the gap to the line |
-| Mission manager | `include/mission/MissionManager.h`, `MissionParams.h`, `Parts.h`, `RunStart.h` | the run, part by part ([0016](decisions/0016-cut-the-run-into-parts.md)): starts it, runs the parts from a first to a last (the whole course, one part, or a stretch), enforces the run limit and owns the one motion controller |
+| Mission manager | `include/mission/MissionManager.h`, `MissionParams.h`, `Parts.h`, `RunStart.h` | the run, part by part ([0016](decisions/0016-cut-the-run-into-parts.md)): starts it, runs the parts from a first to a last (the whole course, one part, or a stretch) and owns the one motion controller; no run ends on time ([0022](decisions/0022-no-run-ends-on-time.md)) |
+| Operator panel | `include/panel/PanelMode.h`, `PanelStart.h`, `PanelLeds.h` | what the DIP bank means, when the operator lets the run begin and what the two LEDs show, as pure functions; includes nothing from the mission ([0021](decisions/0021-operator-panel-built-apart-from-the-robot-logic.md)) |
 | Run loop | `include/mission/RunLoop.h` | one tick of a run: perception, then the mission manager; `src/main.cpp` applies it to the motors |
 | Section B | `include/mission/SectionB.h`, `FinishSource.h` | Section B's maze: begins the 17x17 map on the entry tile, explores until a plugged-in stop source says "finish", then looks at the edges that could still shorten the path until it is proved (by tile count); the run limit ends the proof quietly. Host-tested only |
 | Wall sensing | `include/sense/WallSense.h` | ultrasonic readings to "wall or open" per side, and a heading trim that centres the robot |

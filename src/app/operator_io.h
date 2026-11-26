@@ -1,18 +1,22 @@
 // ============================================================================
-//  operator_io.h  --  what the operator touches and sees: the start button and the two LEDs.
-//  Non-critical glue, so it uses the Arduino framework rather than the registers a HAL driver
-//  would (docs/architecture/decisions/0001).
+//  operator_io.h  --  the panel's pins: the start button, the DIP bank and the two LEDs. What they
+//  mean and show is include/panel/. Non-critical glue on the Arduino framework (decisions/0001).
 // ============================================================================
 
 #pragma once
 
 #include <stdint.h>
 
-// Pin modes for the LEDs and, where one is fitted, the start button.
+#include "panel/PanelLeds.h"
+
+// Pin modes: LEDs out; the DIP bank, and the button if wired (spec/pins/Wired.h), in with pull-ups.
 void operatorIoInit();
 
-// The raw start button: true while it is held. Always false without a button fitted.
+// The DIP bank: bit i is set while PIN_DIP[i] is ON. An unwired bank reads 0.
+uint8_t operatorIoDip();
+
+// The raw start button; always false while it is not wired.
 bool operatorIoStartButton();
 
-// Once per tick: the heartbeat LED toggles every 500 ms, and the error LED follows `fault`.
-void operatorIoTick(uint32_t nowMs, bool fault);
+// Once per tick: show `view` on the LEDs.
+void operatorIoTick(uint32_t nowMs, const PanelView &view);

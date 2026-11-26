@@ -9,8 +9,6 @@
 
 #pragma once
 
-#include <stdint.h>
-
 #include "core/RobotState.h"
 #include "mission/MissionManager.h"
 #include "motion/DriveCommand.h"
@@ -43,13 +41,12 @@ inline void runLoopInit(RunLoop &rl, bool imuPresent, const LineCalibration *lin
     }
 }
 
-// One tick. `buttonDown` is the raw start button; `headingFixDeg` is what to subtract from the
-// gyro heading (headingSet(hd, hd.deg - fix)).
-inline DriveCommand runLoopTick(RunLoop &rl, const RobotState &state, uint32_t nowMs,
-                                bool buttonDown, float &headingFixDeg)
+// One tick. `go` is the operator's start; `headingFixDeg` is what to subtract from the gyro
+// heading (headingSet(hd, hd.deg - fix)).
+inline DriveCommand runLoopTick(RunLoop &rl, const RobotState &state, bool go, float &headingFixDeg)
 {
     perceive(rl.perceiver, state, rl.perceive, rl.perception);
-    const DriveCommand cmd = missionTick(rl.mission, rl.params, rl.perception, nowMs, buttonDown);
+    const DriveCommand cmd = missionTick(rl.mission, rl.params, rl.perception, go);
     headingFixDeg = missionTakeHeadingFix(rl.mission);
     return cmd;
 }

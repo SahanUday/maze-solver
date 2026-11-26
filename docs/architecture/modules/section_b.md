@@ -50,10 +50,8 @@ would take the tiles outside the maze for unvisited ones and drive out of the op
 An edge nothing answers for stays unchecked, which would repeat the same look for ever. After
 `frontTries` looks at the same edge it is taken as a wall, as the explorer takes a front that stays silent.
 
-**The run limit** (`RUN_LIMIT_MS`) fails the search as in Section A (`TimeUp`), but ends the proof quietly:
-the run is `Done`, the wheels are held and the map is as far as it got (`sb.proved` is 0 if the proof was not
-finished). The finish is reached, and what is left is only the path's proof (rules p. 5; whether the
-8 minutes cover the proof is an open question of #73).
+**No time limit.** The firmware ends no run on time (ADR 0022): the officials time the trial. The proof
+therefore runs until it is proved or a fault ends it, however long that takes.
 
 ## Invariants
 
@@ -80,6 +78,6 @@ finished). The finish is reached, and what is left is only the path's proof (rul
 In the Section B preset, from every corner and either opening, on two seeded 9x9 mazes: the robot
 explores from the entry tile, stops within 40 mm of the finish tile's centre with no wall contact and
 never leaves the maze, and the path it holds after the proof is as long as the generator's own shortest
-path. The longest of those 16 runs needs 455 s (explore 62-354 s), and one needs more than the 8 minutes.
+path. The longest of those 16 runs needs 455 s (explore 62-354 s), and one needs more than 8 minutes (the officials' limit; the firmware does not enforce it).
 `BExplore` alone (facing the finish from a tile next to it), no source, a source that is never told
-(`NoRoute`), a turn that cannot move (`StuckTurn`) and both ends of the run limit are each tested.
+(`NoRoute`) and a turn that cannot move (`StuckTurn`) are each tested.

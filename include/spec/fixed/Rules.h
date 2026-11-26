@@ -12,6 +12,8 @@ constexpr uint8_t SECTION_A_SIZE_TILES = 4; // 4x4
 constexpr uint8_t SECTION_B_SIZE_TILES = 9; // 9x9
 
 // ---- Competition timing ----------------------------------------- [RULES] --
+// The officials end a trial at RUN_LIMIT_MS, not the firmware (ADR 0022): it is the time the
+// algorithm is tuned to fit.
 constexpr uint32_t RUN_LIMIT_MS = 8UL * 60UL * 1000UL;         // 8 minutes per trial
 constexpr uint32_t ARENA_TIME_LIMIT_MS = 30UL * 60UL * 1000UL; // total arena access
 constexpr uint8_t TRIAL_COUNT = 3;                             // best-of-3

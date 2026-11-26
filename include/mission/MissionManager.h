@@ -3,10 +3,10 @@
 //
 //    WaitStart -> Running (the parts from `first` to `last`, in course order) -> Done; any -> Fault
 //
-//  The manager starts the run, moves on when a part reports its end, enforces the run limit and
-//  makes the one motionControlStep() call: a part only fills a MotionTarget. A part ends with Done
-//  (the next begins on the next tick) or HandOver (it ended while moving on: the next acts in
-//  the same tick, so nothing stops in between). Parts: Parts.h.
+//  The manager starts the run, moves on when a part reports its end and makes the one
+//  motionControlStep() call: a part only fills a MotionTarget. A part ends with Done (the next
+//  begins on the next tick) or HandOver (it ended while moving on: the next acts in the same tick,
+//  so nothing stops in between). No run ends on time. Parts: Parts.h.
 //  docs/architecture/modules/mission_manager.md
 // ============================================================================
 
@@ -25,7 +25,6 @@
 #include "motion/LineFollow.h"
 #include "motion/MotionControl.h"
 #include "sense/Perception.h"
-#include "spec/fixed/Rules.h"
 #include "spec/tuning/Run.h"
 
 // The status line's phase numbers: Approach and Line come last so the older numbers stay.
@@ -456,7 +455,7 @@ inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perce
 
 } // namespace mission_detail
 
-// One tick without the start and the run limit, for a caller that sets `ms.start.started` itself.
+// One tick without the start latch, for a caller that sets `ms.start.started` itself.
 inline DriveCommand missionStep(MissionManager &ms, const MissionParams &p, const Perception &pc)
 {
     const DriveCommand cmd = mission_detail::tick(ms, p, pc);
@@ -466,21 +465,10 @@ inline DriveCommand missionStep(MissionManager &ms, const MissionParams &p, cons
     return cmd;
 }
 
-// One tick of a run: the start, the run limit, then the parts. `buttonDown` is the raw start
-// button.
+// One tick of a run: the start, then the parts. `go` is the operator's start.
 inline DriveCommand missionTick(MissionManager &ms, const MissionParams &p, const Perception &pc,
-                                uint32_t nowMs, bool buttonDown)
+                                bool go)
 {
-    runStartTick(ms.start, nowMs, buttonDown);
-    if (ms.start.started && ms.stage != RunStage::Done && ms.stage != RunStage::Fault &&
-        nowMs - ms.start.startedAtMs >= RUN_LIMIT_MS) {
-        if (ms.stage == RunStage::Running && ms.part == Part::BProve) {
-            // The finish is reached and what is left is the proof: time running out ends the run
-            // there, it does not fail it. The wheels are held.
-            ms.stage = RunStage::Done;
-        } else {
-            missionFail(ms, MissionFault::TimeUp);
-        }
-    }
+    runStartTick(ms.start, go);
     return missionStep(ms, p, pc);
 }

@@ -1,5 +1,5 @@
 // ============================================================================
-//  spec/tuning/Run.h  --  the parts a run covers, run start, status line.
+//  spec/tuning/Run.h  --  the parts a run covers and the status line.
 // ============================================================================
 
 #pragma once
@@ -40,14 +40,7 @@ constexpr Part RUN_PART_LAST = Part::BProve;
 static_assert(static_cast<uint8_t>(RUN_PART_FIRST) <= static_cast<uint8_t>(RUN_PART_LAST),
               "RUN_PART_LAST comes before RUN_PART_FIRST");
 
-// ---- Run start and status line ---------------------------------- [TUNED] --
-// No start button is fitted: the run begins by itself, RUN_START_DELAY_MS after the loop starts
-// (the gyro has been zeroed by then, with the robot held still), so the power switch is the start.
-// With a button fitted, set this true and the run waits for a press.
-constexpr bool RUN_START_BUTTON_FITTED = false;
-constexpr uint16_t RUN_START_DELAY_MS = 1000; // time to take the hands off after the zeroing
-// The start button must read pressed this many ticks in a row (a bounce is shorter).
-constexpr uint8_t RUN_START_DEBOUNCE_TICKS = 5;
+// ---- Status line ------------------------------------------------ [TUNED] --
 // A status line over serial this often while the run is going (phase, odometer, speed, heading,
 // the three ultrasonics, the IR floor class and raw counts, the drive duty). 0 = off. At 250000
 // baud a line is ~4 ms of the 10 ms tick.

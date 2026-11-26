@@ -56,7 +56,7 @@ constexpr uint8_t kAdcPrescalerBits = adcPrescalerBits(IR_ADC_PRESCALER);
 inline uint16_t convert(uint8_t channel)
 {
     // Every conversion picks its own channel group: the Arduino core's analogRead() leaves
-    // MUX5 set after reading A8-A15 (PIN_POT, say), which would silently turn this into ADC8-15.
+    // MUX5 set after reading A8-A15 (A8, say), which would silently turn this into ADC8-15.
     ADCSRB &= ~_BV(MUX5);
     ADMUX = _BV(REFS0) | channel; // AVcc reference, right-adjusted, MUX4:0 = channel
     ADCSRA |= _BV(ADSC);

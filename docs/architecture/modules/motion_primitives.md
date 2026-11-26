@@ -41,7 +41,7 @@ hand [motion_control](motion_control.md) the reference, not the measurement.
   (`(v^2 - vEnd^2) / 2a`): the move brakes as hard as the plan allows rather than run through the
   line and come back. A line already nearer is left where it is.
 - A move's length and speed cannot make it `Stuck`; a slow robot that keeps closing the gap runs
-  on. The run limit (`RUN_LIMIT_MS`) is the only overall bound.
+  on. Nothing bounds the time of a run ([0022](../decisions/0022-no-run-ends-on-time.md)).
 - `patienceMs == 0` turns the detector off.
 - Only a turn sets `MotionTarget::pivot`.
 - The first step after a begin sets `MotionTarget::newMove`; `straightExtend` and
