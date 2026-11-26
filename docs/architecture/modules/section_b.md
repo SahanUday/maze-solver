@@ -78,6 +78,6 @@ therefore runs until it is proved or a fault ends it, however long that takes.
 In the Section B preset, from every corner and either opening, on two seeded 9x9 mazes: the robot
 explores from the entry tile, stops within 40 mm of the finish tile's centre with no wall contact and
 never leaves the maze, and the path it holds after the proof is as long as the generator's own shortest
-path. The longest of those 16 runs needs 455 s (explore 62-354 s), and one needs more than 8 minutes (the officials' limit; the firmware does not enforce it).
+path. The longest of those 16 runs needs about 490 s (explore 62-354 s), over the officials' 8 minutes, which the firmware does not enforce.
 `BExplore` alone (facing the finish from a tile next to it), no source, a source that is never told
 (`NoRoute`) and a turn that cannot move (`StuckTurn`) are each tested.
