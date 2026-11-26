@@ -263,6 +263,20 @@ static int tilesVisited(const MissionManager &ms)
     return n;
 }
 
+// A gyro that reads 1% high is taken out by the walls in Section B too.
+static void test_a_gyro_scale_error_is_taken_out_by_the_walls_in_section_b()
+{
+    World w;
+    world::bridgeIn(w, Entry{N, 2, 0, 1u});
+    world::startOnEntryTile(w);
+    w.faults.gyroScale = 1.01f;
+    MissionManager ms;
+    begin(ms);
+    const MissionParams p = paramsFor(w, Part::BEntry, Part::BExplore);
+    const Outcome o = run(w, ms, p);
+    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
+}
+
 // Nothing plugged in to say "finish": the search ends when every tile has been entered, no finish
 // is known, and the part after it has nothing to prove.
 static void test_with_no_finish_source_it_explores_everything_and_proves_nothing()
@@ -355,6 +369,7 @@ int main()
     RUN_TEST(test_it_explores_from_every_entry_to_the_finish_and_stops_on_it);
     RUN_TEST(test_it_proves_the_shortest_path_from_every_entry);
     RUN_TEST(test_it_explores_on_its_own_from_a_tile_facing_the_finish);
+    RUN_TEST(test_a_gyro_scale_error_is_taken_out_by_the_walls_in_section_b);
     RUN_TEST(test_with_no_finish_source_it_explores_everything_and_proves_nothing);
     RUN_TEST(test_a_finish_that_is_never_told_ends_in_no_route);
     RUN_TEST(test_a_turn_that_cannot_move_is_a_stuck_turn_in_section_b_too);
