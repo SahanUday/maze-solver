@@ -227,7 +227,7 @@ inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const 
         case ExploreStatus::Running:
             return PartStatus::Running;
         case ExploreStatus::Explored: // every reachable tile has been entered
-        case ExploreStatus::AtTarget: // no part drives to a target yet
+        case ExploreStatus::AtTarget: // Section A's parts never drive to a target (BProve does)
         case ExploreStatus::Stopped:
             return PartStatus::Done;
         case ExploreStatus::Braked:

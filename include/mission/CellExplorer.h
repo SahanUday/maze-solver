@@ -389,7 +389,7 @@ template <uint8_t N> inline void cellExplorerStart(CellExplorerT<N> &ce, const M
 }
 
 // Head for map tile `target` over checked edges instead of exploring. Call it standing on a centre,
-// after Explored or AtTarget. Ends with AtTarget, or the fault TargetUnreachable when no checked
+// after Explored or AtTarget, or after Stopped once cellExplorerClearStop() has cleared the stop. Ends with AtTarget, or the fault TargetUnreachable when no checked
 // path exists (the map is kept). Lasts until the next reset.
 template <uint8_t N>
 inline void cellExplorerDriveTo(CellExplorerT<N> &ce, typename maze::ExplorerT<N>::Index target)
