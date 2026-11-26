@@ -195,7 +195,8 @@ inline BStatus sectionBProveStep(SectionB &sb, CellExplorerB &ce, const CellExpl
                     sb.fault = MissionFault::NoRoute; // not reachable in the target mode
                     return BStatus::Fault;
             }
-            if (sb.prove == ProveStep::Go && ce.map.heading != sb.lookDir) {
+            if (sb.prove == ProveStep::Go && ce.map.heading != sb.lookDir &&
+                (ce.map.cell[ce.map.pos] & maze::checkedBit(sb.lookDir)) == 0) {
                 cellExplorerBeginTurn(ce, pc.motion, sb.lookDir); // then Sense reads the edge
                 sb.prove = ProveStep::Look;
             } else {
