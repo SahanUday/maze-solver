@@ -182,7 +182,7 @@ inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
             break;
         case Part::BExplore:
             // After BEntry the map is begun; placed here alone, it begins where the robot stands.
-            if (ms.stage == RunStage::WaitStart || before != Part::BEntry) {
+            if (before != Part::BEntry) {
                 sectionBEnter(ms.sectionB, ms.exploreB, fb, false);
             }
             break;
