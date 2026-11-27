@@ -23,22 +23,40 @@ inline int wallsAround(const world::Arena &a, int i, int j)
 struct Watch {
     ExplorePhase was = ExplorePhase::Sense;
     int backOuts = 0;
-    int halfTurnsInDeadEnds = 0;           // begun in a dead end the robot had driven into
-    float worstEndMm = 0.0f;               // a reverse's end from the centre of its tile
+    int longestRun = 0;            // tiles reversed in a row
+    uint16_t seen = 0;             // the explorer's count at the last tick
+    int halfTurnsInDeadEnds = 0;   // begun in a dead end the robot had driven into
+    float worstEndMm = 0.0f;       // a reverse's end from the centre of its tile
+    float worstFromStartMm = 0.0f; // ... and, along the way, from where the move it undoes began
+    float originMm = -1.0f;        // the move in progress, as the explorer holds it
+    float startX = 0.0f, startY = 0.0f;    // ... and where the robot was when it began
     float nearestBehindMm = world::FAR_MM; // ... and from the axle to a wall behind it
     bool openHeardCleared = true; // nothing heard in the tile it left stays with the explorer
     bool statusShowsBackOut = true;
 
-    // True on the tick a reverse has ended.
+    // True on the tick a tile has been reversed, whether or not the next one follows at once.
     template <uint8_t N> bool see(const world::World &w, const CellExplorerT<N> &ce)
     {
         const ExplorePhase now = ce.phase;
-        const bool ended = was == ExplorePhase::BackOut && now != was;
+        if (ce.step.originMm != originMm) { // a move has just begun
+            originMm = ce.step.originMm;
+            startX = static_cast<float>(w.plant.x);
+            startY = static_cast<float>(w.plant.y);
+        }
+        const bool ended = ce.backOuts != seen;
+        seen = ce.backOuts;
         if (ended) {
             ++backOuts;
+            longestRun = ce.reversed > longestRun ? ce.reversed : longestRun;
             const float off = hypotf(static_cast<float>(w.plant.x) - world::PITCH * w.cellI(),
                                      static_cast<float>(w.plant.y) - world::PITCH * w.cellJ());
             worstEndMm = fmaxf(worstEndMm, off);
+            if (ce.advanced == 0) { // the whole move undone
+                const float a = w.plant.headingRad();
+                const float along = (static_cast<float>(w.plant.x) - startX) * cosf(a) +
+                                    (static_cast<float>(w.plant.y) - startY) * sinf(a);
+                worstFromStartMm = fmaxf(worstFromStartMm, fabsf(along));
+            }
             const float behind = w.plant.ray(w.arena, static_cast<float>(w.plant.yawDeg) + 180.0f);
             nearestBehindMm = fminf(nearestBehindMm, behind);
             openHeardCleared = openHeardCleared && ce.openHeard == 0;

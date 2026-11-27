@@ -37,7 +37,7 @@ enum class MissionPhase : uint8_t {
     Fault,
     Approach,
     Line,
-    BackOut, // reversing a tile instead of turning round (CellExplorer.h)
+    BackOut, // reversing instead of turning round (CellExplorer.h)
 };
 
 enum class RunStage : uint8_t { WaitStart, Running, Done, Fault };

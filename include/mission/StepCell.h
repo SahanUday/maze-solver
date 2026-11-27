@@ -9,6 +9,7 @@
 //  A wall ahead moves the stop onto the front reading, cancelling odometer drift. The corridor's
 //  direction, measured along the walls, is handed back as a correction to the gyro heading:
 //  stepCellTakeHeadingFix().
+//  A finished move can be driven back a tile at a time: stepCellBeginBack(), stepCellBackStep().
 //  docs/architecture/modules/step_cell.md
 // ============================================================================
 
@@ -40,7 +41,8 @@ struct StepCellParams {
     float snapMm = WALL_SNAP_MM;     // travel along one wall mode to measure the corridor's heading
     float snapGain = WALL_SNAP_GAIN; // share of the measured frame error taken out per stretch
     float snapMinDeg = WALL_SNAP_MIN_DEG;
-    float snapMaxDeg = WALL_BIAS_MAX_DEG; // a bigger one is not the gyro frame
+    float snapMaxDeg = WALL_BIAS_MAX_DEG;  // a bigger one is not the gyro frame
+    float backLimitMm = BACK_OUT_LIMIT_MM; // a reverse's length stays this close to the pitch
 };
 
 // A sensor that heard no echo all window is reported as a wall (the safe answer) and is not
@@ -381,5 +383,37 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
         return MoveStatus::Running;
     }
     headingSnap(sc, p, fb, wv);
+    return straightStep(sc.straight, p.plan, fb, trim, dtMs, out);
+}
+
+// Reverse one of the `tiles` the last move covered, still facing the way it drove. The length is
+// what that move really drove, per tile still to go back, so the arena's own tile size is used, a
+// steady odometer error cancels, and the last tile ends where the move began. Kept within
+// `backLimitMm` of the pitch; with no tile counted it is the pitch.
+inline void stepCellBeginBack(StepCell &sc, const StepCellParams &p, const MotionFeedback &fb,
+                              float headingRefDeg, uint8_t tiles)
+{
+    float length = tiles > 0 ? (fb.distMm - sc.originMm) / static_cast<float>(tiles) : p.pitchMm;
+    const float shortest = p.pitchMm - p.backLimitMm;
+    const float longest = p.pitchMm + p.backLimitMm;
+    length = length < shortest ? shortest : (length > longest ? longest : length);
+    straightBegin(sc.straight, fb, -length, p.cruiseMmS, 0.0f, headingRefDeg);
+}
+
+// One tick of the reverse: the gyro holds the heading, trimmed by the same wall steering as a
+// forward move. Backing, a heading to the left carries the robot to the right, so the steering is
+// given the two sides swapped. The heading error it learns is the same either way, so the bias
+// goes into the reverse from the move before it, and on into the next one.
+inline MoveStatus stepCellBackStep(StepCell &sc, const StepCellParams &p, const MotionFeedback &fb,
+                                   const WallView &wv, uint16_t dtMs, MotionTarget &out)
+{
+    WallView swapped = wv;
+    swapped.left = wv.right;
+    swapped.right = wv.left;
+    swapped.leftValid = wv.rightValid;
+    swapped.rightValid = wv.leftValid;
+    swapped.leftMm = wv.rightMm;
+    swapped.rightMm = wv.leftMm;
+    const float trim = wallSteerTrim(sc.steer, swapped, p.wall, fb.headingDeg, dtMs);
     return straightStep(sc.straight, p.plan, fb, trim, dtMs, out);
 }
