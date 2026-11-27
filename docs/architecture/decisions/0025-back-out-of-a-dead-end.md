@@ -6,7 +6,7 @@
 ## Context
 
 On the team's practice maze (2026-11-26) the robot's tail hit a wall while it turned round in a dead
-end. It did not happen on every run. The maze's cells measure 24.6 to 26.5 cm, not one size.
+end. It did not happen on every run.
 
 How the explorer handled a dead end before this decision: the step reads the cell's three walls 50 mm
 before its centre and stops on the centre, with the stop placed by the end wall. The planner then
@@ -24,33 +24,46 @@ the robot):
 | To a tyre's outer face (186 mm across) | 93 mm |
 | To the farthest points, which a pivot sweeps in a circle | about 99 mm at the tyres, up to about 110 mm at the rear corners |
 
-A centred robot has about 117 mm to each side wall (the sensors read 231-235 mm across), so a pivot
-has about 7 to 20 mm to spare, and a robot that stopped off the centre touches. That fits a hit on
-some runs only.
+How far a centred robot is from each side wall is not settled. The sensors read 231-235 mm across
+(about 117 mm a side), which leaves a pivot about 7 to 20 mm to spare. The team's tape measurements of
+the practice maze (2026-11-27) give 246 to 265 mm between wall faces (123 to 132 mm a side). Either
+way a robot that stopped well off the centre can touch, which fits a hit on some runs only.
 
-The cell the robot came from is known: it drove through it a moment ago, along the line it would
-reverse on. Straight moves already run backwards (`straightBegin` with a negative distance, tested in
+The tiles are not one size, and the code's pitch (250 mm) is nominal. A reverse of a fixed length
+ends off by the difference.
+
+The way the robot came is known: it drove it a moment ago, along the line it would reverse on, and the
+step still holds where that move began (`StepCell::originMm`) and how many tiles it covered. Straight
+moves already run backwards (`straightBegin` with a negative distance, tested in
 `test_motion_primitives`).
+
+Other mice mostly turn round in place (UKMARS `mazerunner-core`, `turn_back`), stopping by the wall
+ahead first; their bodies pivot well inside a cell. Ours may not. A wheel-slip study
+(micromouseonline.com, 2022-05-31) finds slip while speeding up makes a robot read long and while
+braking short, which largely cancels over a move from rest to rest.
 
 ## Decision
 
 **Where the way on from a tile the robot has driven into is straight back over the edge it came in
-by, the robot reverses one tile instead of turning round.**
+by, the robot reverses instead of turning round: a tile at a time, planning again after each, as far
+back as the move that drove in began.**
 
 - No separate dead-end test: a dead end is the case where the planner turns back, because its other
   three edges are walls. A tile whose other open edges lead only to known places is left the same way.
+- No maximum number of tiles. Planning after each tile stops the reverse where the way turns; past the
+  start of that move the robot turns round. `SECTION_A_BACK_OUT_MAX_TILES` can set a limit.
 - It holds while exploring and while driving to a chosen tile (Section B's proof). The explorer
-  remembers that it stands on the centre a step drove to until it turns or reverses, so it still knows
-  after the stand-and-look that begins a drive: the proof leaves the finish, and a tile it looked
-  from, in reverse.
-- Not after a step that was cut short or ended without a verdict on the walls, and not from where a
+  remembers that it stands on the way of the last move until it turns, so it still knows after the
+  stand-and-look that begins a drive.
+- Not after a move that was cut short or ended without a verdict on the walls, and not from where a
   run or a part starts: the robot has not driven in.
-- The reverse is one pitch (`TILE_PITCH_MM`) from where the robot stands, not to where the odometer
-  put the centre before. A dead end's stop is placed by its end wall, and the centre before may have
-  been rolled through on the odometer alone. In the host tests aiming at the odometer's centre landed
-  farther off.
-- The gyro holds the heading. The wall centring is off: steering from the side walls while reversing
-  turns the wrong way, and it is one tile along a line just driven.
+- **Length:** what the move that drove in really covered, divided by the tiles still to go back, kept
+  within `BACK_OUT_LIMIT_MM` of the pitch (`stepCellBeginBack`). The last tile ends where the move
+  began. The arena's own tile size is used and a steady odometer error cancels.
+- **Steering:** the gyro holds the heading, trimmed by the forward move's wall steering
+  (`wallSteerTrim`, same gains) with the two sides swapped, because backing, a heading to the left
+  carries the robot to the right. The heading error it has learned is the same either way, so it is
+  carried into the reverse and out of it.
 - On the map the robot moves back a tile still facing the same way (`explorerRetreat`), and plans
   from there with what it already knows of that tile.
 - A reverse that stops making progress is accepted close to its end, standing still, as a step is;
@@ -59,40 +72,59 @@ by, the robot reverses one tile instead of turning round.**
 
 ## Consequences
 
-- No half turn in a dead end the robot drove into, in either maze.
-- A reverse needs room behind only for the back of the body. In simulation (a scratch harness) it ends
-  with the axle at least 109 mm from a wall behind in the nominal world, and at least 96 mm with
-  tiles of 246 to 260 mm or an odometer 2 % off, against about 90 mm of tail. Runs succeeded as often
-  with it on as off, odometer and tile-size errors included.
-- Every other pivot beside a wall has the same small margin as before. This removes the one the robot
+All figures below are from the host world, most from scratch harnesses that are not in the repo.
+
+- No half turn in a dead end the robot drove into, in either maze, as long as the way back is part of
+  one move. A way back that was driven in two moves is reversed to the start of the last, and the robot
+  turns round there.
+- Against reversing one tile of a fixed pitch on the gyro alone, over 12 fault settings (uneven
+  tiles, odometer, gyro, ultrasonic noise, dropouts and false echoes, wheel slip), runs succeeded at
+  least as often in each. With uneven tiles they rubbed a side wall less often (114 against 211 of
+  1,100 with the team's tile sizes and the code still saying 250 mm); with the wheels slipping one way
+  on the way in, more often (133 against none of 1,100 at 5 %).
+- In the same comparison with the team's tile sizes, the typical end of a reverse went from 25 mm off
+  the tile's centre to 7 mm.
+- It ends where the move began. A move begun off the centre is reversed to off the centre, so in a
+  perfectly even maze it ends slightly farther out than a fixed pitch would (typically 0.4 mm).
+- Faster. Exploring every tile of the photo maze takes 91.5 s instead of 101.4 s, with four reverses.
+- **Wheel slip one way is the risk, and it grows with the length of the reverse.** If the wheels slip
+  on the way in and not on the way back, the measured length is too long. Over a corridor of eight
+  tiles, 2 % ended with the axle 80 mm from the wall behind and 5 % with it 16 mm from it, against about
+  90 mm of tail. Slip of 5 % only while speeding up and braking stayed 110 mm clear. How much this robot slips
+  has not been measured; if it does, set `SECTION_A_BACK_OUT_MAX_TILES` to 1.
+- The wall steering matters over a long reverse. With the gyro 4 degrees wrong over eight tiles, the
+  robot rubbed a side wall in 200 of 200 runs on the gyro alone, in 127 with a proportional
+  correction only, and in none with the learned one.
+- A reverse does not look behind: there is no sensor there, and no wall to place its end.
+- Every other pivot beside a wall has the same small margin as before. This removes the ones the robot
   can do without; it does not make the body's turning circle smaller.
-- Faster. Exploring every tile of the photo maze in the host world takes 91.8 s instead of 101.4 s,
-  with four reverses: about 2.4 s each (a half turn, a look and a drive back, against a drive back).
-- A dead end two or more tiles deep still ends in a half turn, in the tile before the last one, where
-  the side walls are the same but the end wall is a tile farther away.
 - A new status-line phase, `BackOut` (8), added after the older ones.
-- The reverse keeps whatever sideways offset the robot drove in with, and has no wall to place its
-  end: an error of the odometer or of the tile's size goes into where it stops, until the next step
-  meets a wall.
 - The finish (#69) has to be told during the step onto it, as `FinishSource.h` already requires: a
   reverse does not ask for it.
-- On the robot (practice maze, 2026-11-26) two runs reversed once each, both from a cell walled on
-  both sides whose way on was already explored, not from a dead end of three walls. Each reversed
-  254-255 mm in 2.1 s with the heading within 2 degrees of square after the move (84-92 and -2 to
-  +2 degrees) and the side walls read at 104-129 mm throughout. A reverse in Section B's proof has not
-  run on the robot.
+- On the robot (practice maze, 2026-11-26), with an earlier version that reversed one fixed pitch on
+  the gyro alone: two runs reversed once each, both from a cell walled on both sides whose way on was
+  already explored. Each reversed 254-255 mm in 2.1 s with the heading within 2 degrees of square.
+  The version decided here has not run on the robot.
 
 ## Alternatives considered
 
 - **Stop farther from the end wall before the half turn.** Cheap, but keeps the 2 s half turn and the
   sweep past both side walls.
+- **Turn round, as most mice do.** Needs a body that can pivot in the tile.
+- **Reverse a fixed pitch.** Ends off by however much the tile differs from 250 mm.
+- **Reverse one tile, then turn round.** Leaves the half turn between side walls in every deeper dead
+  end. It is the setting to use if the wheels slip.
+- **Cap the length at the nominal pitch.** Meant for the slip case; with the code's pitch below the
+  arena's it ended short every tile and rubbed more.
+- **Keep a list of the odometer at every tile.** Nothing measures where the tiles driven through are,
+  so the list would hold assumed positions; the start of the move and the tile count are enough.
+- **The gyro alone, or a proportional wall correction.** Drifts over a long reverse (above).
+- **Check the length against the front sensor.** It reads true to about 3 mm only up to 300 mm, so it
+  covers the first 18 cm of one reverse.
+- **Stop 10 mm early when the map shows a wall behind.** Keeps a little farther from it, at about 3 mm
+  of centring in every reverse.
 - **Reverse only straight after the step that drove in.** The proof starts every drive by standing and
-  looking, so it never reversed: in 400 simulated runs of Section B (a scratch harness, not in the
-  repo) the robot turned round on a dead-end finish in 199 of them.
-- **Decide a few centimetres into the cell and reverse without reaching the centre.** The walls are
-  already read 50 mm before the centre, so it saves only about 0.3 to 0.6 s per dead end, on top of
-  this.
-- **Reverse until the planned path bends.** Removes the half turn at the end of a deeper dead end too.
-  Left for later: it is a longer reverse with no wall to place its stop.
+  looking, so it never reversed: in 400 simulated runs of Section B the robot turned round on a
+  dead-end finish in 199 of them.
 - **A smaller turning circle (round the chassis's corners).** Helps every turn, not only in dead ends,
   but needs a change to the chassis. Not instead of this.

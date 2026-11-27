@@ -38,7 +38,7 @@ marker is not watched: the entry tile has one on it and it is not a goal. With n
 search ends when every reachable tile has been entered (`wallsOnly`) and no finish is known; with one
 that never says so the search ends in `NoRoute`, after the rescans.
 
-Exploring and proving both reverse a tile where the way on is straight back, instead of turning round
+Exploring and proving both reverse where the way on is straight back, instead of turning round
 ([cell_explorer](cell_explorer.md), `BackOut`): the finish and the tiles the proof looks from are
 often dead ends.
 
@@ -89,7 +89,7 @@ In the Section B preset, from every corner and either opening, on two seeded 9x9
 explores from the entry tile, stops within 40 mm of the finish tile's centre with no wall contact and
 never leaves the maze, and the path it holds after the proof is as long as the generator's own shortest
 path, without turning round in a dead end it drove into. The longest of those 16 runs needs about
-475 s (explore 62-343 s), just inside the officials' 8 minutes, which the firmware does not enforce.
+475 s (explore 62-341 s), just inside the officials' 8 minutes, which the firmware does not enforce.
 `BExplore` alone (facing the finish from a tile next to it), no source, a source that is never told
 (`NoRoute`) and a turn that cannot move (`StuckTurn`) are each tested. The proof's choices (the edge's
 other side, the unproved end, a cut route, a silent edge and when it turns) are tested without a world.

@@ -1,13 +1,15 @@
 # step_cell
 
-Drive from one cell centre to the next, reading its walls on the way. Pure logic in
+Drive from one cell centre to the next, reading its walls on the way, and drive such a move back. Pure
+logic in
 `include/mission/StepCell.h`, tested by `test/unit/test_step_cell/` in a simulated corridor.
 
 ## Interface
 
 - `StepCellParams` - `PlanParams`, `WallParams`, and pitch, cruise speed, `sampleLeadMm`,
   `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, `echoMs`, `blindMs`, `snapMm`,
-  `snapGain`, `snapMinDeg`, `snapMaxDeg`, which default to `spec/tuning/WallFollow.h`.
+  `snapGain`, `snapMinDeg`, `snapMaxDeg`, `backLimitMm`, which default to
+  `spec/tuning/WallFollow.h`.
 - `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
 - `stepCellContinue(sc, params)` - the next cell is straight on: roll through this centre.
@@ -20,6 +22,8 @@ Drive from one cell centre to the next, reading its walls on the way. Pure logic
   `stepCellResume()` begins again toward that centre, for a stop that no wall explains.
 - `stepCellTakeHeadingFix(sc)` - degrees to subtract from the gyro heading
   (`headingSet(hd, hd.deg - fix)`), and 0 when there is none.
+- `stepCellBeginBack(sc, params, fb, headingRef, tiles)` and `stepCellBackStep(sc, params, fb, view,
+  dtMs, out)` - reverse one of the `tiles` the last move covered, still facing the way it drove.
 
 ## How it works
 
@@ -65,6 +69,16 @@ is handed back through `stepCellTakeHeadingFix()` and taken out of the steer's b
 making up for it. Without this the bias is dropped at every turn and the error grows with the run.
 A measured error over `snapMaxDeg` is not taken as the gyro's.
 
+### Reversing
+
+The length is what the last move really drove (`originMm` to here) divided by the tiles still to go
+back, kept within `backLimitMm` of the pitch; with no tile counted it is the pitch. The last tile
+therefore ends where the move began, whatever the arena's tiles measure. The gyro holds the heading,
+trimmed by the same `wallSteerTrim` and gains as a forward move, given the two sides swapped: backing,
+a heading to the left carries the robot to the right. The steering's bias, the learned heading error,
+carries from the move into the reverse and back. There is no look behind and no front-wall logic
+([0025](../decisions/0025-back-out-of-a-dead-end.md)).
+
 ## Invariants
 
 - `wallsReady` rises once per cell; begin and continue clear the cell's votes, walls and `blocked`.
@@ -75,6 +89,9 @@ A measured error over `snapMaxDeg` is not taken as the gyro's.
 - The stop is never closer than the braking distance.
 
 ## Status
+
+The reverse has host tests only (its length, centring with one wall, two or none, and a heading error
+learned over three tiles) and has not run on the robot in this form.
 
 Host tests, 100% line coverage; `spec/tuning/WallFollow.h` asserts the sampling lead covers the braking
 distance.

@@ -13,10 +13,10 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 ## Interface
 
 - `CellExplorerT<N>` - the state: the `ExplorePhase` (`Sense`, `Turn`, `Step`, `BackOut`), the map,
-  the `StepCell`, the `Turn`, the `reverse` move, the votes and the counters (`backOuts`: tiles
-  reversed out of). `cellExplorerReset(ce)`.
+  the `StepCell`, the `Turn`, the votes and the counters (`backOuts`: tiles reversed).
+  `cellExplorerReset(ce)`.
 - `CellExplorerParams` - `StepCellParams` and the explorer's limits (`senseMs`, `frontTries`,
-  `rescans`, `resumes`, `turnRetries`, `maxBlocked`, `stuckAcceptMm`, `backOut`, `wallsOnly`, `dtMs`),
+  `rescans`, `resumes`, `turnRetries`, `maxBlocked`, `stuckAcceptMm`, `backOut`, `backMaxTiles`, `wallsOnly`, `dtMs`),
   at their `spec/tuning/CellExplorer.h` values.
 - `cellExplorerStart(ce, fb)` - begin from where the robot stands: map North is its heading now.
 - `cellExplorerStep(ce, params, input, perception, target)` - one tick. Fills the `MotionTarget`
@@ -49,14 +49,15 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 - **Step:** drive one tile. The step reads the walls of the tile ahead 50 mm before its centre;
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
-- **BackOut:** the way on is straight back, and the robot stands where a step that drove in stopped,
-  not turned since (a dead end, mostly). With `backOut` it reverses one tile from where it stands, the
-  gyro holding the heading and the wall centring off, instead of turning round. This holds at the
-  start of a drive to a tile too, so Section B's proof leaves the finish in reverse. The map moves back
-  a tile facing the same way (`explorerRetreat`), and the explorer plans from there without reading
-  the walls again. Not after a step cut short or one without a verdict. A stuck reverse is accepted
-  within `stuckAcceptMm` standing still, otherwise `StuckStep`; wheels held hard well short of the end
-  are cut by the motion controller first (`Stall`)
+- **BackOut:** the way on is straight back, and the robot stands on the way of the last step, not
+  turned since (a dead end, mostly). With `backOut` it reverses a tile
+  ([step_cell](step_cell.md), `stepCellBeginBack`) instead of turning round. The map moves back a tile
+  facing the same way (`explorerRetreat`), and the explorer plans from there without reading the walls
+  again: if the way on is still straight back it reverses the next tile, as far as the tiles that step
+  covered and no more than `backMaxTiles` in a row. This holds at the start of a drive to a tile too,
+  so Section B's proof leaves the finish in reverse. Not after a step cut short or one without a
+  verdict. A stuck reverse is accepted within `stuckAcceptMm` standing still, otherwise `StuckStep`;
+  wheels held hard well short of the end are cut by the motion controller first (`Stall`)
   ([0025](../decisions/0025-back-out-of-a-dead-end.md)).
 
 **Drive-to-tile mode** (`cellExplorerDriveTo`) runs the same Sense, Turn and Step; only the next tile
@@ -105,13 +106,14 @@ part of the Section A run, before the mission was split. The split changed no ou
 every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the
 robot since.
 
-Backing out is tested in the host world, from all 60 starts of the photo maze and in the 16 Section B
-runs through the proof: the robot never turns round in a dead end it drove into, and no reverse ends
-with a wall behind nearer than the body's tail (`test/model/Chassis.h`, from CAD). In the photo maze
-each reverse ends within 15 mm of the tile's centre, exploring every tile is quicker than with
-`backOut` off, and a reverse held a little short of its end arrives while one held farther short
-faults. On the robot (practice maze, 2026-11-26) two runs reversed once each, from a cell walled on
-both sides; not yet from a dead end of three walls, and not in the proof.
+Backing out is tested in the host world, from all 60 starts of the photo maze, in a dead-end corridor
+three tiles deep (with and without an opening, and with a limit) and in the 16 Section B runs through
+the proof: the robot never turns round in a dead end it drove into, a step reversed whole ends within
+8 mm along the way of where it began, and no reverse ends with a wall behind nearer than the body's
+tail (`test/model/Chassis.h`, from CAD). Exploring every tile is quicker than with `backOut` off, and a
+reverse held a little short of its end arrives while one held farther short faults. Not run on the
+robot in this form: the runs of 2026-11-26 reversed one fixed pitch
+([0025](../decisions/0025-back-out-of-a-dead-end.md)).
 
 Drive-to-tile mode is tested by exploring the Section A arena from four start tiles and driving to
 the marker tile: it stops within 40 mm, touches no wall and does not cross START; with every checked

@@ -71,7 +71,7 @@ No run ends on time: the manager is given no clock, and the officials time the t
   alone.
 
 `phase` is what the status line prints: the explorer's `Sense`, `Turn`, `Step` and `BackOut`
-(reversing a tile), the marker exit's standing and turning as `Sense` and `Turn`, then `Approach`,
+(reversing), the marker exit's standing and turning as `Sense` and `Turn`, then `Approach`,
 `Line`, `Done`, `Fault`. Section B's parts report the explorer's four: the status line does not tell
 its exploring from its proof. The phase line also prints the part number.
 
