@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <unity.h>
 
+#include "../../support/BackOutWatch.h"
 #include "../../support/MapIndex.h"
 #include "../../support/MazeGen.h"
 #include "../../support/Seed.h"
@@ -58,6 +59,7 @@ struct Outcome {
     MissionFault fault = MissionFault::None;
     uint32_t ticks = 0;
     bool leftArena = false; // the robot's centre went outside the maze, onto the board
+    int proofBackOuts = 0;  // reverses made while proving
 };
 
 // The robot's centre outside the maze's tiles: out through the bridge's opening.
@@ -69,7 +71,7 @@ static bool outsideTheMaze(const World &w, int size)
 }
 
 static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
-                   uint32_t maxTicks = RUN_TICKS, int size = N)
+                   uint32_t maxTicks = RUN_TICKS, int size = N, backout::Watch *watch = nullptr)
 {
     Outcome out;
     for (; out.ticks < maxTicks; ++out.ticks) {
@@ -80,6 +82,9 @@ static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
         }
         w.drive(cmd);
         out.leftArena = out.leftArena || outsideTheMaze(w, size);
+        if (watch != nullptr && watch->see(w, ms.exploreB) && ms.part == Part::BProve) {
+            ++out.proofBackOuts;
+        }
         if (ms.phase == MissionPhase::Done || ms.phase == MissionPhase::Fault) {
             break;
         }
@@ -154,6 +159,7 @@ static void test_it_explores_from_every_entry_to_the_finish_and_stops_on_it()
 // the path it holds proved the shortest: the same length as the generator's own shortest path.
 static void test_it_proves_the_shortest_path_from_every_entry()
 {
+    int proofBackOuts = 0;
     for (const uint32_t seed : {1u, 2u}) {
         for (int corner = 0; corner < 4; ++corner) {
             for (int opening = 0; opening < 2; ++opening) {
@@ -171,8 +177,10 @@ static void test_it_proves_the_shortest_path_from_every_entry()
                 MissionManager ms;
                 begin(ms);
                 const MissionParams p = paramsFor(w, Part::BEntry, Part::BProve);
-                const Outcome o =
-                    run(w, ms, p, 2 * RUN_TICKS); // a test cap, not a firmware limit (ADR 0022)
+                backout::Watch watch;
+                // Twice the run limit: a test cap, not a firmware limit (ADR 0022).
+                const Outcome o = run(w, ms, p, 2 * RUN_TICKS, N, &watch);
+                proofBackOuts += o.proofBackOuts;
                 char msg[96];
                 snprintf(msg, sizeof msg, "corner %d opening %d seed %u fault %d looks %d", corner,
                          opening, static_cast<unsigned>(seed), static_cast<int>(o.fault),
@@ -186,9 +194,13 @@ static void test_it_proves_the_shortest_path_from_every_entry()
                     mazegen::trueDistance(m, (N - 1 - ej) * N + ei, (N - 1 - fj) * N + fi),
                     ms.sectionB.proved, msg);
                 TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, msg);
+                // The finish and the tiles looked from are often dead ends: left in reverse too.
+                TEST_ASSERT_EQUAL_MESSAGE(0, watch.halfTurnsInDeadEnds, msg);
+                TEST_ASSERT_TRUE_MESSAGE(watch.nearestBehindMm > model::TAIL_MM, msg);
             }
         }
     }
+    TEST_ASSERT_GREATER_THAN_INT(0, proofBackOuts);
 }
 
 // The robot placed on a tile of Section B with no entry before it, facing the finish tile one step

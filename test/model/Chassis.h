@@ -12,6 +12,9 @@ namespace model
 // From the wheel axle, with a ruler (#54).
 constexpr float NOSE_MM = 89.0f;            // to the front of the body
 constexpr float BODY_HALF_WIDTH_MM = 90.0f; // to a tyre's outer edge
+// To the back of the body, from the CAD model (SolidWorks, 2026-11-27): the rear plate is 72 mm
+// behind the axle, and 90 takes in the parts mounted on it.
+constexpr float TAIL_MM = 90.0f;
 
 // ---- Wheels ---------------------------------------------------- [MEASURED] --
 // A rolling wheel keeps going down to this duty (on the stand, PR #28). To start: MOTOR_MIN_PWM_*.

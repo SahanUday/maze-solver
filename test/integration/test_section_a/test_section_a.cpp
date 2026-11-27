@@ -8,6 +8,7 @@
 #include <unity.h>
 
 #include "mission/MissionManager.h"
+#include "../../support/BackOutWatch.h"
 #include "../../support/MapIndex.h"
 #include "../../support/world/Presets.h"
 #include "spec/fixed/Hardware.h"
@@ -23,6 +24,11 @@ using world::World;
 constexpr int N = SECTION_A_SIZE_TILES;
 
 constexpr uint32_t RUN_TICKS = RUN_LIMIT_MS / CONTROL_LOOP_PERIOD_MS;
+
+// A reverse ends this close to the centre of its tile: it is one tile from a stop placed by an end
+// wall, and a step's own stops land up to ~14 mm from a centre here.
+constexpr float BACK_OUT_TOLERANCE_MM = 15.0f;
+constexpr float NO_HOLD = -1.0e9f; // nothing in a reverse's way
 
 struct Outcome {
     MissionPhase phase = MissionPhase::WaitStart;
@@ -56,18 +62,34 @@ static float markerOffsetMm(const World &w)
     return sqrtf(dx * dx + dy * dy);
 }
 
+// `watch` sees every tick. `holdShortMm` stops the wheels of a reverse that far from its end, as
+// something in its way would.
 static Outcome run(World &w, MissionManager &ms, const MissionParams &p,
-                   uint32_t maxTicks = RUN_TICKS)
+                   uint32_t maxTicks = RUN_TICKS, backout::Watch *watch = nullptr,
+                   float holdShortMm = NO_HOLD)
 {
     Outcome out;
     for (; out.ticks < maxTicks; ++out.ticks) {
         const Perception pc = w.sense();
-        const DriveCommand cmd = missionStep(ms, p, pc);
+        DriveCommand cmd = missionStep(ms, p, pc);
         const float fix = missionTakeHeadingFix(ms);
         if (fix != 0.0f) {
             headingSet(w.heading, w.heading.deg - fix);
         }
+        const bool reversing = ms.explore.phase == ExplorePhase::BackOut;
+        if (reversing && pc.motion.distMm - ms.explore.reverse.targetMm <= holdShortMm) {
+            cmd.left = 0;
+            cmd.right = 0;
+            w.plant.v[0] = 0.0;
+            w.plant.v[1] = 0.0;
+        }
         w.drive(cmd);
+        if (watch != nullptr) {
+            watch->see(w, ms.explore);
+            watch->statusShowsBackOut =
+                watch->statusShowsBackOut && (!reversing || ms.phase == MissionPhase::BackOut ||
+                                              ms.phase == MissionPhase::Fault);
+        }
         if (ms.phase == MissionPhase::Done || ms.phase == MissionPhase::Fault) {
             break;
         }
@@ -100,6 +122,7 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
 {
     int reentered = 0;
     int runs = 0;
+    int backOuts = 0;
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
             if (i == 0 && j == N - 1) {
@@ -111,9 +134,19 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
                 w.start(i, j, facing);
                 MissionManager ms;
                 begin(ms);
-                const Outcome o = run(w, ms, stopAtMarker());
+                backout::Watch watch;
+                const Outcome o = run(w, ms, stopAtMarker(), RUN_TICKS, &watch);
                 TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
                                           static_cast<int>(o.phase), "did not finish");
+                TEST_ASSERT_EQUAL_MESSAGE(0, watch.halfTurnsInDeadEnds,
+                                          "turned round in a dead end");
+                TEST_ASSERT_TRUE_MESSAGE(watch.worstEndMm < BACK_OUT_TOLERANCE_MM,
+                                         "reversed to off the centre");
+                TEST_ASSERT_TRUE_MESSAGE(watch.nearestBehindMm > model::TAIL_MM,
+                                         "reversed the tail into a wall");
+                TEST_ASSERT_TRUE_MESSAGE(watch.openHeardCleared, "kept the last tile's openings");
+                TEST_ASSERT_TRUE_MESSAGE(watch.statusShowsBackOut, "status hid the reverse");
+                backOuts += watch.backOuts;
                 TEST_ASSERT_TRUE_MESSAGE(o.tileOffsetMm < 40.0f, "stopped off the white tile");
                 TEST_ASSERT_TRUE_MESSAGE(mapMatchesTruth(w, ms, i, j, facing),
                                          "map position wrong");
@@ -126,22 +159,69 @@ static void test_every_start_tile_and_heading_reaches_the_marker()
         }
     }
     TEST_ASSERT_EQUAL(60, runs);
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, backOuts, "no start went into a dead end");
     // Starts whose only way on is through the start tile cross it; nothing else does.
     TEST_ASSERT_LESS_OR_EQUAL_INT(12, reentered);
 }
 
+// From the bottom-right corner it enters all three dead ends of the photo maze. It reverses out of
+// them; with backing out off it turns round in them, which is slower.
 static void test_a_walls_only_run_explores_every_tile_and_stops()
 {
-    World w;
-    world::photoMaze(w);
-    w.start(3, 0, 1);
-    MissionManager ms;
-    begin(ms);
-    MissionParams p = stopAtMarker();
-    p.wallsOnly = true;
-    const Outcome o = run(w, ms, p);
-    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
-    TEST_ASSERT_EQUAL(16, o.visited);
+    uint32_t ticks[2] = {0, 0};
+    int reversed = 0;
+    for (const bool backOut : {true, false}) {
+        World w;
+        world::photoMaze(w);
+        w.start(3, 0, 1);
+        MissionManager ms;
+        begin(ms);
+        MissionParams p = stopAtMarker();
+        p.wallsOnly = true;
+        p.backOut = backOut;
+        backout::Watch watch;
+        const Outcome o = run(w, ms, p, RUN_TICKS, &watch);
+        TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(o.phase));
+        TEST_ASSERT_EQUAL(16, o.visited);
+        TEST_ASSERT_TRUE(mapMatchesTruth(w, ms, 3, 0, 1));
+        TEST_ASSERT_EQUAL(watch.backOuts, ms.explore.backOuts);
+        if (backOut) {
+            // The last new tile may be a dead end the search ends in: two at least are left again.
+            TEST_ASSERT_GREATER_OR_EQUAL_INT(2, watch.backOuts);
+            TEST_ASSERT_EQUAL(0, watch.halfTurnsInDeadEnds);
+            reversed = watch.backOuts;
+        } else {
+            TEST_ASSERT_EQUAL(0, watch.backOuts);
+            TEST_ASSERT_GREATER_THAN_INT(0, watch.halfTurnsInDeadEnds);
+        }
+        ticks[backOut ? 0 : 1] = o.ticks;
+    }
+    // At least a second saved for each reverse.
+    TEST_ASSERT_LESS_THAN_UINT32(ticks[1] - reversed * 100u, ticks[0]);
+}
+
+// Something in the way of a reverse: held a little short of its end it has arrived, held farther
+// short the run ends.
+static void test_a_reverse_held_short_of_its_end()
+{
+    const struct {
+        float shortMm;
+        MissionPhase phase;
+        MissionFault fault;
+    } cases[] = {{15.0f, MissionPhase::Done, MissionFault::None},
+                 {25.0f, MissionPhase::Fault, MissionFault::StuckStep}};
+    for (const auto &c : cases) {
+        World w;
+        world::photoMaze(w);
+        w.start(3, 0, 1);
+        MissionManager ms;
+        begin(ms);
+        MissionParams p = stopAtMarker();
+        p.wallsOnly = true;
+        const Outcome o = run(w, ms, p, RUN_TICKS, nullptr, c.shortMm);
+        TEST_ASSERT_EQUAL(static_cast<int>(c.phase), static_cast<int>(o.phase));
+        TEST_ASSERT_EQUAL(static_cast<int>(c.fault), static_cast<int>(o.fault));
+    }
 }
 
 static void test_without_a_marker_the_run_ends_in_no_route()
@@ -255,6 +335,52 @@ static void test_after_exploring_it_drives_to_the_marker_tile_through_known_cell
         TEST_ASSERT_TRUE_MESSAGE(w.metrics.minNoseMm > model::NOSE_MM - 1.0f, "hit a wall");
         TEST_ASSERT_EQUAL_MESSAGE(entriesBefore, w.metrics.startTileEntries,
                                   "crossed the start tile");
+
+        // To the closed box at (2, 1) and, as the next drive, back to the one tile beside it: it
+        // has just driven in, so it reverses out and has arrived, without a turn.
+        int open = 0;
+        while (w.arena.side(2, 1, open)) {
+            ++open;
+        }
+        const int bi = 2 + (open == 0 ? 1 : (open == 2 ? -1 : 0));
+        const int bj = 1 + (open == 1 ? 1 : (open == 3 ? -1 : 0));
+        const auto tile = [&](int i, int j) {
+            return static_cast<maze::Explorer::Index>(
+                mapindex::of(maze::kSide, i, j, st.i, st.j, st.facing));
+        };
+        cellExplorerDriveTo(ce, tile(2, 1));
+        TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                          static_cast<int>(driveExplorer(w, ce, mc, p)));
+        const uint16_t turns = ce.turns;
+        const uint16_t backOuts = ce.backOuts;
+        cellExplorerDriveTo(ce, tile(bi, bj));
+        TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                          static_cast<int>(driveExplorer(w, ce, mc, p)));
+        TEST_ASSERT_EQUAL_UINT16(backOuts + 1, ce.backOuts);
+        TEST_ASSERT_EQUAL_UINT16(turns, ce.turns);
+        TEST_ASSERT_EQUAL(bi, w.cellI());
+        TEST_ASSERT_EQUAL(bj, w.cellJ());
+        TEST_ASSERT_EQUAL(tile(bi, bj), ce.map.pos);
+
+        // Along the top row to (2, 3), then turned round on it: (3, 3) is now behind, over an edge
+        // it did not drive in through, so it turns to drive there.
+        for (const int i : {1, 2}) {
+            cellExplorerDriveTo(ce, tile(i, 3));
+            TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                              static_cast<int>(driveExplorer(w, ce, mc, p)));
+        }
+        cellExplorerBeginTurn(ce, w.sense().motion, maze::opposite(ce.map.heading));
+        TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                          static_cast<int>(driveExplorer(w, ce, mc, p)));
+        const uint16_t before = ce.backOuts;
+        cellExplorerDriveTo(ce, tile(3, 3));
+        TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                          static_cast<int>(driveExplorer(w, ce, mc, p)));
+        TEST_ASSERT_EQUAL_UINT16(before, ce.backOuts);
+
+        cellExplorerDriveTo(ce, tile(w.floor.originI(), w.floor.originJ()));
+        TEST_ASSERT_EQUAL(static_cast<int>(ExploreStatus::AtTarget),
+                          static_cast<int>(driveExplorer(w, ce, mc, p)));
 
         // Forget that any edge was looked at (the walls stay): there is a way to the start tile,
         // but not over edges that were looked at.
@@ -712,141 +838,6 @@ static void test_the_default_parameters_are_the_spec()
     TEST_ASSERT_EQUAL_UINT8(SECTION_A_RESCANS, p.rescans);
 }
 
-// ---- Dead ends -------------------------------------------------------------------------------
-// The photo maze has three: the two closed boxes and the bottom-left tile.
-
-static int wallsAround(const Arena &a, int i, int j)
-{
-    int k = 0;
-    for (int d = 0; d < 4; ++d) {
-        k += a.side(i, j, d) ? 1 : 0;
-    }
-    return k;
-}
-
-// A back-out ends this close to the centre of the tile it reverses into. It is one cell from a stop
-// placed by the dead end's end wall; a step's own stops land up to ~14 mm from a centre here.
-constexpr float BACK_END_TOLERANCE_MM = 15.0f;
-
-struct DeadEndRun {
-    Outcome out;
-    int halfTurnsInDeadEnds = 0; // half turns begun in a dead end, after leaving the start tile
-    float worstBackEndMm = 0.0f; // a back-out's end from the centre of its tile
-    bool mapRightAfterEveryBack = true;
-};
-
-// A run, watching what the explorer does in dead ends.
-static DeadEndRun runWatchingDeadEnds(World &w, MissionManager &ms, const MissionParams &p, int si,
-                                      int sj, int facing)
-{
-    DeadEndRun r;
-    ExplorePhase was = ms.explore.phase;
-    for (; r.out.ticks < RUN_TICKS; ++r.out.ticks) {
-        const DriveCommand cmd = missionStep(ms, p, w.sense());
-        const float fix = missionTakeHeadingFix(ms);
-        if (fix != 0.0f) {
-            headingSet(w.heading, w.heading.deg - fix);
-        }
-        w.drive(cmd);
-        const ExplorePhase now = ms.explore.phase;
-        if (now != was) {
-            if (was == ExplorePhase::Back) {
-                const float dx = static_cast<float>(w.plant.x) - world::PITCH * w.cellI();
-                const float dy = static_cast<float>(w.plant.y) - world::PITCH * w.cellJ();
-                const float off = sqrtf(dx * dx + dy * dy);
-                r.worstBackEndMm = off > r.worstBackEndMm ? off : r.worstBackEndMm;
-                r.mapRightAfterEveryBack =
-                    r.mapRightAfterEveryBack && mapMatchesTruth(w, ms, si, sj, facing);
-            }
-            if (now == ExplorePhase::Turn && absf(ms.explore.turn.deltaDeg) > 135.0f &&
-                w.metrics.leftStart && wallsAround(w.arena, w.cellI(), w.cellJ()) == 3) {
-                ++r.halfTurnsInDeadEnds;
-            }
-            was = now;
-        }
-        if (ms.phase == MissionPhase::Done || ms.phase == MissionPhase::Fault) {
-            break;
-        }
-    }
-    r.out.phase = ms.phase;
-    r.out.fault = ms.fault;
-    r.out.visited = visitedCells(ms);
-    return r;
-}
-
-// Every tile, from the bottom-right corner: the run enters all three dead ends.
-static DeadEndRun exploreEveryTile(bool backOut, MissionManager &ms)
-{
-    World w;
-    world::photoMaze(w);
-    w.start(3, 0, 1);
-    begin(ms);
-    MissionParams p = stopAtMarker();
-    p.wallsOnly = true;
-    p.backOut = backOut;
-    return runWatchingDeadEnds(w, ms, p, 3, 0, 1);
-}
-
-static void test_a_dead_end_is_reversed_out_of_not_turned_round_in()
-{
-    MissionManager ms;
-    const DeadEndRun r = exploreEveryTile(true, ms);
-    TEST_ASSERT_EQUAL(static_cast<int>(MissionPhase::Done), static_cast<int>(r.out.phase));
-    TEST_ASSERT_EQUAL(16, r.out.visited);
-    TEST_ASSERT_EQUAL_MESSAGE(0, r.halfTurnsInDeadEnds, "turned round in a dead end");
-    // The search ends on the last new tile, which may be a dead end: two at least are backed out
-    // of.
-    TEST_ASSERT_GREATER_OR_EQUAL_UINT16(2, ms.explore.backs);
-    TEST_ASSERT_TRUE_MESSAGE(r.mapRightAfterEveryBack, "map position wrong after backing out");
-    TEST_ASSERT_TRUE_MESSAGE(r.worstBackEndMm < BACK_END_TOLERANCE_MM,
-                             "backed out to off the centre");
-}
-
-// Turning round in the dead end costs a half turn, a look and a drive back; reversing costs the
-// drive back alone.
-static void test_backing_out_is_quicker_than_turning_round()
-{
-    MissionManager on;
-    const DeadEndRun backing = exploreEveryTile(true, on);
-    MissionManager off;
-    const DeadEndRun turning = exploreEveryTile(false, off);
-    TEST_ASSERT_EQUAL(16, turning.out.visited);
-    TEST_ASSERT_GREATER_THAN_MESSAGE(0, turning.halfTurnsInDeadEnds,
-                                     "the watch saw no half turn with backing out off");
-    TEST_ASSERT_EQUAL_UINT16(0, off.explore.backs);
-    // At least a second for each dead end backed out of.
-    TEST_ASSERT_LESS_THAN_UINT32(turning.out.ticks - on.explore.backs * 100u, backing.out.ticks);
-}
-
-static void test_no_start_turns_round_in_a_dead_end_it_drove_into()
-{
-    int backs = 0;
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            if (i == 0 && j == N - 1) {
-                continue; // the white tile itself
-            }
-            for (int facing = 0; facing < 4; ++facing) {
-                World w;
-                world::photoMaze(w);
-                w.start(i, j, facing);
-                MissionManager ms;
-                begin(ms);
-                const DeadEndRun r = runWatchingDeadEnds(w, ms, stopAtMarker(), i, j, facing);
-                TEST_ASSERT_EQUAL_MESSAGE(static_cast<int>(MissionPhase::Done),
-                                          static_cast<int>(r.out.phase), "did not finish");
-                TEST_ASSERT_EQUAL_MESSAGE(0, r.halfTurnsInDeadEnds, "turned round in a dead end");
-                TEST_ASSERT_TRUE_MESSAGE(r.mapRightAfterEveryBack,
-                                         "map position wrong after backing out");
-                TEST_ASSERT_TRUE_MESSAGE(r.worstBackEndMm < BACK_END_TOLERANCE_MM,
-                                         "backed out to off the centre");
-                backs += ms.explore.backs;
-            }
-        }
-    }
-    TEST_ASSERT_GREATER_THAN_MESSAGE(0, backs, "no start went into a dead end");
-}
-
 // A run is a stretch of the parts (Parts.h): Section A alone, the line alone with the robot placed
 // on it, or a selection that cannot run, which is refused before the robot moves.
 static void test_a_run_can_be_any_stretch_of_the_parts()
@@ -925,6 +916,7 @@ int main()
     UNITY_BEGIN();
     RUN_TEST(test_every_start_tile_and_heading_reaches_the_marker);
     RUN_TEST(test_a_walls_only_run_explores_every_tile_and_stops);
+    RUN_TEST(test_a_reverse_held_short_of_its_end);
     RUN_TEST(test_without_a_marker_the_run_ends_in_no_route);
     RUN_TEST(test_a_straight_corridor_to_the_exit_is_driven_down_from_every_start);
     RUN_TEST(test_after_exploring_it_drives_to_the_marker_tile_through_known_cells);
@@ -950,8 +942,5 @@ int main()
     RUN_TEST(test_a_line_lost_is_searched_for_and_then_the_motors_are_cut);
     RUN_TEST(test_an_exit_to_the_side_is_turned_to_and_driven_out);
     RUN_TEST(test_a_run_can_be_any_stretch_of_the_parts);
-    RUN_TEST(test_a_dead_end_is_reversed_out_of_not_turned_round_in);
-    RUN_TEST(test_backing_out_is_quicker_than_turning_round);
-    RUN_TEST(test_no_start_turns_round_in_a_dead_end_it_drove_into);
     return UNITY_END();
 }

@@ -21,8 +21,8 @@ constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before i
 constexpr float SECTION_A_STUCK_ACCEPT_MM = 20.0f;
 
 // ---- Dead ends -------------------------------------------------- [DESIGN] --
-// A step that ends in a cell the planner leaves the way it came (a dead end) is reversed to the
-// centre it came from instead of turning round in the cell: a half turn there swings the tail at
-// the end wall, which the robot hit on the practice maze. false = turn round as before.
+// Where the way on from a tile the robot drove into is straight back (a dead end, or a tile whose
+// other ways are all explored), reverse one tile instead of turning round: a half turn swings the
+// tail past the walls, and it hit one on the practice maze. false = turn round.
 // docs/architecture/decisions/0025-back-out-of-a-dead-end.md
 constexpr bool SECTION_A_BACK_OUT = true;
