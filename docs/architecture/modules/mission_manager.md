@@ -70,10 +70,10 @@ No run ends on time: the manager is given no clock, and the officials time the t
   begins the map where the robot stands, with nothing closed; `BProve` carries on a map and cannot start
   alone.
 
-`phase` is what the status line prints: the explorer's `Sense`, `Turn` and `Step`, the marker exit's
-standing and turning as `Sense` and `Turn`, then `Approach`, `Line`, `Done`, `Fault`. Section B's parts
-report the explorer's `Sense`, `Turn` and `Step`: the status line does not tell its exploring from
-its proof. The phase line also prints the part number.
+`phase` is what the status line prints: the explorer's `Sense`, `Turn`, `Step` and `BackOut`
+(reversing), the marker exit's standing and turning as `Sense` and `Turn`, then `Approach`,
+`Line`, `Done`, `Fault`. Section B's parts report the explorer's four: the status line does not tell
+its exploring from its proof. The phase line also prints the part number.
 
 ## Invariants
 
@@ -82,8 +82,8 @@ its proof. The phase line also prints the part number.
 - Where the part has a map the robot holds still square to the map direction, otherwise on the heading
   it has.
 - The marker is looked for only in `AExplore`; Section B's entry tile has one and it is not a goal.
-- `Approach` and `Line` come last in `MissionPhase`, so the numbers logged for the older phases are
-  unchanged.
+- A new `MissionPhase` is added last (`Approach`, `Line`, then `BackOut`), so the numbers logged for the
+  older phases are unchanged.
 
 ## Status
 
@@ -95,5 +95,6 @@ obstacle held in front for a moment. Section A alone, the line alone (with the r
 selections that cannot run are tested in one table.
 
 Ran on the robot at the mid-evaluation (tag `v0.1-section-a`), before the mission was split and the
-manager added; not run on the robot since. The array's distance ahead of the axle (`ARRAY_AHEAD_MM`)
-and the nose position in the test world are assumptions.
+manager added. Since then only Section A exploring, walls only, has run through it on the robot
+(2026-11-27). The array's distance ahead of the axle (`ARRAY_AHEAD_MM`) and the nose position in the
+test world are assumptions.

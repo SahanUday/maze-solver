@@ -298,8 +298,9 @@ template <uint8_t N> inline bool explorerAdvance(ExplorerT<N> &e)
     return true;
 }
 
-// Undo one explorerAdvance(): back one tile, the way it came. False off the map. Not the way to
-// leave a cell (that is a turn and an advance); for a move that did not happen.
+// One tile back, the way it came, still facing the same way: an explorerAdvance() undone (a move
+// that did not happen), or a cell left in reverse over the edge it was entered by. False off the
+// map. Walls are not checked: the edge behind is the one it came in over.
 template <uint8_t N> inline bool explorerRetreat(ExplorerT<N> &e)
 {
     typename ExplorerT<N>::Index back = 0;

@@ -481,6 +481,7 @@ static void test_the_params_default_to_the_spec()
     TEST_ASSERT_EQUAL_FLOAT(FRONT_AGREE_MM, d.frontAgreeMm);
     TEST_ASSERT_EQUAL_FLOAT(FRONT_ANCHOR_FILTER, d.anchorFilter);
     TEST_ASSERT_EQUAL_FLOAT(US_SLOT_MS * US_SENSOR_COUNT, d.echoMs);
+    TEST_ASSERT_EQUAL_FLOAT(BACK_OUT_MAX_OVER_MM, d.backMaxOverMm);
 }
 
 // The safety stop starts a braking distance and an echo early, so a wall that the verdict missed is
@@ -711,9 +712,107 @@ static void test_a_move_that_cannot_start_is_stuck()
     TEST_ASSERT_EQUAL(asInt(MoveStatus::Stuck), asInt(st));
 }
 
+// A reverse covers what the last move drove, per tile still to go back, no more than the limit
+// over the pitch.
+static void test_a_reverse_is_as_long_as_the_tiles_driven()
+{
+    const struct {
+        float drivenMm; // from the move's start to where it stands
+        uint8_t tiles;
+        float endMm; // from the move's start
+    } cases[] = {
+        {262.0f, 1, 0.0f},    // a tile that is not the pitch: back to where it began
+        {750.0f, 3, 500.0f},  // one tile of three
+        {320.0f, 1, 40.0f},   // wheels slipped on the way in: no longer than pitch + limit
+        {190.0f, 1, 0.0f},    // a short move: not taken back past where it began
+        {100.0f, 0, -150.0f}, // no tile counted: the pitch
+    };
+    for (const auto &c : cases) {
+        Rig r;
+        r.p.backMaxOverMm = 30.0f;
+        r.begin();
+        r.sim.distMm = c.drivenMm;
+        stepCellBeginBack(r.sc, r.p, r.sim.feedback(), 0.0f, c.tiles);
+        TEST_ASSERT_FLOAT_WITHIN(0.01f, c.endMm, r.sc.straight.targetMm);
+    }
+}
+
+// Drives the reverse in progress to its end.
+static MoveStatus backToTheEnd(Rig &r)
+{
+    MoveStatus st = MoveStatus::Running;
+    for (int i = 0; i < 1500 && st == MoveStatus::Running; ++i) {
+        MotionTarget t;
+        st = stepCellBackStep(r.sc, r.p, r.sim.feedback(), r.view(), DT_MS, t);
+        ++r.ticks;
+        r.sim.step(motionControlStep(r.mc, r.cp, t, r.sim.feedback(), DT_MS), DT_S);
+    }
+    return st;
+}
+
+// Backing, the side walls bring a robot that is off to one side back toward the middle; with none
+// in view the gyro holds the heading and it stays where it was.
+static void test_a_reverse_centres_between_the_walls_in_view()
+{
+    const struct {
+        bool left, right;
+        float startMm; // off the middle, + = left
+        bool centres;
+    } cases[] = {{true, true, 15.0f, true},
+                 {true, true, -15.0f, true},
+                 {true, false, 15.0f, true},
+                 {false, true, -15.0f, true},
+                 {false, false, 15.0f, false}};
+    for (const auto &c : cases) {
+        Rig r;
+        r.world.leftWall = c.left;
+        r.world.rightWall = c.right;
+        r.begin();
+        r.sim.distMm = 250.0f;
+        r.sim.yMm = c.startMm;
+        stepCellBeginBack(r.sc, r.p, r.sim.feedback(), 0.0f, 1);
+        TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(backToTheEnd(r)));
+        TEST_ASSERT_FLOAT_WITHIN(3.0f, 0.0f, r.sim.distMm);
+        if (c.centres) {
+            TEST_ASSERT_TRUE(fabsf(r.sim.yMm) < fabsf(c.startMm) - 2.0f);
+        } else {
+            TEST_ASSERT_FLOAT_WITHIN(1.0f, c.startMm, r.sim.yMm);
+        }
+    }
+}
+
+// Three tiles back with the gyro frame off: the walls teach the error, so the robot comes back to
+// the middle instead of settling beside it.
+static void test_a_long_reverse_learns_the_heading_error()
+{
+    for (const float errorDeg : {4.0f, -4.0f}) {
+        Rig r;
+        r.sim.gyroOffsetDeg = errorDeg;
+        r.sim.headingDeg = errorDeg;
+        r.begin();
+        r.sim.distMm = 750.0f;
+        stepCellBeginBack(r.sc, r.p, r.sim.feedback(), 0.0f, 1);
+        r.sc.straight.targetMm = 0.0f; // the whole way, past the one-tile limit
+        float worst = 0.0f;
+        MoveStatus st = MoveStatus::Running;
+        for (int i = 0; i < 1500 && st == MoveStatus::Running; ++i) {
+            MotionTarget t;
+            st = stepCellBackStep(r.sc, r.p, r.sim.feedback(), r.view(), DT_MS, t);
+            r.sim.step(motionControlStep(r.mc, r.cp, t, r.sim.feedback(), DT_MS), DT_S);
+            worst = fmaxf(worst, fabsf(r.sim.yMm));
+        }
+        TEST_ASSERT_EQUAL(asInt(MoveStatus::Done), asInt(st));
+        TEST_ASSERT_TRUE(worst < 20.0f);
+        TEST_ASSERT_FLOAT_WITHIN(1.5f, errorDeg, r.sc.steer.biasDeg);
+    }
+}
+
 int main()
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_reverse_is_as_long_as_the_tiles_driven);
+    RUN_TEST(test_a_reverse_centres_between_the_walls_in_view);
+    RUN_TEST(test_a_long_reverse_learns_the_heading_error);
     RUN_TEST(test_stops_on_the_next_centre_when_nobody_answers);
     RUN_TEST(test_walls_are_ready_before_the_centre);
     RUN_TEST(test_open_front_is_reported_open);

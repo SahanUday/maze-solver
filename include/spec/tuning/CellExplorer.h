@@ -19,3 +19,14 @@ constexpr uint8_t SECTION_A_MAX_BLOCKED = 20; // blocked steps in a run before i
 // A step that makes no progress (a stiction stop short of its target) this close to the target,
 // standing still, is taken as arrived instead of a fault.
 constexpr float SECTION_A_STUCK_ACCEPT_MM = 20.0f;
+
+// ---- Dead ends -------------------------------------------------- [DESIGN] --
+// Where the way on from a tile the robot drove into is straight back (a dead end, or a tile whose
+// other ways are all explored), reverse instead of turning round: a half turn swings the tail past
+// the walls, and it hit one on the practice maze. false = always turn round.
+// docs/architecture/decisions/0025-back-out-of-a-dead-end.md
+constexpr bool SECTION_A_BACK_OUT = true;
+// The most tiles reversed in a row; after that the robot turns round where it is. No limit: it
+// reverses as far as the move that drove in covered, back to where that move began. Set it lower
+// (1) if the wheels slip on the way in: that error grows with every tile reversed.
+constexpr uint8_t SECTION_A_BACK_OUT_MAX_TILES = UINT8_MAX;
