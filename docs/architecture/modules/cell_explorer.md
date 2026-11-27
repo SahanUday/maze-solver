@@ -12,9 +12,9 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 
 ## Interface
 
-- `CellExplorerT<N>` - the state: the `ExplorePhase` (`Sense`, `Turn`, `Step`, `Back`), the map, the
-  `StepCell`, the `Turn`, the reverse (`back`), the votes and the counters (`backs`: cells reversed
-  out of). `cellExplorerReset(ce)`.
+- `CellExplorerT<N>` - the state: the `ExplorePhase` (`Sense`, `Turn`, `Step`, `BackOut`), the map,
+  the `StepCell`, the `Turn`, the `reverse` move, the votes and the counters (`backOuts`: tiles
+  reversed out of). `cellExplorerReset(ce)`.
 - `CellExplorerParams` - `StepCellParams` and the explorer's limits (`senseMs`, `frontTries`,
   `rescans`, `resumes`, `turnRetries`, `maxBlocked`, `stuckAcceptMm`, `backOut`, `wallsOnly`, `dtMs`),
   at their `spec/tuning/CellExplorer.h` values.
@@ -49,12 +49,14 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
 - **Step:** drive one tile. The step reads the walls of the tile ahead 50 mm before its centre;
   there the explorer moves into it, records them and plans. A tile straight on is rolled through
   (`stepCellContinue`), anything else stops on the centre and the planner turns.
-- **Back:** a step stopped on its centre and the planner goes straight back over the edge it came in
-  by (a dead end). With `backOut` the robot reverses one tile from where it stands, the gyro holding
-  the heading and the wall centring off, instead of turning round in the cell. The map moves back a
-  cell facing the same way (`explorerRetreat`), and the explorer plans from there without reading
-  the walls again. Not after a stop that was asked for, or a step cut short. A stuck reverse is
-  accepted within `stuckAcceptMm` standing still, otherwise `StuckStep`
+- **BackOut:** the way on is straight back, and the robot stands where a step that drove in stopped,
+  not turned since (a dead end, mostly). With `backOut` it reverses one tile from where it stands, the
+  gyro holding the heading and the wall centring off, instead of turning round. This holds at the
+  start of a drive to a tile too, so Section B's proof leaves the finish in reverse. The map moves back
+  a tile facing the same way (`explorerRetreat`), and the explorer plans from there without reading
+  the walls again. Not after a step cut short or one without a verdict. A stuck reverse is accepted
+  within `stuckAcceptMm` standing still, otherwise `StuckStep`; wheels held hard well short of the end
+  are cut by the motion controller first (`Stall`)
   ([0025](../decisions/0025-back-out-of-a-dead-end.md)).
 
 **Drive-to-tile mode** (`cellExplorerDriveTo`) runs the same Sense, Turn and Step; only the next tile
@@ -103,12 +105,13 @@ part of the Section A run, before the mission was split. The split changed no ou
 every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the
 robot since.
 
-Backing out is tested in the photo maze: exploring every tile it backs out of the dead ends and
-never turns round in one it drove into, ends each reverse within 15 mm of the centre (11 mm worst
-case) with the map position right, and takes 91.8 s against 101.4 s with `backOut` off. From all 60
-starts to the marker, no run turns round in a dead end it drove into. On the robot (practice maze,
-2026-11-26) two runs backed out once each, from a cell walled on both sides with the way on already
-explored: 254-255 mm in 2.1 s, straight and centred. Not yet from a dead end of three walls.
+Backing out is tested in the host world, from all 60 starts of the photo maze and in the 16 Section B
+runs through the proof: the robot never turns round in a dead end it drove into, and no reverse ends
+with a wall behind nearer than the body's tail (`test/model/Chassis.h`, from CAD). In the photo maze
+each reverse ends within 15 mm of the tile's centre, exploring every tile is quicker than with
+`backOut` off, and a reverse held a little short of its end arrives while one held farther short
+faults. On the robot (practice maze, 2026-11-26) two runs reversed once each, from a cell walled on
+both sides; not yet from a dead end of three walls, and not in the proof.
 
 Drive-to-tile mode is tested by exploring the Section A arena from four start tiles and driving to
 the marker tile: it stops within 40 mm, touches no wall and does not cross START; with every checked

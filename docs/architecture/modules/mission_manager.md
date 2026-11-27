@@ -54,9 +54,7 @@ ended the run is `Done` and holds the wheels with the drivers enabled. A stalled
 No run ends on time: the manager is given no clock, and the officials time the trial
 ([0022](../decisions/0022-no-run-ends-on-time.md)).
 
-- **AExplore:** the explorer's phases ([cell_explorer](cell_explorer.md)), including backing out of a
-  dead end ([0025](../decisions/0025-back-out-of-a-dead-end.md)); the marker is not looked for while
-  reversing. While it steps, the manager
+- **AExplore:** the explorer's phases ([cell_explorer](cell_explorer.md)). While it steps, the manager
   feeds the floor pattern; when the marker is told it asks the explorer to stop on the tile, and if the
   way out is straight on and the exit part is next it hands over at once, without a stop. With no
   part after it, the explorer brakes and the run ends on the marker's tile.
@@ -72,8 +70,8 @@ No run ends on time: the manager is given no clock, and the officials time the t
   begins the map where the robot stands, with nothing closed; `BProve` carries on a map and cannot start
   alone.
 
-`phase` is what the status line prints: the explorer's `Sense`, `Turn`, `Step` and `Back` (reversing
-out of a dead end), the marker exit's standing and turning as `Sense` and `Turn`, then `Approach`,
+`phase` is what the status line prints: the explorer's `Sense`, `Turn`, `Step` and `BackOut`
+(reversing a tile), the marker exit's standing and turning as `Sense` and `Turn`, then `Approach`,
 `Line`, `Done`, `Fault`. Section B's parts report the explorer's four: the status line does not tell
 its exploring from its proof. The phase line also prints the part number.
 
@@ -84,7 +82,7 @@ its exploring from its proof. The phase line also prints the part number.
 - Where the part has a map the robot holds still square to the map direction, otherwise on the heading
   it has.
 - The marker is looked for only in `AExplore`; Section B's entry tile has one and it is not a goal.
-- A new `MissionPhase` is added last (`Approach`, `Line`, then `Back`), so the numbers logged for the
+- A new `MissionPhase` is added last (`Approach`, `Line`, then `BackOut`), so the numbers logged for the
   older phases are unchanged.
 
 ## Status
