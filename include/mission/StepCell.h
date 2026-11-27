@@ -41,8 +41,8 @@ struct StepCellParams {
     float snapMm = WALL_SNAP_MM;     // travel along one wall mode to measure the corridor's heading
     float snapGain = WALL_SNAP_GAIN; // share of the measured frame error taken out per stretch
     float snapMinDeg = WALL_SNAP_MIN_DEG;
-    float snapMaxDeg = WALL_BIAS_MAX_DEG;  // a bigger one is not the gyro frame
-    float backLimitMm = BACK_OUT_LIMIT_MM; // a reverse's length stays this close to the pitch
+    float snapMaxDeg = WALL_BIAS_MAX_DEG;       // a bigger one is not the gyro frame
+    float backMaxOverMm = BACK_OUT_MAX_OVER_MM; // a reverse is at most this much over the pitch
 };
 
 // A sensor that heard no echo all window is reported as a wall (the safe answer) and is not
@@ -388,15 +388,15 @@ inline MoveStatus stepCellStep(StepCell &sc, const StepCellParams &p, const Moti
 
 // Reverse one of the `tiles` the last move covered, still facing the way it drove. The length is
 // what that move really drove, per tile still to go back, so the arena's own tile size is used, a
-// steady odometer error cancels, and the last tile ends where the move began. Kept within
-// `backLimitMm` of the pitch; with no tile counted it is the pitch.
+// steady odometer error cancels, and the last tile ends where the move began. At most
+// `backMaxOverMm` over the pitch. No least length: raising a short one would take the robot back
+// past where the move began. With no tile counted it is the pitch.
 inline void stepCellBeginBack(StepCell &sc, const StepCellParams &p, const MotionFeedback &fb,
                               float headingRefDeg, uint8_t tiles)
 {
     float length = tiles > 0 ? (fb.distMm - sc.originMm) / static_cast<float>(tiles) : p.pitchMm;
-    const float shortest = p.pitchMm - p.backLimitMm;
-    const float longest = p.pitchMm + p.backLimitMm;
-    length = length < shortest ? shortest : (length > longest ? longest : length);
+    const float longest = p.pitchMm + p.backMaxOverMm;
+    length = length > longest ? longest : length;
     straightBegin(sc.straight, fb, -length, p.cruiseMmS, 0.0f, headingRefDeg);
 }
 

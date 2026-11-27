@@ -95,5 +95,6 @@ obstacle held in front for a moment. Section A alone, the line alone (with the r
 selections that cannot run are tested in one table.
 
 Ran on the robot at the mid-evaluation (tag `v0.1-section-a`), before the mission was split and the
-manager added; not run on the robot since. The array's distance ahead of the axle (`ARRAY_AHEAD_MM`)
-and the nose position in the test world are assumptions.
+manager added. Since then only Section A exploring, walls only, has run through it on the robot
+(2026-11-27). The array's distance ahead of the axle (`ARRAY_AHEAD_MM`) and the nose position in the
+test world are assumptions.

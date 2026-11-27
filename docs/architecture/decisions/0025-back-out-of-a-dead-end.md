@@ -57,9 +57,10 @@ back as the move that drove in began.**
   stand-and-look that begins a drive.
 - Not after a move that was cut short or ended without a verdict on the walls, and not from where a
   run or a part starts: the robot has not driven in.
-- **Length:** what the move that drove in really covered, divided by the tiles still to go back, kept
-  within `BACK_OUT_LIMIT_MM` of the pitch (`stepCellBeginBack`). The last tile ends where the move
-  began. The arena's own tile size is used and a steady odometer error cancels.
+- **Length:** what the move that drove in really covered, divided by the tiles still to go back, at
+  most `BACK_OUT_MAX_OVER_MM` over the pitch (`stepCellBeginBack`), with no least length. Unless that
+  limit cuts it, the last tile ends where the move began. The arena's own tile size is used and a
+  steady odometer error cancels.
 - **Steering:** the gyro holds the heading, trimmed by the forward move's wall steering
   (`wallSteerTrim`, same gains) with the two sides swapped, because backing, a heading to the left
   carries the robot to the right. The heading error it has learned is the same either way, so it is
@@ -104,7 +105,21 @@ All figures below are from the host world, most from scratch harnesses that are 
 - On the robot (practice maze, 2026-11-26), with an earlier version that reversed one fixed pitch on
   the gyro alone: two runs reversed once each, both from a cell walled on both sides whose way on was
   already explored. Each reversed 254-255 mm in 2.1 s with the heading within 2 degrees of square.
-  The version decided here has not run on the robot.
+- On the robot (practice maze, 2026-11-27), as decided here but still with a least length, which
+  acted in none of these: one exploring run, walls only with the exit blocked, ended without a fault
+  after about 98 s and reversed three times.
+
+  | Move driven in (odometer) | Reversed | Ended, from where the move began |
+  |---|---|---|
+  | 529 mm, two tiles | 528 mm | within 5 mm |
+  | 282 mm, one tile | 280 mm | within 5 mm |
+  | 292 mm, one tile | 279 mm | 10-13 mm short, cut by the limit |
+
+  The heading stayed within 7 degrees of square and ended within 4. Moves in that run averaged more
+  than the 250 mm pitch a tile (#70), so the limit can cut a true length. The robot still turned round
+  once in a dead end, after a step cut short at 190 mm when the front reading jumped. Not recorded:
+  whether the body touched a wall. Not seen: a reverse of three tiles or more. Not measured: wheel
+  slip.
 
 ## Alternatives considered
 
@@ -112,6 +127,9 @@ All figures below are from the host world, most from scratch harnesses that are 
   sweep past both side walls.
 - **Turn round, as most mice do.** Needs a body that can pivot in the tile.
 - **Reverse a fixed pitch.** Ends off by however much the tile differs from 250 mm.
+- **Also a least length, as far under the pitch as the limit is over it.** A move that drove less than
+  that would be reversed past where it began, toward a wall no sensor sees. In the host world,
+  leaving it out changed little either way.
 - **Reverse one tile, then turn round.** Leaves the half turn between side walls in every deeper dead
   end. It is the setting to use if the wheels slip.
 - **Cap the length at the nominal pitch.** Meant for the slip case; with the code's pitch below the

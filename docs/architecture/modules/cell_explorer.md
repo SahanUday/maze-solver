@@ -103,16 +103,16 @@ Tested through the mission manager in a simulated arena (ray-cast walls, a plant
 encoder and gyro noise, ultrasonic dropouts and strays): see [mission_manager](mission_manager.md). The `Braked`
 path is not reached by those tests. Ran on the robot at the mid-evaluation (tag `v0.1-section-a`) as
 part of the Section A run, before the mission was split. The split changed no output on the host:
-every tick of `test_section_a` and `test_run_loop` is the same before and after. Not run on the
-robot since.
+every tick of `test_section_a` and `test_run_loop` is the same before and after.
 
 Backing out is tested in the host world, from all 60 starts of the photo maze, in a dead-end corridor
 three tiles deep (with and without an opening, and with a limit) and in the 16 Section B runs through
 the proof: the robot never turns round in a dead end it drove into, a step reversed whole ends within
 8 mm along the way of where it began, and no reverse ends with a wall behind nearer than the body's
 tail (`test/model/Chassis.h`, from CAD). Exploring every tile is quicker than with `backOut` off, and a
-reverse held a little short of its end arrives while one held farther short faults. Not run on the
-robot in this form: the runs of 2026-11-26 reversed one fixed pitch
+reverse held a little short of its end arrives while one held farther short faults. On the robot
+(practice maze, 2026-11-27, walls only) one exploring run reversed three times, once over two tiles;
+a longer reverse and wheel slip are untried
 ([0025](../decisions/0025-back-out-of-a-dead-end.md)).
 
 Drive-to-tile mode is tested by exploring the Section A arena from four start tiles and driving to

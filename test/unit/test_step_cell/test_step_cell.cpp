@@ -481,7 +481,7 @@ static void test_the_params_default_to_the_spec()
     TEST_ASSERT_EQUAL_FLOAT(FRONT_AGREE_MM, d.frontAgreeMm);
     TEST_ASSERT_EQUAL_FLOAT(FRONT_ANCHOR_FILTER, d.anchorFilter);
     TEST_ASSERT_EQUAL_FLOAT(US_SLOT_MS * US_SENSOR_COUNT, d.echoMs);
-    TEST_ASSERT_EQUAL_FLOAT(BACK_OUT_LIMIT_MM, d.backLimitMm);
+    TEST_ASSERT_EQUAL_FLOAT(BACK_OUT_MAX_OVER_MM, d.backMaxOverMm);
 }
 
 // The safety stop starts a braking distance and an echo early, so a wall that the verdict missed is
@@ -712,26 +712,26 @@ static void test_a_move_that_cannot_start_is_stuck()
     TEST_ASSERT_EQUAL(asInt(MoveStatus::Stuck), asInt(st));
 }
 
-// A reverse covers what the last move drove, per tile still to go back, within the limit about the
-// pitch.
+// A reverse covers what the last move drove, per tile still to go back, no more than the limit
+// over the pitch.
 static void test_a_reverse_is_as_long_as_the_tiles_driven()
 {
     const struct {
-        float drovenMm; // from the move's start to where it stands
+        float drivenMm; // from the move's start to where it stands
         uint8_t tiles;
         float endMm; // from the move's start
     } cases[] = {
         {262.0f, 1, 0.0f},    // a tile that is not the pitch: back to where it began
         {750.0f, 3, 500.0f},  // one tile of three
         {320.0f, 1, 40.0f},   // wheels slipped on the way in: no longer than pitch + limit
-        {190.0f, 1, -30.0f},  // ... nor shorter than pitch - limit
+        {190.0f, 1, 0.0f},    // a short move: not taken back past where it began
         {100.0f, 0, -150.0f}, // no tile counted: the pitch
     };
     for (const auto &c : cases) {
         Rig r;
-        r.p.backLimitMm = 30.0f;
+        r.p.backMaxOverMm = 30.0f;
         r.begin();
-        r.sim.distMm = c.drovenMm;
+        r.sim.distMm = c.drivenMm;
         stepCellBeginBack(r.sc, r.p, r.sim.feedback(), 0.0f, c.tiles);
         TEST_ASSERT_FLOAT_WITHIN(0.01f, c.endMm, r.sc.straight.targetMm);
     }

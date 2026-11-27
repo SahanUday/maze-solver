@@ -32,10 +32,10 @@ constexpr uint16_t WALL_BIAS_HOLD_MS = 2000;
 constexpr float WALL_BIAS_FADE_DEG_S = 4.0f;
 
 // ---- Reversing a tile -------------------------------------- [HOST MODEL] --
-// A reverse (stepCellBeginBack) covers what the move before it drove, per tile, kept within this of
-// the nominal pitch: wheels that slipped on the way in make the measured distance too long. Its
-// wall centring uses the gains above.
-constexpr float BACK_OUT_LIMIT_MM = 30.0f;
+// A reverse (stepCellBeginBack) covers what the move before it drove, per tile, at most this much
+// over the nominal pitch: wheels that slipped on the way in make the measured distance too long.
+// Its wall centring uses the gains above.
+constexpr float BACK_OUT_MAX_OVER_MM = 30.0f;
 
 // ---- Wall sensing ----------------------------------------------- [TUNED] --
 // Readings are the offset-corrected values in RobotState: the front from the axle, the sides from

@@ -8,7 +8,7 @@ logic in
 
 - `StepCellParams` - `PlanParams`, `WallParams`, and pitch, cruise speed, `sampleLeadMm`,
   `sampleWindowMm`, `frontStopMm`, `frontAgreeMm`, `anchorFilter`, `echoMs`, `blindMs`, `snapMm`,
-  `snapGain`, `snapMinDeg`, `snapMaxDeg`, `backLimitMm`, which default to
+  `snapGain`, `snapMinDeg`, `snapMaxDeg`, `backMaxOverMm`, which default to
   `spec/tuning/WallFollow.h`.
 - `stepCellBegin(sc, params, fb, headingRef)` - start a move to the next cell centre.
 - `stepCellStep(sc, params, fb, view, dtMs, out)` - one tick; returns a `MoveStatus`.
@@ -72,8 +72,9 @@ A measured error over `snapMaxDeg` is not taken as the gyro's.
 ### Reversing
 
 The length is what the last move really drove (`originMm` to here) divided by the tiles still to go
-back, kept within `backLimitMm` of the pitch; with no tile counted it is the pitch. The last tile
-therefore ends where the move began, whatever the arena's tiles measure. The gyro holds the heading,
+back, at most `backMaxOverMm` over the pitch. There is no least length, so a short move is not taken
+back past where it began. With no tile counted it is the pitch. Unless the limit cut it, the last
+tile ends where the move began, whatever the arena's tiles measure. The gyro holds the heading,
 trimmed by the same `wallSteerTrim` and gains as a forward move, given the two sides swapped: backing,
 a heading to the left carries the robot to the right. The steering's bias, the learned heading error,
 carries from the move into the reverse and back. There is no look behind and no front-wall logic
@@ -90,8 +91,10 @@ carries from the move into the reverse and back. There is no look behind and no 
 
 ## Status
 
-The reverse has host tests only (its length, centring with one wall, two or none, and a heading error
-learned over three tiles) and has not run on the robot in this form.
+The reverse has host tests of its length, its centring with one wall, two or none, and a heading
+error learned over three tiles. It has run on the robot while exploring, over one tile and over two;
+a longer one and wheel slip are untried there
+([0025](../decisions/0025-back-out-of-a-dead-end.md)).
 
 Host tests, 100% line coverage; `spec/tuning/WallFollow.h` asserts the sampling lead covers the braking
 distance.
