@@ -29,8 +29,11 @@ step ([step_cell](step_cell.md)), the turn ([motion_primitives](motion_primitive
   (`brakeOnStop`) and whether one is due only once the step has ended (`lateStopOffer`; the explorer
   sets `lateTaken` when it takes it).
 - `cellExplorerDriveTo(ce, target)` - head for map tile `target` over checked edges instead of
-  exploring. Call it standing on a centre, after `Explored` or `AtTarget`. It lasts until the next
+  exploring. Call it standing on a centre, after `Explored` or `AtTarget`, or after `Stopped` once
+  `cellExplorerClearStop(ce)` has cleared the stop (Section B's proof does). It lasts until the next
   reset.
+- `cellExplorerClearStop(ce)` - forget a requested stop (`stopHere`, a decided or late stop, braking)
+  so the explorer can go on from the tile it stopped on.
 - `cellExplorerBeginTurn(ce, fb, dir)` and `cellExplorerTurnStep(...)` - a turn the caller starts
   (the marker exit uses it), with the same retries.
 - `cellExplorerEdgeOpen(ce, dir)`, `cellExplorerHeadingRef(ce)` - the map's view of the tile the

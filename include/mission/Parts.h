@@ -10,8 +10,10 @@
 //    AExit     the marker tile and the way out of it, over the gap to the line
 //    Line      the line zone: bridge, ramp and bends, by the IR line view
 //    BEntry    Section B's marker tile: off the line, onto the maze floor, a new map origin
+//              (built: it begins the map on the tile and closes the edge behind; driving onto the
+//              floor is #60)
 //    BExplore  Section B's maze: explore until the finish is told
-//    BProve    after the finish: prove the shortest path, save the maps
+//    BProve    after the finish: prove the shortest path (built); saving the maps is not (#63)
 //
 //  docs/architecture/decisions/0016-cut-the-run-into-parts.md
 // ============================================================================
@@ -29,11 +31,11 @@ constexpr bool partBuilt(Part p)
         case Part::AExplore:
         case Part::AExit:
         case Part::Line:
-            return true;
-        case Part::AProve:
         case Part::BEntry:
         case Part::BExplore:
         case Part::BProve:
+            return true;
+        case Part::AProve:
             return false;
     }
     return false;

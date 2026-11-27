@@ -6,6 +6,7 @@
 #pragma once
 
 #include "mission/CellExplorer.h"
+#include "mission/FinishSource.h"
 #include "mission/MarkerExit.h"
 #include "mission/Parts.h"
 #include "motion/LineFollow.h"
@@ -18,7 +19,8 @@
 #include "spec/tuning/Motion.h"
 
 struct MissionParams : CellExplorerParams, MarkerExitParams {
-    PartRange parts; // which parts to run: the whole course by default
+    PartRange parts;     // which parts to run: the whole course by default
+    FinishSource finish; // what tells Section B's exploring the finish is reached; none by default
     MotionControlParams control;
     LineParams line;
 };

@@ -20,17 +20,18 @@ two constants, flash, and place the robot where the first part expects it:
 
 | FIRST | LAST | What runs | Put the robot |
 |---|---|---|---|
-| `AExplore` | `BProve` | The whole course (the competition setting). Today it runs `AExplore`, `AExit`, `Line`, because the Section B parts aren't built and are skipped. | On the Section A start tile |
+| `AExplore` | `BProve` | The whole course (the competition setting). Today it runs `AExplore`, `AExit`, `Line` and stays in `Line`: the line has no end rule yet (#60), so the Section B parts are never reached. | On the Section A start tile |
 | `AExplore` | `Line` | Section A, out to the line, then the line | On the Section A start tile |
 | `AExplore` | `AExit` | Section A, out to the line, then stop | On the Section A start tile |
 | `AExplore` | `AExplore` | Explore until the marker, then stop | On the Section A start tile |
 | `Line` | `Line` | Follow the line (no end rule yet, #60) | On the line, past the gap |
 | `Line` | `BProve` | The same today. Later it will be the line plus Section B | On the line, past the gap |
+| `BEntry` | `BProve` | Section B alone: explore from the entry tile, then prove the path. Host-tested only; with no finish detector yet (#69) it ends when every reachable tile is entered | On the Section B entry tile, facing in, the bridge's opening behind |
 
 Refused selections:
 
-- `AProve`, `AExit` or `BProve` as the first part, because they carry on a map and can't start alone.
-- `BEntry` or `BExplore` as the first part, because they aren't built yet.
+- `AProve`, because it isn't built yet.
+- `AExit` or `BProve` as the first part, because they carry on a map and can't start alone.
 - A last part before the first, which fails to compile.
 - Without a line calibration, the run ends after `AExplore` whatever the last part is, and `Line` alone is refused.
 

@@ -20,6 +20,7 @@
 #include "mission/MissionParams.h"
 #include "mission/Parts.h"
 #include "mission/RunStart.h"
+#include "mission/SectionB.h"
 #include "motion/DriveCommand.h"
 #include "motion/LineFollow.h"
 #include "motion/MotionControl.h"
@@ -50,6 +51,8 @@ struct MissionManager {
     RunStart start;
 
     CellExplorer explore;
+    CellExplorerB exploreB; // Section B's map: BEntry, BExplore and BProve
+    SectionB sectionB;
     MarkerExit marker;
     LineFollow line;
     MotionControl control;
@@ -59,6 +62,7 @@ inline void missionReset(MissionManager &ms)
 {
     ms = MissionManager{};
     cellExplorerReset(ms.explore);
+    cellExplorerReset(ms.exploreB);
     motionControlReset(ms.control);
 }
 
@@ -73,8 +77,9 @@ inline void missionFail(MissionManager &ms, MissionFault code)
 // Degrees to subtract from the gyro heading, once (headingSet(hd, hd.deg - fix)); see StepCell.h.
 inline float missionTakeHeadingFix(MissionManager &ms)
 {
-    const float fix = ms.explore.headingFixDeg;
+    const float fix = ms.explore.headingFixDeg + ms.exploreB.headingFixDeg;
     ms.explore.headingFixDeg = 0.0f;
+    ms.exploreB.headingFixDeg = 0.0f;
     return fix;
 }
 
@@ -89,6 +94,21 @@ enum class PartStatus : uint8_t {
     Fault,    // `fault` says why
 };
 
+inline MissionPhase explorePhase(ExplorePhase ph)
+{
+    switch (ph) {
+        case ExplorePhase::Sense:
+            return MissionPhase::Sense;
+        case ExplorePhase::Turn:
+            return MissionPhase::Turn;
+        case ExplorePhase::Step:
+            return MissionPhase::Step;
+        case ExplorePhase::Back:
+            return MissionPhase::Back;
+    }
+    return MissionPhase::Fault;
+}
+
 inline MissionPhase phaseOf(const MissionManager &ms)
 {
     switch (ms.stage) {
@@ -98,17 +118,7 @@ inline MissionPhase phaseOf(const MissionManager &ms)
             switch (ms.part) {
                 case Part::AExplore:
                 case Part::AProve:
-                    switch (ms.explore.phase) {
-                        case ExplorePhase::Sense:
-                            return MissionPhase::Sense;
-                        case ExplorePhase::Turn:
-                            return MissionPhase::Turn;
-                        case ExplorePhase::Step:
-                            return MissionPhase::Step;
-                        case ExplorePhase::Back:
-                            return MissionPhase::Back;
-                    }
-                    break;
+                    return explorePhase(ms.explore.phase);
                 case Part::AExit:
                     switch (ms.marker.phase) {
                         case ExitPhase::Stand:
@@ -124,7 +134,7 @@ inline MissionPhase phaseOf(const MissionManager &ms)
                 case Part::BEntry:
                 case Part::BExplore:
                 case Part::BProve:
-                    break;
+                    return explorePhase(ms.exploreB.phase);
             }
             break;
         case RunStage::Done:
@@ -161,6 +171,7 @@ inline void beginApproach(MissionManager &ms, const MissionParams &p, const Moti
 inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
                       const MotionFeedback &fb)
 {
+    const Part before = ms.part;
     ms.part = next;
     switch (next) {
         case Part::AExplore:
@@ -177,11 +188,20 @@ inline void partBegin(MissionManager &ms, Part next, const MissionParams &p,
         case Part::Line:
             lineFollowBegin(ms.line, fb, true);
             break;
-        case Part::AProve:
         case Part::BEntry:
+            // The robot has come onto the entry tile through the bridge's opening, behind it.
+            sectionBEnter(ms.sectionB, ms.exploreB, fb, true);
+            break;
         case Part::BExplore:
+            // After BEntry the map is begun; placed here alone, it begins where the robot stands.
+            if (before != Part::BEntry) {
+                sectionBEnter(ms.sectionB, ms.exploreB, fb, false);
+            }
+            break;
         case Part::BProve:
-            break; // not built: resolveRange() keeps a run out of them
+            break; // carries on the map and the finish BExplore left
+        case Part::AProve:
+            break; // not built: resolveRange() keeps a run out of it
     }
 }
 
@@ -219,7 +239,7 @@ inline PartStatus runAExplore(MissionManager &ms, const MissionParams &p, const 
         case ExploreStatus::Running:
             return PartStatus::Running;
         case ExploreStatus::Explored: // every reachable tile has been entered
-        case ExploreStatus::AtTarget: // no part drives to a target yet
+        case ExploreStatus::AtTarget: // Section A's parts never drive to a target (BProve does)
         case ExploreStatus::Stopped:
             return PartStatus::Done;
         case ExploreStatus::Braked:
@@ -294,6 +314,40 @@ inline PartStatus runLine(MissionManager &ms, const MissionParams &p, const Perc
     return ls == LineStatus::Ended ? PartStatus::Done : PartStatus::Running;
 }
 
+// Section B's way in: the map begun in partBegin(), nothing to drive.
+inline PartStatus runBEntry()
+{
+    return PartStatus::Done;
+}
+
+inline PartStatus fromB(MissionManager &ms, BStatus st)
+{
+    switch (st) {
+        case BStatus::Running:
+            return PartStatus::Running;
+        case BStatus::Done:
+            return PartStatus::Done;
+        case BStatus::Fault:
+            ms.fault = ms.sectionB.fault;
+            return PartStatus::Fault;
+    }
+    return PartStatus::Fault;
+}
+
+// Section B's maze: explored until the finish is told.
+inline PartStatus runBExplore(MissionManager &ms, const MissionParams &p, const Perception &pc,
+                              MotionTarget &target)
+{
+    return fromB(ms, sectionBExploreStep(ms.sectionB, ms.exploreB, p, p.finish, pc, target));
+}
+
+// After the finish: the edges that could still shorten the path, looked at.
+inline PartStatus runBProve(MissionManager &ms, const MissionParams &p, const Perception &pc,
+                            MotionTarget &target)
+{
+    return fromB(ms, sectionBProveStep(ms.sectionB, ms.exploreB, p, pc, target));
+}
+
 inline PartStatus runPart(MissionManager &ms, const MissionParams &p, const Perception &pc,
                           MotionTarget &target)
 {
@@ -304,14 +358,34 @@ inline PartStatus runPart(MissionManager &ms, const MissionParams &p, const Perc
             return runAExit(ms, p, pc, target);
         case Part::Line:
             return runLine(ms, p, pc, target);
-        case Part::AProve:
         case Part::BEntry:
+            return runBEntry();
         case Part::BExplore:
+            return runBExplore(ms, p, pc, target);
         case Part::BProve:
+            return runBProve(ms, p, pc, target);
+        case Part::AProve:
             break;
     }
     ms.fault = MissionFault::BadConfig; // not built
     return PartStatus::Fault;
+}
+
+// The gyro heading that is square to the map the running part works in.
+inline float mapHeadingRef(const MissionManager &ms)
+{
+    switch (ms.part) {
+        case Part::BEntry:
+        case Part::BExplore:
+        case Part::BProve:
+            return cellExplorerHeadingRef(ms.exploreB);
+        case Part::AExplore:
+        case Part::AProve:
+        case Part::AExit:
+        case Part::Line:
+            break;
+    }
+    return cellExplorerHeadingRef(ms.explore);
 }
 
 inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perception &pc)
@@ -322,7 +396,7 @@ inline DriveCommand tick(MissionManager &ms, const MissionParams &p, const Perce
     // Parts with a map square to its directions; the others hold the heading they have.
     target.headingRefDeg = ms.stage == RunStage::WaitStart || !partUsesMap(ms.part)
                                ? fb.headingDeg
-                               : cellExplorerHeadingRef(ms.explore);
+                               : mapHeadingRef(ms);
     target.newMove = true;
 
     DriveCommand cmd;

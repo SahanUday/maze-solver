@@ -137,6 +137,8 @@ template <uint8_t N> struct CellExplorerT {
 
 // The Section A map.
 using CellExplorer = CellExplorerT<SECTION_A_SIZE_TILES>;
+// The Section B map: 9x9 tiles in a start-relative 17x17 frame (ADR 0014, 0019).
+using CellExplorerB = CellExplorerT<SECTION_B_SIZE_TILES>;
 
 template <uint8_t N> inline void cellExplorerReset(CellExplorerT<N> &ce)
 {
@@ -414,8 +416,9 @@ template <uint8_t N> inline void cellExplorerStart(CellExplorerT<N> &ce, const M
 }
 
 // Head for map tile `target` over checked edges instead of exploring. Call it standing on a centre,
-// after Explored or AtTarget. Ends with AtTarget, or the fault TargetUnreachable when no checked
-// path exists (the map is kept). Lasts until the next reset.
+// after Explored or AtTarget, or after Stopped once cellExplorerClearStop() has cleared the stop.
+// Ends with AtTarget, or the fault TargetUnreachable when no checked path exists (the map is kept).
+// Lasts until the next reset.
 template <uint8_t N>
 inline void cellExplorerDriveTo(CellExplorerT<N> &ce, typename maze::ExplorerT<N>::Index target)
 {
@@ -429,6 +432,17 @@ template <uint8_t N> inline void cellExplorerStopHere(CellExplorerT<N> &ce)
 {
     ce.stopHere = true;
     ce.decided = true;
+}
+
+// Take back a stop asked for with cellExplorerStopHere(), so the explorer can go on from the tile
+// it stopped on (to drive to a chosen tile, say).
+template <uint8_t N> inline void cellExplorerClearStop(CellExplorerT<N> &ce)
+{
+    ce.stopHere = false;
+    ce.decided = false;
+    ce.lateTaken = false;
+    ce.braking = false;
+    ce.stillMs = 0;
 }
 
 // The edge `d` of the cell the robot is in is not a known wall.
