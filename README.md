@@ -35,6 +35,39 @@ Refused selections:
 - A last part before the first, which fails to compile.
 - Without a line calibration, the run ends after `AExplore` whatever the last part is, and `Line` alone is refused.
 
+## Bench firmware: check and measure the robot
+
+`tools/bench/bench.cpp` is a separate firmware for the bench: it checks every sensor and motor and
+takes the measurements the constants in `include/spec/` need. It runs the mission's own drivers,
+perception, motion controller and IR calibration, so what it reads is what the mission sees.
+
+```
+pio run -e bench -t upload        # then the serial monitor at 250000 baud, and type h
+pio run -e mega -t upload         # put the mission back afterwards
+```
+
+Keep the robot still for the first two seconds (the gyro is zeroed). **The motors never move on their
+own:** only `o`, `s` and `t` start them, and any key stops them. Hard limits hold whatever the
+controller does: duty 600 of 799, 3 s open loop, 20 s and 2100 mm per move, a stop at 130 mm from a
+wall ahead, and a stop when a wheel pushes but does not turn.
+
+| Command | What it does |
+|---|---|
+| `w` | every sensor once, and the slowest tick since the last `w` |
+| `v [ms]` | stream that line every `ms` (default 100, down to 10) until any key |
+| `z` | zero the odometer and encoder counts (push the robot along a tape, then `w`) |
+| `b` | zero the gyro again (hold still) |
+| `m [ms] [label]` | hold still and measure: mean, sd, min, max of each IR channel, ultrasonic, the incline and the gyro, plus the heading drift |
+| `k`, `f`, `save`, `cal` | IR calibration: start a capture, slide every channel over white and black, finish (in use at once), write it to EEPROM for the mission, show it |
+| `o <L> <R> <ms>` | open loop: a fixed signed duty on each wheel; prints the counts and speed per wheel |
+| `s <mm> [mm/s]` | closed-loop straight with the mission's controller; prints the time and the error |
+| `t <deg>` | closed-loop turn in place, CCW positive |
+| `p`, `h`, `x` | settings, help, stop |
+
+Lines starting with `#` are for people; the rest are CSV whose first field says what they are
+(`status`, `stat`, `open`, `move`, `result`, `cal`), so a saved log can be split with `grep`. Lift
+the wheels off the floor for the first `o` and `s`.
+
 ## Testing and checks
 
 Commits are checked automatically by pre-commit, and every pull request runs the

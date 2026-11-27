@@ -221,7 +221,7 @@ Per-module detail is in [`modules/`](modules/); the measured values are in `incl
 
 ## Dual build target
 
-`platformio.ini` defines four environments, all extending `[common]`
+`platformio.ini` defines five environments, all extending `[common]`
 (`-std=gnu++17`, `-Wall`, `-Wextra`, `-Werror`, `-fno-exceptions`) so none
 drifts out of parity
 with the others:
@@ -233,6 +233,10 @@ with the others:
 - `env:native_san`, `env:native_cov` — the same host tests built with
   sanitizers, and with coverage instrumentation. What they are for is in the
   [testing guide](../testing.md).
+- `env:bench` — the bench firmware: `env:mega` with `src/main.cpp` swapped for
+  `tools/bench/bench.cpp`, a serial console that drives the same drivers,
+  perception, motion controller and IR calibration to check the robot and
+  measure it. Not the mission; CI builds it so it keeps compiling.
 
 ## Continuous integration
 

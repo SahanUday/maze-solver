@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SEARCH_DIRS=()
-for d in src include lib; do
+for d in src include lib tools; do
     [ -d "$d" ] && SEARCH_DIRS+=("$d")
 done
 
