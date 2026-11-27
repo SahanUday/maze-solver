@@ -16,6 +16,18 @@ __pycache__/
 .venv/
 venv/
 
+# ---- KiCad local files ----------------------------------------------
+# Per-user editor state, locks, caches and backups; the design is the
+# .kicad_pro / .kicad_sch / .kicad_pcb files and fab/.
+*.kicad_prl
+*.lck
+fp-info-cache
+*-backups/
+.history/
+_autosave-*
+*.kicad_sch-bak
+*.kicad_pcb-bak
+
 # ---- OS noise -------------------------------------------------------
 .DS_Store
 Thumbs.db
